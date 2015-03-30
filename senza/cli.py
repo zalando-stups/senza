@@ -6,18 +6,48 @@ import json
 
 import yaml
 
+# some helpers
+
+def named_value(d):
+    return next(iter(d.items()))
+
+def ensure_keys(dict, *keys):
+    if len(keys) == 0:
+        return dict
+    else:
+        first, rest = keys[0], keys[1:]
+        if first not in dict:
+            dict[first] = {}
+        dict[first] = ensure_keys(dict[first], *rest)
+        return dict
+
 ## all components
 
-def component_basic_configuration(configuration, definition, args):
-    if not "Mappings" in definition:
-        definition["Mappings"] = {}
+def component_basic_configuration(definition, configuration, args, info):
+    # add info as mappings
+    # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html
+    definition = ensure_keys(definition, "Mappings", "SenzaInfo")
+    for name, value in info.items():
+        definition["Mappings"]["SenzaInfo"][name] = value
+
+    # define parameters
+    # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html
+    if "Parameters" in info:
+        definition = ensure_keys(definition, "Parameters")
+        default_parameter = {
+            "Type": "String"
+        }
+        for parameter in info["Parameters"]:
+            name, value = named_value(parameter)
+            value_default = default_parameter.copy()
+            value_default.update(value)
+            definition["Parameters"][name] = value_default
 
     # OperatorEMail
     if "OperatorEMail" in configuration:
         definition["Mappings"]["OperatorEMail"] = configuration["OperatorEMail"]
 
-        if not "Resources" in definition:
-            definition["Resources"] = {}
+        definition = ensure_keys(definition, "Resources")
 
         definition["Resources"]["OperatorTopic"] = {
             "Type": "AWS::SNS::Topic",
@@ -25,35 +55,43 @@ def component_basic_configuration(configuration, definition, args):
                 "Subscription": [{
                     "Endpoint": {"Ref": "OperatorEMail"},
                     "Protocol": "email"
-                }]
+                }],
+                "DisplayName": {
+                    "Fn::Join": []
+                }
             }
         }
 
     # ServerSubnets
-    if not "ServerSubnets" in definition["Mappings"]:
-        definition["Mappings"]["ServerSubnets"] = {}
-
-    for region, subnets in configuration["ServerSubnets"].items():
-        definition["Mappings"]["ServerSubnets"][region] = subnets
+    if "ServerSubnets" in configuration:
+        definition = ensure_keys(definition, "Mappings", "ServerSubnets")
+        for region, subnets in configuration["ServerSubnets"].items():
+            definition["Mappings"]["ServerSubnets"][region] = subnets
 
     # LoadBalancerSubnets
-    if not "LoadBalancerSubnets" in definition["Mappings"]:
-        definition["Mappings"]["LoadBalancerSubnets"] = {}
-
-    for region, subnets in configuration["LoadBalancerSubnets"].items():
-        definition["Mappings"]["LoadBalancerSubnets"][region] = subnets
+    if "LoadBalancerSubnets" in configuration:
+        definition = ensure_keys(definition, "Mappings", "LoadBalancerSubnets")
+        for region, subnets in configuration["LoadBalancerSubnets"].items():
+            definition["Mappings"]["LoadBalancerSubnets"][region] = subnets
 
     return definition
 
-def component_taupage_auto_scaling_group(configuration, definition, args):
+def component_auto_scaling_group(definition, configuration, args, info):
     return definition
 
-def component_load_balancer(configuration, definition, args):
+def component_taupage_auto_scaling_group(definition, configuration, args, info):
+    # inherit from the normal auto scaling group but discourage user info and replace with a Taupage config
+    definition = component_auto_scaling_group(definition, configuration, args, info)
+
+    return definition
+
+def component_load_balancer(definition, configuration, args, info):
     return definition
 
 # TODO make extendable
 COMPONENTS = {
     "Senza::Configuration": component_basic_configuration,
+    "Senza::AutoScalingGroup": component_auto_scaling_group,
     "Senza::TaupageAutoScalingGroup": component_taupage_auto_scaling_group,
     "Senza::ElasticLoadBalancer": component_load_balancer,
 }
@@ -76,13 +114,13 @@ def evaluate(definition, args):
 
     # evaluate all components
     for component in components:
-        componentname, configuration = component.popitem()
+        componentname, configuration = named_value(component)
         configuration["Name"] = componentname
 
         componenttype = configuration["Type"]
         componentfn = COMPONENTS[componenttype]
 
-        definition = componentfn(configuration, definition, args)
+        definition = componentfn(definition, configuration, args, info)
 
     return definition
 
@@ -121,13 +159,15 @@ def args_version(definition):
 
 
 def args_generation(definition):
-    parameters = args_version(definition)
+    arguments = args_version(definition)
 
-    # get user defined parameters
+    # get user defined arguments
     document = load_yaml(definition)
-    parameters.extend(document["SenzaInfo"]["Parameters"])
+    for parameter in document["SenzaInfo"]["Parameters"]:
+        name, value = named_value(parameter)
+        arguments.append({name: value["Description"]})
 
-    return parameters
+    return arguments
 
 
 ACTIONS = {
@@ -160,9 +200,9 @@ def main():
         actionname = sys.argv[2 + offset]
 
         action = ACTIONS[actionname]
-        parameters = action["args"](definition)
-        for parameter in parameters:
-            name, desc = parameter.popitem()
+        arguments = action["args"](definition)
+        for argument in arguments:
+            name, desc = named_value(argument)
             parser.add_argument(name, help=desc)
 
     args = parser.parse_args()

@@ -9,7 +9,7 @@ snippets that are easy to configure and generate all the boilerplate JSON that i
 
 ## Usage
 
-    $ senza ./my-definition.yaml create eu-west-1 1.0
+    $ ./senza/cli.py ./my-definition.yaml create eu-west-1 1.0
 
 ## Senza Definition
 
@@ -17,8 +17,10 @@ snippets that are easy to configure and generate all the boilerplate JSON that i
 # basic information for generating and executing this definition
 SenzaInfo:
   StackName: kio
+  OperatorEMail: kio-ops@example.com
   Parameters:
-    - imageversion: "Docker image version of Kio."
+    - ImageVersion:
+        Description: "Docker image version of Kio."
 
 # a list of senza components to apply to the definition
 SenzaComponents:
@@ -26,7 +28,6 @@ SenzaComponents:
   # this basic configuration is required for the other components
   - Configuration:
       Type: Senza::Configuration
-      OperatorEMail: kio-ops@example.com
       ServerSubnets:
         eu-west-1:
           - subnet-123456
@@ -108,6 +109,6 @@ Outputs:
 
 ## Components
 
-* BasicConfiguration
-* TaupageAutoScalingGroup
-* LoadBalancer
+* Senza::Configuration
+* Senza::TaupageAutoScalingGroup
+* Senza::ElasticLoadBalancer

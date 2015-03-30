@@ -43,7 +43,6 @@ def component_basic_configuration(configuration, definition, args):
     for region, subnets in configuration["LoadBalancerSubnets"].items():
         definition["Mappings"]["LoadBalancerSubnets"][region] = subnets
 
-
     return definition
 
 def component_taupage_auto_scaling_group(configuration, definition, args):
@@ -54,9 +53,9 @@ def component_load_balancer(configuration, definition, args):
 
 # TODO make extendable
 COMPONENTS = {
-    "BasicConfiguration": component_basic_configuration,
-    "TaupageAutoScalingGroup": component_taupage_auto_scaling_group,
-    "LoadBalancer": component_load_balancer,
+    "Senza::Configuration": component_basic_configuration,
+    "Senza::TaupageAutoScalingGroup": component_taupage_auto_scaling_group,
+    "Senza::ElasticLoadBalancer": component_load_balancer,
 }
 
 BASE_TEMPLATE = {
@@ -78,7 +77,10 @@ def evaluate(definition, args):
     # evaluate all components
     for component in components:
         componentname, configuration = component.popitem()
-        componentfn = COMPONENTS[componentname]
+        configuration["Name"] = componentname
+
+        componenttype = configuration["Type"]
+        componentfn = COMPONENTS[componenttype]
 
         definition = componentfn(configuration, definition, args)
 

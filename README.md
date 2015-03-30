@@ -16,12 +16,13 @@ snippets that are easy to configure and generate all the boilerplate JSON that i
 ```yaml
 SenzaInfo:
   StackName: kio
-  OperatorEMail: kio-ops@example.com
   Parameters:
     - imageversion: "Docker image version of Kio."
 
 SenzaComponents:
-  - BasicConfiguration:
+  - Configuration:
+      Type: Senza::Configuration
+      OperatorEMail: kio-ops@example.com
       ServerSubnets:
         eu-west-1:
           - subnet-123456
@@ -39,14 +40,15 @@ SenzaComponents:
           - subnet-123456
           - subnet-123456
 
-  - TaupageAutoScalingGroup:
-      Name: server
-      Type: t2.micro
+  - AppServer:
+      Type: Senza::TaupageAutoScalingGroup
+      InstanceType: t2.micro
       Image:
         eu-west-1: ami-123456
         eu-central-1: ami-123456
       SecurityGroups:
         - sg-123456
+      ElasticLoadBalancer: LoadBalancer
       Configuration:
         runtime: Docker
         source: stups/kio:{{args.imageversion}}
@@ -54,13 +56,13 @@ SenzaComponents:
           8080: 8080
         notify_cfn:
           stack: "{{SenzaInfo.StackName}}-{{args.version}}"
-          resource: "server"
+          resource: "AppServer"
         environment:
           HTTP_CORS_ORIGIN: "*.example.com"
           PGSSLMODE: verify-full
           DB_SUBNAME: "//kio.example.eu-west-1.rds.amazonaws.com:5432/kio?ssl=true"
           DB_USER: kio
-          DB_PASSWORD: aws:kms:abcdef1234567890=
+          DB_PASSWORD: aws:kms:abcdef1234567890abcdef=
       AutoScaling:
         Minimum: 2
         Maximum: 10
@@ -69,7 +71,7 @@ SenzaComponents:
         ScaleDownThreshold: 40
 
   - LoadBalancer:
-      AutoScalingGroup: server
+      Type: Senza::ElasticLoadBalancer
       HTTPPort: 8080
       SSLCertificateId: arn:aws:iam::1234567890:server-certificate/kio-example-com
       HealthCheckPath: /ui/
@@ -77,7 +79,7 @@ SenzaComponents:
         - sg-123456
       Domains:
         - Domain: kio.example.com
-          Type: balancing
+          Type: weighted
         - Domain: kio-{{args.version}}.example.com
           Type: standalone
 ```

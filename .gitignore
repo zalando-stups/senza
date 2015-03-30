@@ -1,0 +1,9 @@
+# IntelliJ IDEA
+/.idea
+*.iml
+
+# test yaml files
+/*.yaml
+
+# Python
+*.pyc

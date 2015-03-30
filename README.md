@@ -44,18 +44,19 @@ SenzaComponents:
         eu-central-1:
           - subnet-123456
           - subnet-123456
+      AppImage:
+        eu-west-1: ami-123456
+        eu-central-1: ami-123456
 
   # will create a launch configuration and auto scaling group with scaling triggers
   - AppServer:
       Type: Senza::TaupageAutoScalingGroup
       InstanceType: t2.micro
-      Image:
-        eu-west-1: ami-123456
-        eu-central-1: ami-123456
+      Image: AppImage
       SecurityGroups:
         - sg-123456
       ElasticLoadBalancer: AppLoadBalancer
-      Configuration:
+      TaupageConfig:
         runtime: Docker
         source: stups/kio:{{args.imageversion}}
         ports:

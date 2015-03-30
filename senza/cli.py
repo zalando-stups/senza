@@ -6,10 +6,14 @@ import json
 
 import yaml
 
+
+
+
 # some helpers
 
 def named_value(d):
     return next(iter(d.items()))
+
 
 def ensure_keys(dict, *keys):
     if len(keys) == 0:
@@ -21,14 +25,15 @@ def ensure_keys(dict, *keys):
         dict[first] = ensure_keys(dict[first], *rest)
         return dict
 
+
 ## all components
 
 def component_basic_configuration(definition, configuration, args, info):
     # add info as mappings
     # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html
     definition = ensure_keys(definition, "Mappings", "SenzaInfo")
-    for name, value in info.items():
-        definition["Mappings"]["SenzaInfo"][name] = value
+    definition["Mappings"]["SenzaInfo"].update(info)
+    definition["Mappings"]["SenzaInfo"]["StackVersion"] = args.version
 
     # define parameters
     # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html
@@ -53,11 +58,17 @@ def component_basic_configuration(definition, configuration, args, info):
             "Type": "AWS::SNS::Topic",
             "Properties": {
                 "Subscription": [{
-                    "Endpoint": {"Ref": "OperatorEMail"},
-                    "Protocol": "email"
-                }],
+                                     "Endpoint": {"Ref": "OperatorEMail"},
+                                     "Protocol": "email"
+                                 }],
                 "DisplayName": {
-                    "Fn::Join": []
+                    "Fn::Join": [
+                        " ",
+                        [
+                            {"Fn::FindInMap": ["SenzaInfo", "StackName"]},
+                            {"Fn::FindInMap": ["SenzaInfo", "StackVersion"]}
+                        ]
+                    ]
                 }
             }
         }
@@ -76,14 +87,108 @@ def component_basic_configuration(definition, configuration, args, info):
 
     return definition
 
+
 def component_auto_scaling_group(definition, configuration, args, info):
+    definition = ensure_keys(definition, "Resources")
+
+    # launch configuration
+    config_name = configuration["Name"] + "Config"
+    definition["Resources"][config_name] = {
+        "Type": "AWS::AutoScaling::LaunchConfiguration",
+        "Properties": {
+            "InstanceType": configuration["InstanceType"],
+            "ImageId": {"Fn::FindInMap": ["Images", configuration["Image"], {"Ref": "AWS::Region"}]},
+            "AssociatePublicIpAddress": False
+        }
+    }
+
+    if "SecurityGroups" in configuration:
+        definition["Resources"][config_name]["Properties"]["SecurityGroups"] = configuration["SecurityGroups"]
+
+    if "UserData" in configuration:
+        definition["Resources"][config_name]["Properties"]["UserData"] = {
+            "Fn::Base64": configuration["UserData"]
+        }
+
+    # auto scaling group
+    asg_name = configuration["Name"]
+    definition["Resources"][asg_name] = {
+        "Type": "AWS::AutoScaling::AutoScalingGroup",
+        "UpdatePolicy": {
+            "AutoScalingRollingUpdate": {
+                "WaitOnResourceSignals": "true",
+                "PauseTime": "PT15M",
+                "MaxBatchSize": "1",
+                "MinInstancesInService": "1"
+            }
+        },
+        "CreationPolicy": {
+            "ResourceSignal": {
+                "Count": "1",
+                "Timeout": "PT15M"
+            }
+        },
+        "Properties": {
+            "Tags": [
+                {
+                    "Key": "Stack",
+                    "PropagateAtLaunch": True,
+                    "Value": {
+                        "Fn::Join": [
+                            " ",
+                            [
+                                {"Fn::FindInMap": ["SenzaInfo", "StackName"]},
+                                {"Fn::FindInMap": ["SenzaInfo", "StackVersion"]}
+                            ]
+                        ]
+                    }
+                },
+                {
+                    "Key": "StackName",
+                    "PropagateAtLaunch": True,
+                    "Value": {"Fn::FindInMap": ["SenzaInfo", "StackName"]},
+                },
+                {
+                    "Key": "StackVersion",
+                    "PropagateAtLaunch": True,
+                    "Value": {"Fn::FindInMap": ["SenzaInfo", "StackVersion"]}
+                }
+            ],
+            "NotificationConfiguration": {
+                "NotificationTypes": [
+                    "autoscaling:EC2_INSTANCE_LAUNCH",
+                    "autoscaling:EC2_INSTANCE_LAUNCH_ERROR",
+                    "autoscaling:EC2_INSTANCE_TERMINATE",
+                    "autoscaling:EC2_INSTANCE_TERMINATE_ERROR"
+                ],
+                "TopicARN": {"Ref": "OperatorTopic"}
+            },
+            "LoadBalancerNames": [
+                {"Ref": "ElasticLoadBalancer"}
+            ],
+            "MaxSize": configuration["Maximum"],
+            "MinSize": configuration["Minimum"],
+            "LaunchConfigurationName": {"Ref": config_name},
+            "VPCZoneIdentifier": {"Fn::FindInMap": ["ServerSubnets"]},
+            "AvailabilityZones": {"Fn::GetAZs": ""}
+        }
+    }
+
     return definition
+
 
 def component_taupage_auto_scaling_group(definition, configuration, args, info):
     # inherit from the normal auto scaling group but discourage user info and replace with a Taupage config
     definition = component_auto_scaling_group(definition, configuration, args, info)
 
+    userdata = "#taupage-ami-config\n" + yaml.dump(configuration["TaupageConfig"], default_flow_style=False)
+
+    config_name = configuration["Name"] + "Config"
+    ensure_keys(definition, "Resources", config_name, "Properties", "UserData")
+    definition["Resources"][config_name]["Properties"]["UserData"]["Fn::Base64"] = userdata
+
     return definition
+
 
 def component_load_balancer(definition, configuration, args, info):
     return definition
@@ -99,6 +204,7 @@ COMPONENTS = {
 BASE_TEMPLATE = {
     "AWSTemplateFormatVersion": "2010-09-09"
 }
+
 
 def evaluate(definition, args):
     # extract Senza* meta information
@@ -124,6 +230,7 @@ def evaluate(definition, args):
 
     return definition
 
+
 ## all actions
 
 def load_yaml(file):
@@ -146,6 +253,7 @@ def action_show(args):
 
 def action_delete(args):
     pass
+
 
 ## basic argument parsing
 

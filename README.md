@@ -14,12 +14,16 @@ snippets that are easy to configure and generate all the boilerplate JSON that i
 ## Senza Definition
 
 ```yaml
+# basic information for generating and executing this definition
 SenzaInfo:
   StackName: kio
   Parameters:
     - imageversion: "Docker image version of Kio."
 
+# a list of senza components to apply to the definition
 SenzaComponents:
+
+  # this basic configuration is required for the other components
   - Configuration:
       Type: Senza::Configuration
       OperatorEMail: kio-ops@example.com
@@ -40,6 +44,7 @@ SenzaComponents:
           - subnet-123456
           - subnet-123456
 
+  # will create a launch configuration and auto scaling group with scaling triggers
   - AppServer:
       Type: Senza::TaupageAutoScalingGroup
       InstanceType: t2.micro
@@ -48,7 +53,7 @@ SenzaComponents:
         eu-central-1: ami-123456
       SecurityGroups:
         - sg-123456
-      ElasticLoadBalancer: LoadBalancer
+      ElasticLoadBalancer: AppLoadBalancer
       Configuration:
         runtime: Docker
         source: stups/kio:{{args.imageversion}}
@@ -70,7 +75,8 @@ SenzaComponents:
         ScaleUpThreshold: 70
         ScaleDownThreshold: 40
 
-  - LoadBalancer:
+  # creates an ELB entry and Route53 domains to this ELB
+  - AppLoadBalancer:
       Type: Senza::ElasticLoadBalancer
       HTTPPort: 8080
       SSLCertificateId: arn:aws:iam::1234567890:server-certificate/kio-example-com
@@ -82,6 +88,22 @@ SenzaComponents:
           Type: weighted
         - Domain: kio-{{args.version}}.example.com
           Type: standalone
+
+
+# just plain Cloud Formation definitions are fully supported:
+
+Outputs:
+  URL:
+    Description: "The ELB URL of the new Kio deployment."
+    Value:
+      "Fn::Join":
+        - ""
+        -
+          - "http://"
+          - "Fn::GetAtt":
+            - AppLoadBalancer
+            - DNSName
+
 ```
 
 ## Components

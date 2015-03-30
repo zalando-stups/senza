@@ -12,11 +12,38 @@ def component_basic_configuration(configuration, definition, args):
     if not "Mappings" in definition:
         definition["Mappings"] = {}
 
+    # OperatorEMail
+    if "OperatorEMail" in configuration:
+        definition["Mappings"]["OperatorEMail"] = configuration["OperatorEMail"]
+
+        if not "Resources" in definition:
+            definition["Resources"] = {}
+
+        definition["Resources"]["OperatorTopic"] = {
+            "Type": "AWS::SNS::Topic",
+            "Properties": {
+                "Subscription": [{
+                    "Endpoint": {"Ref": "OperatorEMail"},
+                    "Protocol": "email"
+                }]
+            }
+        }
+
+    # ServerSubnets
     if not "ServerSubnets" in definition["Mappings"]:
         definition["Mappings"]["ServerSubnets"] = {}
 
-    for region, subnets in configuration["ServerSubnets"].itemsgit ():
+    for region, subnets in configuration["ServerSubnets"].items():
         definition["Mappings"]["ServerSubnets"][region] = subnets
+
+    # LoadBalancerSubnets
+    if not "LoadBalancerSubnets" in definition["Mappings"]:
+        definition["Mappings"]["LoadBalancerSubnets"] = {}
+
+    for region, subnets in configuration["LoadBalancerSubnets"].items():
+        definition["Mappings"]["LoadBalancerSubnets"][region] = subnets
+
+
     return definition
 
 def component_taupage_auto_scaling_group(configuration, definition, args):

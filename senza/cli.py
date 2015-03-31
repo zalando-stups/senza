@@ -5,6 +5,7 @@ import argparse
 import json
 
 import yaml
+import pystache
 
 # some helpers
 
@@ -370,6 +371,17 @@ def evaluate(definition, args):
 
         definition = componentfn(definition, configuration, args, info)
 
+    # throw executed template to templating engine and provide all information for substitutions
+    template_data = definition.copy()
+    template_data.update({"SenzaInfo": info,
+                          "SenzaComponents": components,
+                          "Arguments": args})
+
+    template = yaml.dump(definition, default_flow_style=False)
+    definition = pystache.render(template, template_data)
+
+    definition = yaml.load(definition)
+
     return definition
 
 
@@ -381,8 +393,8 @@ def load_yaml(file):
 
 
 def action_print(args):
-    template = evaluate(load_yaml(args.definition), args)
-    print(json.dumps(template, sort_keys=True, indent=4))
+    data = evaluate(load_yaml(args.definition), args)
+    print(json.dumps(data, sort_keys=True, indent=4))
 
 
 def action_create(args):

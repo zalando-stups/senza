@@ -58,11 +58,11 @@ SenzaComponents:
       ElasticLoadBalancer: AppLoadBalancer
       TaupageConfig:
         runtime: Docker
-        source: stups/kio:{{args.imageversion}}
+        source: stups/kio:{{Arguments.imageversion}}
         ports:
           8080: 8080
         notify_cfn:
-          stack: "{{SenzaInfo.StackName}}-{{args.version}}"
+          stack: "{{SenzaInfo.StackName}}-{{SenzaInfo.StackVersion}}"
           resource: "AppServer"
         environment:
           HTTP_CORS_ORIGIN: "*.example.com"
@@ -93,7 +93,7 @@ SenzaComponents:
         VersionDomain:
           Type: standalone
           Zone: example.com
-          Subdomain: kio-{{args.version}}
+          Subdomain: kio-{{SenzaInfo.StackVersion}}
 
 
 # just plain Cloud Formation definitions are fully supported:
@@ -110,6 +110,9 @@ Outputs:
             - AppLoadBalancer
             - DNSName
 ```
+
+During evaluation, you can mustache templating with access to the rendered definition, including the SenzaInfo,
+SenzaComponents and Arguments key (containing all given arguments).
 
 ## Components
 

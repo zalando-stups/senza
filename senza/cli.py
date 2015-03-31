@@ -8,6 +8,7 @@ import yaml
 import pystache
 import boto.cloudformation
 
+
 # some helpers
 
 def named_value(d):
@@ -30,8 +31,8 @@ def ensure_keys(dict, *keys):
 def component_basic_configuration(definition, configuration, args, info):
     # add info as mappings
     # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html
-    definition = ensure_keys(definition, "Mappings", "SenzaInfo")
-    definition["Mappings"]["SenzaInfo"] = info
+    definition = ensure_keys(definition, "Mappings", "Senza", "Info")
+    definition["Mappings"]["Senza"]["Info"] = info
 
     # define parameters
     # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html
@@ -47,16 +48,15 @@ def component_basic_configuration(definition, configuration, args, info):
             definition["Parameters"][name] = value_default
 
     # OperatorEMail
-    if "OperatorEMail" in configuration:
-        definition["Mappings"]["OperatorEMail"] = configuration["OperatorEMail"]
-
+    if "OperatorEMail" in info:
         definition = ensure_keys(definition, "Resources")
 
+        # TODO do not create, replace OperatorEMail with notification ARN
         definition["Resources"]["OperatorTopic"] = {
             "Type": "AWS::SNS::Topic",
             "Properties": {
                 "Subscription": [{
-                                     "Endpoint": {"Ref": "OperatorEMail"},
+                                     "Endpoint": {"Fn::FindInMap": ["Senza", "Info", "OperatorEMail"]},
                                      "Protocol": "email"
                                  }],
                 "DisplayName": "{0}-{1}".format(info["StackName"], info["StackVersion"])
@@ -65,15 +65,22 @@ def component_basic_configuration(definition, configuration, args, info):
 
     # ServerSubnets
     if "ServerSubnets" in configuration:
-        definition = ensure_keys(definition, "Mappings", "ServerSubnets")
         for region, subnets in configuration["ServerSubnets"].items():
-            definition["Mappings"]["ServerSubnets"][region] = subnets
+            definition = ensure_keys(definition, "Mappings", "ServerSubnets", region)
+            definition["Mappings"]["ServerSubnets"][region]["Subnets"] = subnets
 
     # LoadBalancerSubnets
     if "LoadBalancerSubnets" in configuration:
-        definition = ensure_keys(definition, "Mappings", "LoadBalancerSubnets")
         for region, subnets in configuration["LoadBalancerSubnets"].items():
-            definition["Mappings"]["LoadBalancerSubnets"][region] = subnets
+            definition = ensure_keys(definition, "Mappings", "LoadBalancerSubnets", region)
+            definition["Mappings"]["LoadBalancerSubnets"][region]["Subnets"] = subnets
+
+    # Images
+    if "Images" in configuration:
+        for name, image in configuration["Images"].items():
+            for region, ami in image.items():
+                definition = ensure_keys(definition, "Mappings", "Images", region, name)
+                definition["Mappings"]["Images"][region][name] = ami
 
     return definition
 
@@ -145,7 +152,7 @@ def component_auto_scaling_group(definition, configuration, args, info):
         "Type": "AWS::AutoScaling::LaunchConfiguration",
         "Properties": {
             "InstanceType": configuration["InstanceType"],
-            "ImageId": {"Fn::FindInMap": ["Images", configuration["Image"], {"Ref": "AWS::Region"}]},
+            "ImageId": {"Fn::FindInMap": ["Images", {"Ref": "AWS::Region"}, configuration["Image"]]},
             "AssociatePublicIpAddress": False
         }
     }
@@ -181,7 +188,7 @@ def component_auto_scaling_group(definition, configuration, args, info):
                 "TopicARN": {"Ref": "OperatorTopic"}
             },
             "LaunchConfigurationName": {"Ref": config_name},
-            "VPCZoneIdentifier": {"Fn::FindInMap": ["ServerSubnets"]},
+            "VPCZoneIdentifier": {"Fn::FindInMap": ["ServerSubnets", {"Ref": "AWS::Region"}, "Subnets"]},
             "AvailabilityZones": {"Fn::GetAZs": ""},
             "Tags": [
                 # Tag "Name"
@@ -270,7 +277,7 @@ def component_load_balancer(definition, configuration, args, info):
         "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
         "Properties": {
             "Scheme": "internet-facing",
-            "Subnets": {"Fn::FindInMap": ["LoadBalancerSubnets"]},
+            "Subnets": {"Fn::FindInMap": ["LoadBalancerSubnets", {"Ref": "AWS::Region"}, "Subnets"]},
             "HealthCheck": {
                 "HealthyThreshold": "2",
                 "UnhealthyThreshold": "2",
@@ -296,19 +303,16 @@ def component_load_balancer(definition, configuration, args, info):
                 # Tag "Name"
                 {
                     "Key": "Name",
-                    "PropagateAtLaunch": True,
                     "Value": "{0}-{1}".format(info["StackName"], info["StackVersion"])
                 },
                 # Tag "StackName"
                 {
                     "Key": "StackName",
-                    "PropagateAtLaunch": True,
                     "Value": info["StackName"],
                 },
                 # Tag "StackVersion"
                 {
                     "Key": "StackVersion",
-                    "PropagateAtLaunch": True,
                     "Value": info["StackVersion"]
                 }
             ]
@@ -332,9 +336,9 @@ def component_load_balancer(definition, configuration, args, info):
             }
 
             if domain["Type"] == "weighted":
-                definition["Resources"][name]['Weight'] = 0
-                definition["Resources"][name]['SetIdentifier'] = "{0}-{1}".format(info["StackName"],
-                                                                                  info["StackVersion"])
+                definition["Resources"][name]["Properties"]['Weight'] = 0
+                definition["Resources"][name]["Properties"]['SetIdentifier'] = "{0}-{1}".format(info["StackName"],
+                                                                                                info["StackVersion"])
 
     return definition
 
@@ -394,20 +398,33 @@ def load_yaml(file):
 
 
 def action_print(args):
-    data = evaluate(load_yaml(args.definition), args)
+    input = load_yaml(args.definition)
+    data = evaluate(input.copy(), args)
     cfjson = json.dumps(data, sort_keys=True, indent=4)
+
     print(cfjson)
 
 
 def action_create(args):
-    data = evaluate(load_yaml(args.definition), args)
+    input = load_yaml(args.definition)
+    data = evaluate(input.copy(), args)
     cfjson = json.dumps(data, sort_keys=True, indent=4)
 
-    stack_name = "{0}-{1}".format(data["Mappings"]["SenzaInfo"]["StackName"],
-                                  data["Mappings"]["SenzaInfo"]["StackVersion"])
+    stack_name = "{0}-{1}".format(input["SenzaInfo"]["StackName"], args.version)
+
+    parameters = []
+    for name, parameter in data["Parameters"].items():
+        parameters.append([name, getattr(args, name)])
+
+    tags = {
+        "Name": stack_name,
+        "StackName": input["SenzaInfo"]["StackName"],
+        "StackVersion": args.version
+    }
 
     cf = boto.cloudformation.connect_to_region(args.region)
-    cf.create_stack(stack_name, cfjson)
+    # TODO notification ARNs
+    cf.create_stack(stack_name, template_body=cfjson, parameters=parameters, tags=tags)
 
 
 def action_show(args):

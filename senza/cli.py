@@ -6,10 +6,6 @@ import json
 
 import yaml
 
-
-
-
-
 # some helpers
 
 def named_value(d):
@@ -33,8 +29,7 @@ def component_basic_configuration(definition, configuration, args, info):
     # add info as mappings
     # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html
     definition = ensure_keys(definition, "Mappings", "SenzaInfo")
-    definition["Mappings"]["SenzaInfo"].update(info)
-    definition["Mappings"]["SenzaInfo"]["StackVersion"] = args.version
+    definition["Mappings"]["SenzaInfo"] = info
 
     # define parameters
     # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html
@@ -62,15 +57,7 @@ def component_basic_configuration(definition, configuration, args, info):
                                      "Endpoint": {"Ref": "OperatorEMail"},
                                      "Protocol": "email"
                                  }],
-                "DisplayName": {
-                    "Fn::Join": [
-                        " ",
-                        [
-                            {"Fn::FindInMap": ["SenzaInfo", "StackName"]},
-                            {"Fn::FindInMap": ["SenzaInfo", "StackVersion"]}
-                        ]
-                    ]
-                }
+                "DisplayName": "{0}-{1}".format(info["StackName"], info["StackVersion"])
             }
         }
 
@@ -131,7 +118,8 @@ def component_auto_scaling_group_metric_cpu(asg_name, definition, configuration,
                         "Value": {"Ref": asg_name}
                     }
                 ],
-                "AlarmDescription": "Scale-down if CPU < {0}% for 10 minutes".format(configuration["ScaleDownThreshold"]),
+                "AlarmDescription": "Scale-down if CPU < {0}% for 10 minutes".format(
+                    configuration["ScaleDownThreshold"]),
                 "AlarmActions": [
                     {"Ref": asg_name + "ScaleDown"}
                 ]
@@ -180,34 +168,6 @@ def component_auto_scaling_group(definition, configuration, args, info):
             }
         },
         "Properties": {
-            "Tags": [
-                # Tag "Name"
-                {
-                    "Key": "Name",
-                    "PropagateAtLaunch": True,
-                    "Value": {
-                        "Fn::Join": [
-                            " ",
-                            [
-                                {"Fn::FindInMap": ["SenzaInfo", "StackName"]},
-                                {"Fn::FindInMap": ["SenzaInfo", "StackVersion"]}
-                            ]
-                        ]
-                    }
-                },
-                # Tag "StackName"
-                {
-                    "Key": "StackName",
-                    "PropagateAtLaunch": True,
-                    "Value": {"Fn::FindInMap": ["SenzaInfo", "StackName"]},
-                },
-                # Tag "StackVersion"
-                {
-                    "Key": "StackVersion",
-                    "PropagateAtLaunch": True,
-                    "Value": {"Fn::FindInMap": ["SenzaInfo", "StackVersion"]}
-                }
-            ],
             # for our operator some notifications
             "NotificationConfiguration": {
                 "NotificationTypes": [
@@ -220,7 +180,27 @@ def component_auto_scaling_group(definition, configuration, args, info):
             },
             "LaunchConfigurationName": {"Ref": config_name},
             "VPCZoneIdentifier": {"Fn::FindInMap": ["ServerSubnets"]},
-            "AvailabilityZones": {"Fn::GetAZs": ""}
+            "AvailabilityZones": {"Fn::GetAZs": ""},
+            "Tags": [
+                # Tag "Name"
+                {
+                    "Key": "Name",
+                    "PropagateAtLaunch": True,
+                    "Value": "{0}-{1}".format(info["StackName"], info["StackVersion"])
+                },
+                # Tag "StackName"
+                {
+                    "Key": "StackName",
+                    "PropagateAtLaunch": True,
+                    "Value": info["StackName"],
+                },
+                # Tag "StackVersion"
+                {
+                    "Key": "StackVersion",
+                    "PropagateAtLaunch": True,
+                    "Value": info["StackVersion"]
+                }
+            ]
         }
     }
 
@@ -281,9 +261,82 @@ def component_taupage_auto_scaling_group(definition, configuration, args, info):
 
 
 def component_load_balancer(definition, configuration, args, info):
+    lb_name = configuration["Name"]
+
+    # load balancer
+    definition["Resources"][lb_name] = {
+        "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
+        "Properties": {
+            "Scheme": "internet-facing",
+            "Subnets": {"Fn::FindInMap": ["LoadBalancerSubnets"]},
+            "HealthCheck": {
+                "HealthyThreshold": "2",
+                "UnhealthyThreshold": "2",
+                "Interval": "10",
+                "Timeout": "5",
+                "Target": "HTTP:{0}{1}".format(configuration["HTTPPort"],
+                                               "/ui/" if "HealthCheckPath" not in configuration else configuration[
+                                                   "HealthCheckPath"])
+            },
+            "Listeners": [
+                {
+                    "PolicyNames": [],
+                    "SSLCertificateId": configuration["SSLCertificateId"],
+                    "Protocol": "HTTPS",
+                    "InstancePort": configuration["HTTPPort"],
+                    "LoadBalancerPort": 443
+                }
+            ],
+            "CrossZone": "true",
+            "LoadBalancerName": "{0}-{1}".format(info["StackName"], info["StackVersion"]),
+            "SecurityGroups": [] if "SecurityGroups" not in configuration else configuration["SecurityGroups"],
+            "Tags": [
+                # Tag "Name"
+                {
+                    "Key": "Name",
+                    "PropagateAtLaunch": True,
+                    "Value": "{0}-{1}".format(info["StackName"], info["StackVersion"])
+                },
+                # Tag "StackName"
+                {
+                    "Key": "StackName",
+                    "PropagateAtLaunch": True,
+                    "Value": info["StackName"],
+                    },
+                # Tag "StackVersion"
+                {
+                    "Key": "StackVersion",
+                    "PropagateAtLaunch": True,
+                    "Value": info["StackVersion"]
+                }
+            ]
+        }
+    }
+
+    # domains pointing to the load balancer
+    if "Domains" in configuration:
+        for name, domain in configuration["Domains"].items():
+            definition["Resources"][name] = {
+                "Type": "AWS::Route53::RecordSet",
+                "Properties": {
+                    "Type": "CNAME",
+                    "TTL": 20,
+                    "ResourceRecords": [
+                        {"Fn::GetAtt": [lb_name, "DNSName"]}
+                    ],
+                    "Name": "{0}.{1}".format(domain["Subdomain"], domain["Zone"]),
+                    "HostedZoneName": "{0}.".format(domain["Zone"])
+                },
+            }
+
+            if domain["Type"] == "weighted":
+                definition["Resources"][name]['Weight'] = 0
+                definition["Resources"][name]['SetIdentifier'] = "{0}-{1}".format(info["StackName"],
+                                                                                  info["StackVersion"])
+
     return definition
 
-# TODO make extendable
+
 COMPONENTS = {
     "Senza::Configuration": component_basic_configuration,
     "Senza::AutoScalingGroup": component_auto_scaling_group,
@@ -298,11 +351,10 @@ BASE_TEMPLATE = {
 
 def evaluate(definition, args):
     # extract Senza* meta information
-    info = definition["SenzaInfo"]
-    definition.pop("SenzaInfo")
+    info = definition.pop("SenzaInfo")
+    info["StackVersion"] = args.version
 
-    components = definition["SenzaComponents"]
-    definition.pop("SenzaComponents")
+    components = definition.pop("SenzaComponents")
 
     # merge base template with definition
     BASE_TEMPLATE.update(definition)

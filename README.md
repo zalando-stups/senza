@@ -86,10 +86,14 @@ SenzaComponents:
       SecurityGroups:
         - sg-123456
       Domains:
-        - Domain: kio.example.com
+        MainDomain:
           Type: weighted
-        - Domain: kio-{{args.version}}.example.com
+          Zone: example.com
+          Subdomain: kio
+        VersionDomain:
           Type: standalone
+          Zone: example.com
+          Subdomain: kio-{{args.version}}
 
 
 # just plain Cloud Formation definitions are fully supported:
@@ -105,7 +109,6 @@ Outputs:
           - "Fn::GetAtt":
             - AppLoadBalancer
             - DNSName
-
 ```
 
 ## Components

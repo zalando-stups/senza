@@ -6,6 +6,7 @@ import json
 
 import yaml
 import pystache
+import boto.cloudformation
 
 # some helpers
 
@@ -303,7 +304,7 @@ def component_load_balancer(definition, configuration, args, info):
                     "Key": "StackName",
                     "PropagateAtLaunch": True,
                     "Value": info["StackName"],
-                    },
+                },
                 # Tag "StackVersion"
                 {
                     "Key": "StackVersion",
@@ -394,19 +395,31 @@ def load_yaml(file):
 
 def action_print(args):
     data = evaluate(load_yaml(args.definition), args)
-    print(json.dumps(data, sort_keys=True, indent=4))
+    cfjson = json.dumps(data, sort_keys=True, indent=4)
+    print(cfjson)
 
 
 def action_create(args):
-    pass
+    data = evaluate(load_yaml(args.definition), args)
+    cfjson = json.dumps(data, sort_keys=True, indent=4)
+
+    stack_name = "{0}-{1}".format(data["Mappings"]["SenzaInfo"]["StackName"],
+                                  data["Mappings"]["SenzaInfo"]["StackVersion"])
+
+    cf = boto.cloudformation.connect_to_region(args.region)
+    cf.create_stack(stack_name, cfjson)
 
 
 def action_show(args):
-    print(args)
+    print("not yet implemented")
+
+
+def action_set_weights(args):
+    print("not yet implemented")
 
 
 def action_delete(args):
-    pass
+    print("not yet implemented")
 
 
 ## basic argument parsing
@@ -442,6 +455,9 @@ ACTIONS = {
     "show": {"fn": action_show,
              "desc": "shows all deployed versions of the definition",
              "args": args_none},
+    "set-weights": {"fn": action_set_weights,
+                    "desc": "sets the weights for DNS entries",
+                    "args": args_none},
     "delete": {"fn": action_delete,
                "desc": "deletes a cloud formation stack",
                "args": args_version},

@@ -58,7 +58,7 @@ SenzaComponents:
       ElasticLoadBalancer: AppLoadBalancer
       TaupageConfig:
         runtime: Docker
-        source: stups/kio:{{Arguments.imageversion}}
+        source: stups/kio:{{Arguments.ImageVersion}}
         ports:
           8080: 8080
         notify_cfn:

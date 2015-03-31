@@ -9,6 +9,7 @@ import yaml
 
 
 
+
 # some helpers
 
 def named_value(d):
@@ -88,6 +89,63 @@ def component_basic_configuration(definition, configuration, args, info):
     return definition
 
 
+def component_auto_scaling_group_metric_cpu(asg_name, definition, configuration, args, info):
+    if "ScaleUpThreshold" in configuration:
+        definition["Resources"][asg_name + "CPUAlarmHigh"] = {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "MetricName": "CPUUtilization",
+                "Namespace": "AWS/EC2",
+                "Period": "300",
+                "EvaluationPeriods": "2",
+                "Statistic": "Average",
+                "Threshold": configuration["ScaleUpThreshold"],
+                "ComparisonOperator": "GreaterThanThreshold",
+                "Dimensions": [
+                    {
+                        "Name": "AutoScalingGroupName",
+                        "Value": {"Ref": asg_name}
+                    }
+                ],
+                "AlarmDescription": "Scale-up if CPU > {0}% for 10 minutes".format(configuration["ScaleUpThreshold"]),
+                "AlarmActions": [
+                    {"Ref": asg_name + "ScaleUp"}
+                ]
+            }
+        }
+
+    if "ScaleDownThreshold" in configuration:
+        definition["Resources"][asg_name + "CPUAlarmLow"] = {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "MetricName": "CPUUtilization",
+                "Namespace": "AWS/EC2",
+                "Period": "300",
+                "EvaluationPeriods": "2",
+                "Statistic": "Average",
+                "Threshold": configuration["ScaleDownThreshold"],
+                "ComparisonOperator": "LowerThanThreshold",
+                "Dimensions": [
+                    {
+                        "Name": "AutoScalingGroupName",
+                        "Value": {"Ref": asg_name}
+                    }
+                ],
+                "AlarmDescription": "Scale-down if CPU < {0}% for 10 minutes".format(configuration["ScaleDownThreshold"]),
+                "AlarmActions": [
+                    {"Ref": asg_name + "ScaleDown"}
+                ]
+            }
+        }
+
+    return definition
+
+
+ASG_METRICS = {
+    "CPU": component_auto_scaling_group_metric_cpu
+}
+
+
 def component_auto_scaling_group(definition, configuration, args, info):
     definition = ensure_keys(definition, "Resources")
 
@@ -114,14 +172,7 @@ def component_auto_scaling_group(definition, configuration, args, info):
     asg_name = configuration["Name"]
     definition["Resources"][asg_name] = {
         "Type": "AWS::AutoScaling::AutoScalingGroup",
-        "UpdatePolicy": {
-            "AutoScalingRollingUpdate": {
-                "WaitOnResourceSignals": "true",
-                "PauseTime": "PT15M",
-                "MaxBatchSize": "1",
-                "MinInstancesInService": "1"
-            }
-        },
+        # wait up to 15 minutes to get a signal from at least one server that it booted
         "CreationPolicy": {
             "ResourceSignal": {
                 "Count": "1",
@@ -130,8 +181,9 @@ def component_auto_scaling_group(definition, configuration, args, info):
         },
         "Properties": {
             "Tags": [
+                # Tag "Name"
                 {
-                    "Key": "Stack",
+                    "Key": "Name",
                     "PropagateAtLaunch": True,
                     "Value": {
                         "Fn::Join": [
@@ -143,17 +195,20 @@ def component_auto_scaling_group(definition, configuration, args, info):
                         ]
                     }
                 },
+                # Tag "StackName"
                 {
                     "Key": "StackName",
                     "PropagateAtLaunch": True,
                     "Value": {"Fn::FindInMap": ["SenzaInfo", "StackName"]},
                 },
+                # Tag "StackVersion"
                 {
                     "Key": "StackVersion",
                     "PropagateAtLaunch": True,
                     "Value": {"Fn::FindInMap": ["SenzaInfo", "StackVersion"]}
                 }
             ],
+            # for our operator some notifications
             "NotificationConfiguration": {
                 "NotificationTypes": [
                     "autoscaling:EC2_INSTANCE_LAUNCH",
@@ -163,16 +218,51 @@ def component_auto_scaling_group(definition, configuration, args, info):
                 ],
                 "TopicARN": {"Ref": "OperatorTopic"}
             },
-            "LoadBalancerNames": [
-                {"Ref": "ElasticLoadBalancer"}
-            ],
-            "MaxSize": configuration["Maximum"],
-            "MinSize": configuration["Minimum"],
             "LaunchConfigurationName": {"Ref": config_name},
             "VPCZoneIdentifier": {"Fn::FindInMap": ["ServerSubnets"]},
             "AvailabilityZones": {"Fn::GetAZs": ""}
         }
     }
+
+    if "ElasticLoadBalancer" in configuration:
+        definition["Resources"][asg_name]["Properties"]["LoadBalancerNames"] = [
+            {"Ref": configuration["ElasticLoadBalancer"]}]
+
+    if "AutoScaling" in configuration:
+        definition["Resources"][asg_name]["Properties"]["MaxSize"] = configuration["AutoScaling"]["Maximum"]
+        definition["Resources"][asg_name]["Properties"]["MinSize"] = configuration["AutoScaling"]["Minimum"]
+
+        # ScaleUp policy
+        definition["Resources"][asg_name + "ScaleUp"] = {
+            "Type": "AWS::AutoScaling::ScalingPolicy",
+            "Properties": {
+                "AdjustmentType": "ChangeInCapacity",
+                "ScalingAdjustment": "1",
+                "Cooldown": "60",
+                "AutoScalingGroupName": {
+                    "Ref": asg_name
+                }
+            }
+        }
+
+        # ScaleDown policy
+        definition["Resources"][asg_name + "ScaleDown"] = {
+            "Type": "AWS::AutoScaling::ScalingPolicy",
+            "Properties": {
+                "AdjustmentType": "ChangeInCapacity",
+                "ScalingAdjustment": "-1",
+                "Cooldown": "60",
+                "AutoScalingGroupName": {
+                    "Ref": asg_name
+                }
+            }
+        }
+
+        metricfn = ASG_METRICS[configuration["AutoScaling"]["MetricType"]]
+        definition = metricfn(asg_name, definition, configuration["AutoScaling"], args, info)
+    else:
+        definition["Resources"][asg_name]["Properties"]["MaxSize"] = 1
+        definition["Resources"][asg_name]["Properties"]["MinSize"] = 1
 
     return definition
 

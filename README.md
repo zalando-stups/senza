@@ -117,5 +117,6 @@ SenzaComponents and Arguments key (containing all given arguments).
 ## Components
 
 * Senza::Configuration
+* Senza::AutoScalingGroup
 * Senza::TaupageAutoScalingGroup
 * Senza::ElasticLoadBalancer

@@ -17,7 +17,7 @@ snippets that are easy to configure and generate all the boilerplate JSON that i
 # basic information for generating and executing this definition
 SenzaInfo:
   StackName: kio
-  OperatorEMail: kio-ops@example.com
+  OperatorTopicId: arn:aws:sns:eu-west-1:1234567890:kio-operators
   Parameters:
     - ImageVersion:
         Description: "Docker image version of Kio."
@@ -44,9 +44,10 @@ SenzaComponents:
         eu-central-1:
           - subnet-123456
           - subnet-123456
-      AppImage:
-        eu-west-1: ami-123456
-        eu-central-1: ami-123456
+      Images:
+        AppImage:
+          eu-west-1: ami-123456
+          eu-central-1: ami-123456
 
   # will create a launch configuration and auto scaling group with scaling triggers
   - AppServer:

@@ -9,6 +9,7 @@ import pystache
 import boto.cloudformation
 
 
+
 # some helpers
 
 def named_value(d):
@@ -46,22 +47,6 @@ def component_basic_configuration(definition, configuration, args, info):
             value_default = default_parameter.copy()
             value_default.update(value)
             definition["Parameters"][name] = value_default
-
-    # OperatorEMail
-    if "OperatorEMail" in info:
-        definition = ensure_keys(definition, "Resources")
-
-        # TODO do not create, replace OperatorEMail with notification ARN
-        definition["Resources"]["OperatorTopic"] = {
-            "Type": "AWS::SNS::Topic",
-            "Properties": {
-                "Subscription": [{
-                                     "Endpoint": {"Fn::FindInMap": ["Senza", "Info", "OperatorEMail"]},
-                                     "Protocol": "email"
-                                 }],
-                "DisplayName": "{0}-{1}".format(info["StackName"], info["StackVersion"])
-            }
-        }
 
     # ServerSubnets
     if "ServerSubnets" in configuration:
@@ -178,15 +163,6 @@ def component_auto_scaling_group(definition, configuration, args, info):
         },
         "Properties": {
             # for our operator some notifications
-            "NotificationConfiguration": {
-                "NotificationTypes": [
-                    "autoscaling:EC2_INSTANCE_LAUNCH",
-                    "autoscaling:EC2_INSTANCE_LAUNCH_ERROR",
-                    "autoscaling:EC2_INSTANCE_TERMINATE",
-                    "autoscaling:EC2_INSTANCE_TERMINATE_ERROR"
-                ],
-                "TopicARN": {"Ref": "OperatorTopic"}
-            },
             "LaunchConfigurationName": {"Ref": config_name},
             "VPCZoneIdentifier": {"Fn::FindInMap": ["ServerSubnets", {"Ref": "AWS::Region"}, "Subnets"]},
             "AvailabilityZones": {"Fn::GetAZs": ""},
@@ -212,6 +188,17 @@ def component_auto_scaling_group(definition, configuration, args, info):
             ]
         }
     }
+
+    if "OperatorTopicId" in info:
+        definition["Resources"][asg_name]["Properties"]["NotificationConfiguration"] = {
+            "NotificationTypes": [
+                "autoscaling:EC2_INSTANCE_LAUNCH",
+                "autoscaling:EC2_INSTANCE_LAUNCH_ERROR",
+                "autoscaling:EC2_INSTANCE_TERMINATE",
+                "autoscaling:EC2_INSTANCE_TERMINATE_ERROR"
+            ],
+            "TopicARN": info["OperatorTopicId"]
+        }
 
     if "ElasticLoadBalancer" in configuration:
         definition["Resources"][asg_name]["Properties"]["LoadBalancerNames"] = [
@@ -260,7 +247,7 @@ def component_taupage_auto_scaling_group(definition, configuration, args, info):
     # inherit from the normal auto scaling group but discourage user info and replace with a Taupage config
     definition = component_auto_scaling_group(definition, configuration, args, info)
 
-    userdata = "#taupage-ami-config\n" + yaml.dump(configuration["TaupageConfig"], default_flow_style=False)
+    userdata = "#zalando-ami-config\n" + yaml.dump(configuration["TaupageConfig"], default_flow_style=False)
 
     config_name = configuration["Name"] + "Config"
     ensure_keys(definition, "Resources", config_name, "Properties", "UserData")
@@ -422,9 +409,13 @@ def action_create(args):
         "StackVersion": args.version
     }
 
+    if "OperatorTopicId" in input["SenzaInfo"]:
+        topics = [input["SenzaInfo"]["OperatorTopicId"]]
+    else:
+        topics = None
+
     cf = boto.cloudformation.connect_to_region(args.region)
-    # TODO notification ARNs
-    cf.create_stack(stack_name, template_body=cfjson, parameters=parameters, tags=tags)
+    cf.create_stack(stack_name, template_body=cfjson, parameters=parameters, tags=tags, notification_arns=topics)
 
 
 def action_show(args):

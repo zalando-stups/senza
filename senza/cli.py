@@ -105,7 +105,7 @@ def component_auto_scaling_group_metric_cpu(asg_name, definition, configuration,
                 "EvaluationPeriods": "2",
                 "Statistic": "Average",
                 "Threshold": configuration["ScaleDownThreshold"],
-                "ComparisonOperator": "LowerThanThreshold",
+                "ComparisonOperator": "LessThanThreshold",
                 "Dimensions": [
                     {
                         "Name": "AutoScalingGroupName",

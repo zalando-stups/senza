@@ -142,6 +142,9 @@ def component_auto_scaling_group(definition, configuration, args, info):
         }
     }
 
+    if "IamInstanceProfile" in configuration:
+        definition["Resources"][config_name]["Properties"]["IamInstanceProfile"] = configuration["IamInstanceProfile"]
+
     if "SecurityGroups" in configuration:
         definition["Resources"][config_name]["Properties"]["SecurityGroups"] = configuration["SecurityGroups"]
 

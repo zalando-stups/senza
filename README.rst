@@ -16,7 +16,7 @@ Installation
 Usage
 =====
 
-    $ ./senza/cli.py ./my-definition.yaml create eu-west-1 1.0
+    $ senza ./my-definition.yaml create eu-west-1 1.0
 
 Senza Definition
 ================

@@ -11,3 +11,4 @@
 coverage.xml
 junit.xml
 .coverage
+dist/

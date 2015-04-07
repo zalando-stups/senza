@@ -18,7 +18,7 @@ Usage
 
 .. code-block:: bash
 
-    $ senza ./my-definition.yaml create eu-west-1 1.0
+    $ senza create ./my-definition.yaml eu-west-1 1.0
 
 Senza Definition
 ================

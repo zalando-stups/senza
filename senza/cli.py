@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 
 import sys
-import argparse
 import json
+from boto.exception import BotoServerError
+import click
+from clickclick import AliasedGroup
 
 import yaml
 import pystache
 import boto.cloudformation
 
+CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
-
-# some helpers
 
 def named_value(d):
     return next(iter(d.items()))
@@ -27,8 +28,28 @@ def ensure_keys(dict, *keys):
         return dict
 
 
-## all components
+class DefinitionParamType(click.ParamType):
+    name = 'definition'
 
+    def convert(self, value, param, ctx):
+        if isinstance(value, str):
+            try:
+                with open(value, 'r') as fd:
+                    data = yaml.safe_load(fd)
+            except FileNotFoundError:
+                self.fail('"{}" not found'.format(value), param, ctx)
+        else:
+            data = value
+        for key in 'SenzaInfo', 'SenzaComponents':
+            if key not in data:
+                self.fail('"{}" entry is missing in YAML file "{}"'.format(key, value), param, ctx)
+        return data
+
+
+DEFINITION = DefinitionParamType()
+
+
+# all components
 def component_basic_configuration(definition, configuration, args, info):
     # add info as mappings
     # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html
@@ -380,27 +401,49 @@ def evaluate(definition, args):
     return definition
 
 
-## all actions
-
-def load_yaml(file):
-    stream = open(file, 'r')
-    return yaml.load(stream)
+@click.group(cls=AliasedGroup, context_settings=CONTEXT_SETTINGS)
+def cli():
+    pass
 
 
-def action_print(args):
-    input = load_yaml(args.definition)
+class TemplateArguments:
+    def __init__(self, **kwargs):
+        for key, val in kwargs.items():
+            setattr(self, key, val)
+
+
+def is_credentials_expired_error(e: BotoServerError) -> bool:
+    return (e.status == 400 and 'request has expired' in e.message.lower()) or \
+           (e.status == 403 and 'security token included in the request is expired' in e.message.lower())
+
+
+def parse_args(input, region, version, parameter):
+    paras = {}
+    for i, param in enumerate(input['SenzaInfo'].get('Parameters', [])):
+        for key, config in param.items():
+            if len(parameter) <= i:
+                raise click.UsageError('Missing parameter "{}"'.format(key))
+            paras[key] = parameter[i]
+    args = TemplateArguments(region=region, version=version, **paras)
+    return args
+
+
+@cli.command()
+@click.argument('definition', type=DEFINITION)
+@click.argument('region')
+@click.argument('version')
+@click.argument('parameter', nargs=-1)
+def create(definition, region, version, parameter):
+    '''Create a new stack'''
+
+    input = definition
+
+    args = parse_args(input, region, version, parameter)
+
     data = evaluate(input.copy(), args)
     cfjson = json.dumps(data, sort_keys=True, indent=4)
 
-    print(cfjson)
-
-
-def action_create(args):
-    input = load_yaml(args.definition)
-    data = evaluate(input.copy(), args)
-    cfjson = json.dumps(data, sort_keys=True, indent=4)
-
-    stack_name = "{0}-{1}".format(input["SenzaInfo"]["StackName"], args.version)
+    stack_name = "{0}-{1}".format(input["SenzaInfo"]["StackName"], version)
 
     parameters = []
     for name, parameter in data["Parameters"].items():
@@ -409,7 +452,7 @@ def action_create(args):
     tags = {
         "Name": stack_name,
         "StackName": input["SenzaInfo"]["StackName"],
-        "StackVersion": args.version
+        "StackVersion": version
     }
 
     if "OperatorTopicId" in input["SenzaInfo"]:
@@ -417,86 +460,36 @@ def action_create(args):
     else:
         topics = None
 
-    cf = boto.cloudformation.connect_to_region(args.region)
+    cf = boto.cloudformation.connect_to_region(region)
+    if not cf:
+        raise click.UsageError('Invalid region "{}"'.format(region))
     cf.create_stack(stack_name, template_body=cfjson, parameters=parameters, tags=tags, notification_arns=topics)
 
 
-def action_show(args):
-    print("not yet implemented")
+@cli.command()
+@click.argument('definition', type=DEFINITION)
+@click.argument('version')
+@click.argument('parameter', nargs=-1)
+def print(definition, version, parameter):
+    '''Print the generated Cloud Formation template'''
+    input = definition
+    args = parse_args(input, None, version, parameter)
+    data = evaluate(input.copy(), args)
+    cfjson = json.dumps(data, sort_keys=True, indent=4)
 
-
-def action_set_weights(args):
-    print("not yet implemented")
-
-
-def action_delete(args):
-    print("not yet implemented")
-
-
-## basic argument parsing
-
-def args_none(definition):
-    return []
-
-
-def args_version(definition):
-    return [{"region": "In which region to operate."},
-            {"version": "The stack version."}]
-
-
-def args_generation(definition):
-    arguments = args_version(definition)
-
-    # get user defined arguments
-    document = load_yaml(definition)
-    for parameter in document["SenzaInfo"]["Parameters"]:
-        name, value = named_value(parameter)
-        arguments.append({name: value["Description"]})
-
-    return arguments
-
-
-ACTIONS = {
-    "print": {"fn": action_print,
-              "desc": "prints the generated cloud formation template",
-              "args": args_generation},
-    "create": {"fn": action_create,
-               "desc": "creates a new cloud formation stack from the definition",
-               "args": args_generation},
-    "show": {"fn": action_show,
-             "desc": "shows all deployed versions of the definition",
-             "args": args_none},
-    "set-weights": {"fn": action_set_weights,
-                    "desc": "sets the weights for DNS entries",
-                    "args": args_none},
-    "delete": {"fn": action_delete,
-               "desc": "deletes a cloud formation stack",
-               "args": args_version},
-}
+    click.secho(cfjson)
 
 
 def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("definition", help="The senza deployment definition.")
-    parser.add_argument("action", help="The action to perform on the definition.")
-
-    offset = 0
-    if len(sys.argv) >= 1 and sys.argv[1] == "-h":
-        offset = 1
-
-    if len(sys.argv) >= 3 + offset:
-        definition = sys.argv[1 + offset]
-        actionname = sys.argv[2 + offset]
-
-        action = ACTIONS[actionname]
-        arguments = action["args"](definition)
-        for argument in arguments:
-            name, desc = named_value(argument)
-            parser.add_argument(name, help=desc)
-
-    args = parser.parse_args()
-    actionfn = ACTIONS[args.action]["fn"]
-    actionfn(args)
+    try:
+        cli()
+    except BotoServerError as e:
+        if is_credentials_expired_error(e):
+            sys.stderr.write('AWS credentials have expired. ' +
+                             'Use the "mai" command line tool to get a new temporary access key.\n')
+            sys.exit(1)
+        else:
+            raise
 
 
 if __name__ == "__main__":

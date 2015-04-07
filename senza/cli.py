@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
+import calendar
 
 import sys
 import json
 from boto.exception import BotoServerError
 import click
 from clickclick import AliasedGroup
+from clickclick.console import print_table
 
 import yaml
 import pystache
@@ -426,6 +428,33 @@ def parse_args(input, region, version, parameter):
             paras[key] = parameter[i]
     args = TemplateArguments(region=region, version=version, **paras)
     return args
+
+
+@cli.command('list')
+@click.argument('region')
+def list_stacks(region):
+    '''List Cloud Formation stacks'''
+    cf = boto.cloudformation.connect_to_region(region)
+    stacks = cf.list_stacks()
+    rows = []
+    for stack in stacks:
+        rows.append({'Name': stack.stack_name, 'Status': stack.stack_status,
+                     'creation_time': calendar.timegm(stack.creation_time.timetuple()),
+                     'Description': stack.template_description})
+
+    rows.sort(key=lambda x: x['Name'])
+
+    styles = {
+        'DELETE_COMPLETE': {'fg': 'red'},
+        'ROLLBACK_COMPLETE': {'fg': 'red'},
+        'CREATE_COMPLETE': {'fg': 'green'},
+    }
+
+    titles = {
+        'creation_time': 'Created'
+    }
+
+    print_table('Name Status creation_time Description'.split(), rows, styles=styles, titles=titles)
 
 
 @cli.command()

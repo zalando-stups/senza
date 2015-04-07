@@ -132,3 +132,11 @@ Components
 * Senza::AutoScalingGroup
 * Senza::TaupageAutoScalingGroup
 * Senza::ElasticLoadBalancer
+
+Unit Tests
+==========
+
+.. code-block:: bash
+
+    $ python3 setup.py test --cov-html=true
+

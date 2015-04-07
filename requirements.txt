@@ -1,0 +1,2 @@
+clickclick==0.3
+pystache

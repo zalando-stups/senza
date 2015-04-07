@@ -7,3 +7,7 @@
 
 # Python
 *.pyc
+*.egg*
+coverage.xml
+junit.xml
+.coverage

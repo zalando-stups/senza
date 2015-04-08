@@ -11,6 +11,8 @@ from clickclick.console import print_table
 import yaml
 import pystache
 import boto.cloudformation
+import boto.vpc
+import boto.ec2
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -89,6 +91,59 @@ def component_basic_configuration(definition, configuration, args, info):
             for region, ami in image.items():
                 definition = ensure_keys(definition, "Mappings", "Images", region, name)
                 definition["Mappings"]["Images"][region][name] = ami
+
+    return definition
+
+
+def component_stups_auto_configuration(definition, configuration, args, info):
+    # add info as mappings
+    # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html
+    definition = ensure_keys(definition, "Mappings", "Senza", "Info")
+    definition["Mappings"]["Senza"]["Info"] = info
+
+    # define parameters
+    # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html
+    if "Parameters" in info:
+        definition = ensure_keys(definition, "Parameters")
+        default_parameter = {
+            "Type": "String"
+        }
+        for parameter in info["Parameters"]:
+            name, value = named_value(parameter)
+            value_default = default_parameter.copy()
+            value_default.update(value)
+            definition["Parameters"][name] = value_default
+
+    # ServerSubnets
+    vpc_conn = boto.vpc.connect_to_region(args.region)
+    if not vpc_conn:
+        raise click.UsageError('Invalid region "{}"'.format(args.region))
+    server_subnets = []
+    lb_subnets = []
+    for subnet in vpc_conn.get_all_subnets():
+        name = subnet.tags.get('Name', '')
+        if 'dmz' in name:
+            lb_subnets.append(subnet.id)
+        else:
+            server_subnets.append(subnet.id)
+    definition = ensure_keys(definition, "Mappings", "ServerSubnets", args.region)
+    definition["Mappings"]["ServerSubnets"][args.region]["Subnets"] = server_subnets
+
+    definition = ensure_keys(definition, "Mappings", "LoadBalancerSubnets", args.region)
+    definition["Mappings"]["LoadBalancerSubnets"][args.region]["Subnets"] = lb_subnets
+
+    # Images
+    filters = {'name': '*Taupage-AMI-*',
+               'is_public': 'false',
+               'state': 'available',
+               'root_device_type': 'ebs'}
+    ec2_conn = boto.ec2.connect_to_region(args.region)
+    images = ec2_conn.get_all_images(filters=filters)
+    if not images:
+        raise Exception('No Taupage AMI found')
+    most_recent_image = sorted(images, key=lambda i: i.name)[-1]
+    definition = ensure_keys(definition, "Mappings", "Images", args.region, 'LatestTaupageImage')
+    definition["Mappings"]["Images"][args.region]['LatestTaupageImage'] = most_recent_image.id
 
     return definition
 
@@ -271,6 +326,8 @@ def component_auto_scaling_group(definition, configuration, args, info):
 
 def component_taupage_auto_scaling_group(definition, configuration, args, info):
     # inherit from the normal auto scaling group but discourage user info and replace with a Taupage config
+    if 'Image' not in configuration:
+        configuration['Image'] = 'LatestTaupageImage'
     definition = component_auto_scaling_group(definition, configuration, args, info)
 
     userdata = "#zalando-ami-config\n" + yaml.dump(configuration["TaupageConfig"], default_flow_style=False)
@@ -358,6 +415,7 @@ def component_load_balancer(definition, configuration, args, info):
 
 COMPONENTS = {
     "Senza::Configuration": component_basic_configuration,
+    "Senza::StupsAutoConfiguration": component_stups_auto_configuration,
     "Senza::AutoScalingGroup": component_auto_scaling_group,
     "Senza::TaupageAutoScalingGroup": component_taupage_auto_scaling_group,
     "Senza::ElasticLoadBalancer": component_load_balancer,
@@ -448,6 +506,8 @@ def list_stacks(region):
         'DELETE_COMPLETE': {'fg': 'red'},
         'ROLLBACK_COMPLETE': {'fg': 'red'},
         'CREATE_COMPLETE': {'fg': 'green'},
+        'CREATE_IN_PROGRESS': {'fg': 'yellow', 'bold': True},
+        'DELETE_IN_PROGRESS': {'fg': 'red', 'bold': True},
     }
 
     titles = {
@@ -495,14 +555,15 @@ def create(definition, region, version, parameter):
     cf.create_stack(stack_name, template_body=cfjson, parameters=parameters, tags=tags, notification_arns=topics)
 
 
-@cli.command()
+@cli.command('print')
 @click.argument('definition', type=DEFINITION)
+@click.argument('region')
 @click.argument('version')
 @click.argument('parameter', nargs=-1)
-def print(definition, version, parameter):
+def print_cfjson(definition, region, version, parameter):
     '''Print the generated Cloud Formation template'''
     input = definition
-    args = parse_args(input, None, version, parameter)
+    args = parse_args(input, region, version, parameter)
     data = evaluate(input.copy(), args)
     cfjson = json.dumps(data, sort_keys=True, indent=4)
 

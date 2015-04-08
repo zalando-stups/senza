@@ -2,6 +2,13 @@
 Senza
 =====
 
+.. image:: https://travis-ci.org/zalando-stups/senza.svg?branch=master
+   :target: https://travis-ci.org/zalando-stups/senza
+
+.. image:: https://coveralls.io/repos/zalando-stups/senza/badge.svg
+   :target: https://coveralls.io/r/zalando-stups/senza
+
+
 Senza is a command line tool for generating and executing AWS Cloud Formation templates in a sane way. It supports
 Cloud Formation templates as YAML input and adds own 'components' on top. Components are predefined Cloud Formation
 snippets that are easy to configure and generate all the boilerplate JSON that is required by Cloud Formation.

@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 import calendar
+import configparser
+import os
 
 import sys
 import json
 from boto.exception import BotoServerError
 import click
-from clickclick import AliasedGroup
+from clickclick import AliasedGroup, Action
 from clickclick.console import print_table
 
 import yaml
@@ -116,8 +118,6 @@ def component_stups_auto_configuration(definition, configuration, args, info):
 
     # ServerSubnets
     vpc_conn = boto.vpc.connect_to_region(args.region)
-    if not vpc_conn:
-        raise click.UsageError('Invalid region "{}"'.format(args.region))
     server_subnets = []
     lb_subnets = []
     for subnet in vpc_conn.get_all_subnets():
@@ -488,10 +488,27 @@ def parse_args(input, region, version, parameter):
     return args
 
 
+def get_region(region):
+    if not region:
+        config = configparser.ConfigParser()
+        config.read(os.path.expanduser('~/.aws/config'))
+        if 'default' in config:
+            region = config['default']['region']
+
+    if not region:
+        raise click.UsageError('Please specify the AWS region on the command line (--region) or in ~/.aws/config')
+
+    cf = boto.cloudformation.connect_to_region(region)
+    if not cf:
+        raise click.UsageError('Invalid region "{}"'.format(region))
+    return region
+
+
 @cli.command('list')
-@click.argument('region')
+@click.option('--region', envvar='AWS_DEFAULT_REGION')
 def list_stacks(region):
     '''List Cloud Formation stacks'''
+    region = get_region(region)
     cf = boto.cloudformation.connect_to_region(region)
     stacks = cf.list_stacks()
     rows = []
@@ -519,14 +536,15 @@ def list_stacks(region):
 
 @cli.command()
 @click.argument('definition', type=DEFINITION)
-@click.argument('region')
 @click.argument('version')
 @click.argument('parameter', nargs=-1)
+@click.option('--region', envvar='AWS_DEFAULT_REGION')
 def create(definition, region, version, parameter):
     '''Create a new stack'''
 
     input = definition
 
+    region = get_region(region)
     args = parse_args(input, region, version, parameter)
 
     data = evaluate(input.copy(), args)
@@ -550,24 +568,34 @@ def create(definition, region, version, parameter):
         topics = None
 
     cf = boto.cloudformation.connect_to_region(region)
-    if not cf:
-        raise click.UsageError('Invalid region "{}"'.format(region))
     cf.create_stack(stack_name, template_body=cfjson, parameters=parameters, tags=tags, notification_arns=topics)
 
 
 @cli.command('print')
 @click.argument('definition', type=DEFINITION)
-@click.argument('region')
 @click.argument('version')
 @click.argument('parameter', nargs=-1)
+@click.option('--region', envvar='AWS_DEFAULT_REGION')
 def print_cfjson(definition, region, version, parameter):
     '''Print the generated Cloud Formation template'''
     input = definition
+    region = get_region(region)
     args = parse_args(input, region, version, parameter)
     data = evaluate(input.copy(), args)
     cfjson = json.dumps(data, sort_keys=True, indent=4)
 
     click.secho(cfjson)
+
+
+@cli.command()
+@click.argument('stack_name')
+@click.option('--region', envvar='AWS_DEFAULT_REGION')
+def delete(stack_name, region):
+    region = get_region(region)
+    cf = boto.cloudformation.connect_to_region(region)
+
+    with Action('Deleting Cloud Formation stack {}..'.format(stack_name)):
+        cf.delete_stack(stack_name)
 
 
 def main():

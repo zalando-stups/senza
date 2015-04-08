@@ -25,7 +25,7 @@ Usage
 
 .. code-block:: bash
 
-    $ senza create ./my-definition.yaml eu-west-1 1.0
+    $ senza create ./my-definition.yaml --region=eu-west-1 1.0
 
 Senza Definition
 ================
@@ -34,93 +34,70 @@ Senza Definition
 
     # basic information for generating and executing this definition
     SenzaInfo:
-    StackName: kio
-    OperatorTopicId: arn:aws:sns:eu-west-1:1234567890:kio-operators
-    Parameters:
-        - ImageVersion:
-            Description: "Docker image version of Kio."
+      StackName: kio
+      OperatorTopicId: arn:aws:sns:eu-west-1:1234567890:kio-operators
+      Parameters:
+          - ImageVersion:
+              Description: "Docker image version of Kio."
 
     # a list of senza components to apply to the definition
     SenzaComponents:
 
-    # this basic configuration is required for the other components
-    - Configuration:
-        Type: Senza::Configuration
-        ServerSubnets:
-            eu-west-1:
-            - subnet-123456
-            - subnet-123456
-            - subnet-123456
-            eu-central-1:
-            - subnet-123456
-            - subnet-123456
-        LoadBalancerSubnets:
-            eu-west-1:
-            - subnet-123456
-            - subnet-123456
-            - subnet-123456
-            eu-central-1:
-            - subnet-123456
-            - subnet-123456
-        Images:
-            AppImage:
-            eu-west-1: ami-123456
-            eu-central-1: ami-123456
+      # this basic configuration is required for the other components
+      - Configuration:
+          Type: Senza::StupsAutoConfiguration
 
-    # will create a launch configuration and auto scaling group with scaling triggers
-    - AppServer:
-        Type: Senza::TaupageAutoScalingGroup
-        InstanceType: t2.micro
-        Image: AppImage
-        SecurityGroups:
+      # will create a launch configuration and auto scaling group with scaling triggers
+      - AppServer:
+          Type: Senza::TaupageAutoScalingGroup
+          InstanceType: t2.micro
+          SecurityGroups:
             - sg-123456
-        ElasticLoadBalancer: AppLoadBalancer
-        TaupageConfig:
+          ElasticLoadBalancer: AppLoadBalancer
+          TaupageConfig:
             runtime: Docker
             source: stups/kio:{{Arguments.ImageVersion}}
             ports:
-            8080: 8080
+              8080: 8080
             notify_cfn:
-            stack: "{{SenzaInfo.StackName}}-{{SenzaInfo.StackVersion}}"
-            resource: "AppServer"
+              stack: "{{SenzaInfo.StackName}}-{{SenzaInfo.StackVersion}}"
+              resource: "AppServer"
             environment:
-            HTTP_CORS_ORIGIN: "*.example.com"
-            PGSSLMODE: verify-full
-            DB_SUBNAME: "//kio.example.eu-west-1.rds.amazonaws.com:5432/kio?ssl=true"
-            DB_USER: kio
-            DB_PASSWORD: aws:kms:abcdef1234567890abcdef=
-        AutoScaling:
+              HTTP_CORS_ORIGIN: "*.example.com"
+              PGSSLMODE: verify-full
+              DB_SUBNAME: "//kio.example.eu-west-1.rds.amazonaws.com:5432/kio?ssl=true"
+              DB_USER: kio
+              DB_PASSWORD: aws:kms:abcdef1234567890abcdef=
+          AutoScaling:
             Minimum: 2
             Maximum: 10
             MetricType: CPU
             ScaleUpThreshold: 70
             ScaleDownThreshold: 40
 
-    # creates an ELB entry and Route53 domains to this ELB
-    - AppLoadBalancer:
-        Type: Senza::ElasticLoadBalancer
-        HTTPPort: 8080
-        SSLCertificateId: arn:aws:iam::1234567890:server-certificate/kio-example-com
-        HealthCheckPath: /ui/
-        SecurityGroups:
-            - sg-123456
-        Domains:
+      # creates an ELB entry and Route53 domains to this ELB
+      - AppLoadBalancer:
+          Type: Senza::ElasticLoadBalancer
+          HTTPPort: 8080
+          SSLCertificateId: arn:aws:iam::1234567890:server-certificate/kio-example-com
+          HealthCheckPath: /ui/
+          SecurityGroups:
+              - sg-123456
+          Domains:
             MainDomain:
-            Type: weighted
-            Zone: example.com
-            Subdomain: kio
+              Type: weighted
+              Zone: example.com
+              Subdomain: kio
             VersionDomain:
-            Type: standalone
-            Zone: example.com
-            Subdomain: kio-{{SenzaInfo.StackVersion}}
-
+              Type: standalone
+              Zone: example.com
+              Subdomain: kio-{{SenzaInfo.StackVersion}}
 
     # just plain Cloud Formation definitions are fully supported:
-
     Outputs:
     URL:
-        Description: "The ELB URL of the new Kio deployment."
-        Value:
+      Description: "The ELB URL of the new Kio deployment."
+      Value:
         "Fn::Join":
             - ""
             -
@@ -136,6 +113,7 @@ Components
 ==========
 
 * Senza::Configuration
+* Senza::StupsAutoConfiguration
 * Senza::AutoScalingGroup
 * Senza::TaupageAutoScalingGroup
 * Senza::ElasticLoadBalancer

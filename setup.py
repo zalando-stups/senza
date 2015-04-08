@@ -35,6 +35,7 @@ LICENSE = 'Apache License 2.0'
 URL = 'https://github.com/zalando-stups/senza'
 AUTHOR = 'Henning Jacobs'
 EMAIL = 'henning.jacobs@zalando.de'
+KEYWORDS = 'aws cloud formation cf elb ec2 stups immutable stacks route53 boto'
 
 COVERAGE_XML = True
 COVERAGE_HTML = False
@@ -203,7 +204,7 @@ def setup_package():
         author=AUTHOR,
         author_email=EMAIL,
         license=LICENSE,
-        keywords='aws account saml login federated shibboleth',
+        keywords=KEYWORDS,
         long_description=read('README.rst'),
         classifiers=CLASSIFIERS,
         test_suite='tests',

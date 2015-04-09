@@ -43,16 +43,15 @@ Senza Definition
     # a list of senza components to apply to the definition
     SenzaComponents:
 
-      # this basic configuration is required for the other components
       - Configuration:
-          Type: Senza::StupsAutoConfiguration
+          Type: Senza::StupsAutoConfiguration # auto-detect network setup
 
-      # will create a launch configuration and auto scaling group with scaling triggers
+      # will create a launch configuration and auto scaling group with min/max=1
       - AppServer:
           Type: Senza::TaupageAutoScalingGroup
           InstanceType: t2.micro
           SecurityGroups:
-            - app-kio
+            - app-kio # can be either name or id ("sg-..")
           ElasticLoadBalancer: AppLoadBalancer
           TaupageConfig:
             runtime: Docker
@@ -70,7 +69,6 @@ Senza Definition
       - AppLoadBalancer:
           Type: Senza::WeightedDnsElasticLoadBalancer
           HTTPPort: 8080
-          SSLCertificateId: kio-example-com
           HealthCheckPath: /ui/
           SecurityGroups:
               - app-kio-lb
@@ -91,15 +89,10 @@ Senza Definition
 During evaluation, you can mustache templating with access to the rendered definition, including the SenzaInfo,
 SenzaComponents and Arguments key (containing all given arguments).
 
-Components
-==========
+See the `STUPS documentation on Senza`_ for details.
 
-* Senza::Configuration
-* Senza::StupsAutoConfiguration
-* Senza::AutoScalingGroup
-* Senza::TaupageAutoScalingGroup
-* Senza::ElasticLoadBalancer
-* Senza::WeightedDnsElasticLoadBalancer
+.. _STUPS documentation on Senza: http://stups.readthedocs.org/en/latest/components/senza.html
+
 
 Unit Tests
 ==========

@@ -57,6 +57,15 @@ class DefinitionParamType(click.ParamType):
 DEFINITION = DefinitionParamType()
 
 
+def format_params(args):
+    items = [(key, val) for key, val in args.__dict__.items() if key not in ('region', 'version')]
+    return ', '.join(['{}: {}'.format(key, val) for key, val in items])
+
+
+def get_default_description(info, args):
+    return '{} ({})'.format(info['StackName'].title().replace('-', ' '), format_params(args))
+
+
 # all components
 def component_basic_configuration(definition, configuration, args, info):
     # add info as mappings
@@ -76,6 +85,10 @@ def component_basic_configuration(definition, configuration, args, info):
             value_default = default_parameter.copy()
             value_default.update(value)
             definition["Parameters"][name] = value_default
+
+    if 'Description' not in definition:
+        # set some sane default stack description
+        definition['Description'] = get_default_description(info, args)
 
     # ServerSubnets
     if "ServerSubnets" in configuration:
@@ -102,21 +115,7 @@ def component_basic_configuration(definition, configuration, args, info):
 def component_stups_auto_configuration(definition, configuration, args, info):
     # add info as mappings
     # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html
-    definition = ensure_keys(definition, "Mappings", "Senza", "Info")
-    definition["Mappings"]["Senza"]["Info"] = info
-
-    # define parameters
-    # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html
-    if "Parameters" in info:
-        definition = ensure_keys(definition, "Parameters")
-        default_parameter = {
-            "Type": "String"
-        }
-        for parameter in info["Parameters"]:
-            name, value = named_value(parameter)
-            value_default = default_parameter.copy()
-            value_default.update(value)
-            definition["Parameters"][name] = value_default
+    component_basic_configuration(definition, configuration, args, info)
 
     # ServerSubnets
     vpc_conn = boto.vpc.connect_to_region(args.region)
@@ -504,7 +503,7 @@ COMPONENTS = {
 }
 
 BASE_TEMPLATE = {
-    "AWSTemplateFormatVersion": "2010-09-09"
+    'AWSTemplateFormatVersion': '2010-09-09'
 }
 
 

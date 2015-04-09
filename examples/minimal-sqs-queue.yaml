@@ -1,0 +1,6 @@
+Description: "A minimal Cloud Formation stack creating a SQS queue"
+SenzaInfo:
+  StackName: example
+Resources:
+  MyQueue:
+    Type: AWS::SQS::Queue

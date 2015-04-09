@@ -48,8 +48,8 @@ class DefinitionParamType(click.ParamType):
                 self.fail('"{}" not found'.format(value), param, ctx)
         else:
             data = value
-        for key in 'SenzaInfo', 'SenzaComponents':
-            if key not in data:
+        for key in ['SenzaInfo']:
+            if 'SenzaInfo' not in data:
                 self.fail('"{}" entry is missing in YAML file "{}"'.format(key, value), param, ctx)
         return data
 
@@ -512,7 +512,7 @@ def evaluate(definition, args):
     info = definition.pop("SenzaInfo")
     info["StackVersion"] = args.version
 
-    components = definition.pop("SenzaComponents")
+    components = definition.pop("SenzaComponents", [])
 
     # merge base template with definition
     BASE_TEMPLATE.update(definition)
@@ -646,7 +646,7 @@ def create(definition, region, version, parameter):
     stack_name = "{0}-{1}".format(input["SenzaInfo"]["StackName"], version)
 
     parameters = []
-    for name, parameter in data["Parameters"].items():
+    for name, parameter in data.get("Parameters", {}).items():
         parameters.append([name, getattr(args, name)])
 
     tags = {

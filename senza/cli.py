@@ -16,6 +16,7 @@ import boto.cloudformation
 import boto.vpc
 import boto.ec2
 import boto.iam
+import boto.route53
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -456,13 +457,28 @@ def component_load_balancer(definition, configuration, args, info):
     return definition
 
 
+def component_weighted_dns_load_balancer(definition, configuration, args, info):
+    if 'Domains' not in configuration:
+        dns_conn = boto.route53.connect_to_region(args.region)
+        zones = dns_conn.get_zones()
+        domains = sorted([zone.name.rstrip('.') for zone in zones])
+        version_subdomain = '{}-{}'.format(info['StackName'], info['StackVersion'])
+        configuration['Domains'] = {'MainDomain': {'Type': 'weighted',
+                                                   'Zone': domains[0],
+                                                   'Subdomain': info['StackName']},
+                                    'VersionDomain': {'Type': 'standalone',
+                                                      'Zone': domains[0],
+                                                      'Subdomain': version_subdomain}}
+    return component_load_balancer(definition, configuration, args, info)
+
+
 COMPONENTS = {
     "Senza::Configuration": component_basic_configuration,
     "Senza::StupsAutoConfiguration": component_stups_auto_configuration,
     "Senza::AutoScalingGroup": component_auto_scaling_group,
     "Senza::TaupageAutoScalingGroup": component_taupage_auto_scaling_group,
     "Senza::ElasticLoadBalancer": component_load_balancer,
-    "Senza::WeightedDnsElasticLoadBalancer": component_load_balancer,
+    "Senza::WeightedDnsElasticLoadBalancer": component_weighted_dns_load_balancer,
 }
 
 BASE_TEMPLATE = {

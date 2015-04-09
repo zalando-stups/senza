@@ -686,6 +686,7 @@ def print_cfjson(definition, region, version, parameter):
 @click.argument('version')
 @click.option('--region', envvar='AWS_DEFAULT_REGION')
 def delete(definition, version, region):
+    '''Delete a single Cloud Formation stack'''
     region = get_region(region)
     cf = boto.cloudformation.connect_to_region(region)
 
@@ -693,6 +694,37 @@ def delete(definition, version, region):
 
     with Action('Deleting Cloud Formation stack {}..'.format(stack_name)):
         cf.delete_stack(stack_name)
+
+
+@cli.command()
+@click.argument('definition', type=DEFINITION)
+@click.argument('version')
+@click.option('--region', envvar='AWS_DEFAULT_REGION')
+def show(definition, version, region):
+    '''Show details of a single Cloud Formation stack'''
+    region = get_region(region)
+    cf = boto.cloudformation.connect_to_region(region)
+
+    stack_name = '{}-{}'.format(definition['SenzaInfo']['StackName'], version)
+    resources = cf.describe_stack_resources(stack_name)
+
+    rows = []
+    for resource in resources:
+        d = resource.__dict__
+        d['creation_time'] = calendar.timegm(resource.timestamp.timetuple())
+        rows.append(d)
+
+    styles = {
+        'DELETE_COMPLETE': {'fg': 'red'},
+        'ROLLBACK_COMPLETE': {'fg': 'red'},
+        'CREATE_COMPLETE': {'fg': 'green'},
+        'CREATE_IN_PROGRESS': {'fg': 'yellow', 'bold': True},
+        'DELETE_IN_PROGRESS': {'fg': 'red', 'bold': True},
+        }
+    titles = {'logical_resource_id': 'ID'}
+
+    print_table('logical_resource_id resource_type resource_status creation_time'.split(), rows,
+                styles=styles, titles=titles)
 
 
 def main():

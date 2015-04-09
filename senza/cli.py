@@ -15,6 +15,7 @@ import pystache
 import boto.cloudformation
 import boto.vpc
 import boto.ec2
+import boto.iam
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -330,7 +331,13 @@ def component_taupage_auto_scaling_group(definition, configuration, args, info):
         configuration['Image'] = 'LatestTaupageImage'
     definition = component_auto_scaling_group(definition, configuration, args, info)
 
-    userdata = "#zalando-ami-config\n" + yaml.dump(configuration["TaupageConfig"], default_flow_style=False)
+    taupage_config = configuration['TaupageConfig']
+
+    if 'notify_cfn' not in taupage_config:
+        taupage_config['notify_cfn'] = {'stack': '{}-{}'.format(info["StackName"], info["StackVersion"]),
+                                        'resource': configuration['Name']}
+
+    userdata = "#zalando-ami-config\n" + yaml.dump(taupage_config, default_flow_style=False)
 
     config_name = configuration["Name"] + "Config"
     ensure_keys(definition, "Resources", config_name, "Properties", "UserData")
@@ -339,8 +346,65 @@ def component_taupage_auto_scaling_group(definition, configuration, args, info):
     return definition
 
 
+def find_ssl_certificate_arn(region, pattern):
+    '''Find the a matching SSL cert and return its ARN'''
+    iam_conn = boto.iam.connect_to_region(region)
+    response = iam_conn.list_server_certs()
+    response = response['list_server_certificates_response']
+    certs = response['list_server_certificates_result']['server_certificate_metadata_list']
+    candidates = set()
+    for cert in certs:
+        if pattern in cert['server_certificate_name']:
+            candidates.add(cert['arn'])
+    if candidates:
+        # return first match (alphabetically sorted
+        return sorted(candidates)[0]
+    else:
+        return None
+
+
 def component_load_balancer(definition, configuration, args, info):
     lb_name = configuration["Name"]
+
+    # domains pointing to the load balancer
+    main_zone = None
+    if "Domains" in configuration:
+        for name, domain in configuration["Domains"].items():
+            definition["Resources"][name] = {
+                "Type": "AWS::Route53::RecordSet",
+                "Properties": {
+                    "Type": "CNAME",
+                    "TTL": 20,
+                    "ResourceRecords": [
+                        {"Fn::GetAtt": [lb_name, "DNSName"]}
+                    ],
+                    "Name": "{0}.{1}".format(domain["Subdomain"], domain["Zone"]),
+                    "HostedZoneName": "{0}.".format(domain["Zone"])
+                },
+                }
+
+            if domain["Type"] == "weighted":
+                definition["Resources"][name]["Properties"]['Weight'] = 0
+                definition["Resources"][name]["Properties"]['SetIdentifier'] = "{0}-{1}".format(info["StackName"],
+                                                                                                info["StackVersion"])
+                main_zone = domain['Zone']
+
+    ssl_cert = configuration.get('SSLCertificateId')
+
+    pattern = None
+    if not ssl_cert:
+        if main_zone:
+            pattern = main_zone.lower().replace('.', '-')
+        else:
+            pattern = ''
+    elif not ssl_cert.startswith('arn:'):
+        pattern = ssl_cert
+
+    if pattern is not None:
+        ssl_cert = find_ssl_certificate_arn(args.region, pattern)
+
+        if not ssl_cert:
+            raise click.UsageError('Could not find any matching SSL certificate for "{}"'.format(pattern))
 
     # load balancer
     definition["Resources"][lb_name] = {
@@ -360,7 +424,7 @@ def component_load_balancer(definition, configuration, args, info):
             "Listeners": [
                 {
                     "PolicyNames": [],
-                    "SSLCertificateId": configuration["SSLCertificateId"],
+                    "SSLCertificateId": ssl_cert,
                     "Protocol": "HTTPS",
                     "InstancePort": configuration["HTTPPort"],
                     "LoadBalancerPort": 443
@@ -389,27 +453,6 @@ def component_load_balancer(definition, configuration, args, info):
         }
     }
 
-    # domains pointing to the load balancer
-    if "Domains" in configuration:
-        for name, domain in configuration["Domains"].items():
-            definition["Resources"][name] = {
-                "Type": "AWS::Route53::RecordSet",
-                "Properties": {
-                    "Type": "CNAME",
-                    "TTL": 20,
-                    "ResourceRecords": [
-                        {"Fn::GetAtt": [lb_name, "DNSName"]}
-                    ],
-                    "Name": "{0}.{1}".format(domain["Subdomain"], domain["Zone"]),
-                    "HostedZoneName": "{0}.".format(domain["Zone"])
-                },
-            }
-
-            if domain["Type"] == "weighted":
-                definition["Resources"][name]["Properties"]['Weight'] = 0
-                definition["Resources"][name]["Properties"]['SetIdentifier'] = "{0}-{1}".format(info["StackName"],
-                                                                                                info["StackVersion"])
-
     return definition
 
 
@@ -419,6 +462,7 @@ COMPONENTS = {
     "Senza::AutoScalingGroup": component_auto_scaling_group,
     "Senza::TaupageAutoScalingGroup": component_taupage_auto_scaling_group,
     "Senza::ElasticLoadBalancer": component_load_balancer,
+    "Senza::WeightedDnsElasticLoadBalancer": component_load_balancer,
 }
 
 BASE_TEMPLATE = {

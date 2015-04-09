@@ -616,6 +616,7 @@ def list_stacks(region, definition, all):
         'DELETE_COMPLETE': {'fg': 'red'},
         'ROLLBACK_COMPLETE': {'fg': 'red'},
         'CREATE_COMPLETE': {'fg': 'green'},
+        'CREATE_FAILED': {'fg': 'red'},
         'CREATE_IN_PROGRESS': {'fg': 'yellow', 'bold': True},
         'DELETE_IN_PROGRESS': {'fg': 'red', 'bold': True},
     }

@@ -588,16 +588,28 @@ def get_region(region):
 
 @cli.command('list')
 @click.option('--region', envvar='AWS_DEFAULT_REGION')
-def list_stacks(region):
+@click.option('--all', is_flag=True, help='Show all stacks, including deleted ones')
+@click.argument('definition', nargs=-1, type=DEFINITION)
+def list_stacks(region, definition, all):
     '''List Cloud Formation stacks'''
     region = get_region(region)
+
+    stack_names = set()
+    for defn in definition:
+        stack_names.add(defn['SenzaInfo']['StackName'])
+
     cf = boto.cloudformation.connect_to_region(region)
-    stacks = cf.list_stacks()
+    if all:
+        status_filter = None
+    else:
+        status_filter = [st for st in cf.valid_states if st != 'DELETE_COMPLETE']
+    stacks = cf.list_stacks(stack_status_filters=status_filter)
     rows = []
     for stack in stacks:
-        rows.append({'Name': stack.stack_name, 'Status': stack.stack_status,
-                     'creation_time': calendar.timegm(stack.creation_time.timetuple()),
-                     'Description': stack.template_description})
+        if not stack_names or stack.stack_name.rsplit('-', 1)[0] in stack_names:
+            rows.append({'Name': stack.stack_name, 'Status': stack.stack_status,
+                         'creation_time': calendar.timegm(stack.creation_time.timetuple()),
+                         'Description': stack.template_description})
 
     rows.sort(key=lambda x: x['Name'])
 
@@ -670,11 +682,14 @@ def print_cfjson(definition, region, version, parameter):
 
 
 @cli.command()
-@click.argument('stack_name')
+@click.argument('definition', type=DEFINITION)
+@click.argument('version')
 @click.option('--region', envvar='AWS_DEFAULT_REGION')
-def delete(stack_name, region):
+def delete(definition, version, region):
     region = get_region(region)
     cf = boto.cloudformation.connect_to_region(region)
+
+    stack_name = '{}-{}'.format(definition['SenzaInfo']['StackName'], version)
 
     with Action('Deleting Cloud Formation stack {}..'.format(stack_name)):
         cf.delete_stack(stack_name)

@@ -208,6 +208,27 @@ ASG_METRICS = {
 }
 
 
+def get_security_group(region: str, sg_name: str):
+    conn = boto.ec2.connect_to_region(region)
+    all_security_groups = conn.get_all_security_groups()
+    for _sg in all_security_groups:
+        if _sg.name == sg_name:
+            return _sg
+
+
+def resolve_security_groups(security_groups: list, region: str):
+    result = []
+    for id_or_name in security_groups:
+        if id_or_name.startswith('sg-'):
+            result.append(id_or_name)
+        else:
+            sg = get_security_group(region, id_or_name)
+            if sg:
+                result.append(sg.id)
+
+    return result
+
+
 def component_auto_scaling_group(definition, configuration, args, info):
     definition = ensure_keys(definition, "Resources")
 
@@ -226,7 +247,8 @@ def component_auto_scaling_group(definition, configuration, args, info):
         definition["Resources"][config_name]["Properties"]["IamInstanceProfile"] = configuration["IamInstanceProfile"]
 
     if "SecurityGroups" in configuration:
-        definition["Resources"][config_name]["Properties"]["SecurityGroups"] = configuration["SecurityGroups"]
+        definition["Resources"][config_name]["Properties"]["SecurityGroups"] =\
+            resolve_security_groups(configuration["SecurityGroups"], args.region)
 
     if "UserData" in configuration:
         definition["Resources"][config_name]["Properties"]["UserData"] = {
@@ -433,7 +455,7 @@ def component_load_balancer(definition, configuration, args, info):
             ],
             "CrossZone": "true",
             "LoadBalancerName": "{0}-{1}".format(info["StackName"], info["StackVersion"]),
-            "SecurityGroups": [] if "SecurityGroups" not in configuration else configuration["SecurityGroups"],
+            "SecurityGroups": resolve_security_groups(configuration["SecurityGroups"], args.region),
             "Tags": [
                 # Tag "Name"
                 {

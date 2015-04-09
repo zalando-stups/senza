@@ -52,46 +52,28 @@ Senza Definition
           Type: Senza::TaupageAutoScalingGroup
           InstanceType: t2.micro
           SecurityGroups:
-            - sg-123456
+            - app-kio
           ElasticLoadBalancer: AppLoadBalancer
           TaupageConfig:
             runtime: Docker
             source: stups/kio:{{Arguments.ImageVersion}}
             ports:
               8080: 8080
-            notify_cfn:
-              stack: "{{SenzaInfo.StackName}}-{{SenzaInfo.StackVersion}}"
-              resource: "AppServer"
             environment:
               HTTP_CORS_ORIGIN: "*.example.com"
               PGSSLMODE: verify-full
               DB_SUBNAME: "//kio.example.eu-west-1.rds.amazonaws.com:5432/kio?ssl=true"
               DB_USER: kio
               DB_PASSWORD: aws:kms:abcdef1234567890abcdef=
-          AutoScaling:
-            Minimum: 2
-            Maximum: 10
-            MetricType: CPU
-            ScaleUpThreshold: 70
-            ScaleDownThreshold: 40
 
       # creates an ELB entry and Route53 domains to this ELB
       - AppLoadBalancer:
-          Type: Senza::ElasticLoadBalancer
+          Type: Senza::WeightedDnsElasticLoadBalancer
           HTTPPort: 8080
-          SSLCertificateId: arn:aws:iam::1234567890:server-certificate/kio-example-com
+          SSLCertificateId: kio-example-com
           HealthCheckPath: /ui/
           SecurityGroups:
-              - sg-123456
-          Domains:
-            MainDomain:
-              Type: weighted
-              Zone: example.com
-              Subdomain: kio
-            VersionDomain:
-              Type: standalone
-              Zone: example.com
-              Subdomain: kio-{{SenzaInfo.StackVersion}}
+              - app-kio-lb
 
     # just plain Cloud Formation definitions are fully supported:
     Outputs:
@@ -117,6 +99,7 @@ Components
 * Senza::AutoScalingGroup
 * Senza::TaupageAutoScalingGroup
 * Senza::ElasticLoadBalancer
+* Senza::WeightedDnsElasticLoadBalancer
 
 Unit Tests
 ==========

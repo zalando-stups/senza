@@ -632,7 +632,8 @@ def list_stacks(region, definition, all):
 @click.argument('version')
 @click.argument('parameter', nargs=-1)
 @click.option('--region', envvar='AWS_DEFAULT_REGION')
-def create(definition, region, version, parameter):
+@click.option('--disable-rollback', is_flag=True, help='Disable Cloud Formation rollback on failure')
+def create(definition, region, version, parameter, disable_rollback):
     '''Create a new stack'''
 
     input = definition
@@ -661,7 +662,8 @@ def create(definition, region, version, parameter):
         topics = None
 
     cf = boto.cloudformation.connect_to_region(region)
-    cf.create_stack(stack_name, template_body=cfjson, parameters=parameters, tags=tags, notification_arns=topics)
+    cf.create_stack(stack_name, template_body=cfjson, parameters=parameters, tags=tags, notification_arns=topics,
+                    disable_rollback=disable_rollback)
 
 
 @cli.command('print')

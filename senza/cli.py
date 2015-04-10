@@ -588,9 +588,12 @@ def parse_args(input, region, version, parameter):
 def get_region(region):
     if not region:
         config = configparser.ConfigParser()
-        config.read(os.path.expanduser('~/.aws/config'))
-        if 'default' in config:
-            region = config['default']['region']
+        try:
+            config.read(os.path.expanduser('~/.aws/config'))
+            if 'default' in config:
+                region = config['default']['region']
+        except:
+            pass
 
     if not region:
         raise click.UsageError('Please specify the AWS region on the command line (--region) or in ~/.aws/config')

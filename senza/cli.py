@@ -9,6 +9,7 @@ from boto.exception import BotoServerError
 import click
 from clickclick import AliasedGroup, Action
 from clickclick.console import print_table
+import time
 
 import yaml
 import pystache
@@ -19,6 +20,21 @@ import boto.iam
 import boto.route53
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
+
+STYLES = {
+    'DELETE_COMPLETE': {'fg': 'red'},
+    'ROLLBACK_COMPLETE': {'fg': 'red'},
+    'CREATE_COMPLETE': {'fg': 'green'},
+    'CREATE_FAILED': {'fg': 'red'},
+    'CREATE_IN_PROGRESS': {'fg': 'yellow', 'bold': True},
+    'DELETE_IN_PROGRESS': {'fg': 'red', 'bold': True},
+    }
+
+
+TITLES = {
+    'creation_time': 'Created',
+    'logical_resource_id': 'ID'
+}
 
 
 def named_value(d):
@@ -612,20 +628,7 @@ def list_stacks(region, definition, all):
 
     rows.sort(key=lambda x: x['Name'])
 
-    styles = {
-        'DELETE_COMPLETE': {'fg': 'red'},
-        'ROLLBACK_COMPLETE': {'fg': 'red'},
-        'CREATE_COMPLETE': {'fg': 'green'},
-        'CREATE_FAILED': {'fg': 'red'},
-        'CREATE_IN_PROGRESS': {'fg': 'yellow', 'bold': True},
-        'DELETE_IN_PROGRESS': {'fg': 'red', 'bold': True},
-    }
-
-    titles = {
-        'creation_time': 'Created'
-    }
-
-    print_table('Name Status creation_time Description'.split(), rows, styles=styles, titles=titles)
+    print_table('Name Status creation_time Description'.split(), rows, styles=STYLES, titles=TITLES)
 
 
 @cli.command()
@@ -702,31 +705,62 @@ def delete(definition, version, region):
 @click.argument('definition', type=DEFINITION)
 @click.argument('version')
 @click.option('--region', envvar='AWS_DEFAULT_REGION')
-def show(definition, version, region):
-    '''Show details of a single Cloud Formation stack'''
+@click.option('-w', '--watch', type=click.IntRange(1, 300), help='Auto update the screen every X seconds',
+              metavar='SECS')
+def resources(definition, version, region, watch):
+    '''Show all resources of a single Cloud Formation stack'''
     region = get_region(region)
     cf = boto.cloudformation.connect_to_region(region)
 
     stack_name = '{}-{}'.format(definition['SenzaInfo']['StackName'], version)
-    resources = cf.describe_stack_resources(stack_name)
 
-    rows = []
-    for resource in resources:
-        d = resource.__dict__
-        d['creation_time'] = calendar.timegm(resource.timestamp.timetuple())
-        rows.append(d)
+    while version:
+        resources = cf.describe_stack_resources(stack_name)
 
-    styles = {
-        'DELETE_COMPLETE': {'fg': 'red'},
-        'ROLLBACK_COMPLETE': {'fg': 'red'},
-        'CREATE_COMPLETE': {'fg': 'green'},
-        'CREATE_IN_PROGRESS': {'fg': 'yellow', 'bold': True},
-        'DELETE_IN_PROGRESS': {'fg': 'red', 'bold': True},
-        }
-    titles = {'logical_resource_id': 'ID'}
+        rows = []
+        for resource in resources:
+            d = resource.__dict__
+            d['creation_time'] = calendar.timegm(resource.timestamp.timetuple())
+            rows.append(d)
 
-    print_table('logical_resource_id resource_type resource_status creation_time'.split(), rows,
-                styles=styles, titles=titles)
+        print_table('logical_resource_id resource_type resource_status creation_time'.split(), rows,
+                    styles=STYLES, titles=TITLES)
+        if watch:
+            time.sleep(watch)
+            click.clear()
+        else:
+            version = False
+
+
+@cli.command()
+@click.argument('definition', type=DEFINITION)
+@click.argument('version')
+@click.option('--region', envvar='AWS_DEFAULT_REGION')
+@click.option('-w', '--watch', type=click.IntRange(1, 300), help='Auto update the screen every X seconds',
+              metavar='SECS')
+def events(definition, version, region, watch):
+    '''Show all Cloud Formation events for a single stack'''
+    region = get_region(region)
+    cf = boto.cloudformation.connect_to_region(region)
+
+    stack_name = '{}-{}'.format(definition['SenzaInfo']['StackName'], version)
+
+    while version:
+        events = cf.describe_stack_events(stack_name)
+
+        rows = []
+        for event in sorted(events, key=lambda x: x.timestamp):
+            d = event.__dict__
+            d['event_time'] = calendar.timegm(event.timestamp.timetuple())
+            rows.append(d)
+
+        print_table('resource_type logical_resource_id resource_status event_time'.split(), rows,
+                    styles=STYLES, titles=TITLES)
+        if watch:
+            time.sleep(watch)
+            click.clear()
+        else:
+            version = False
 
 
 def main():

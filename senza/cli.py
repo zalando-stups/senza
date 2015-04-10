@@ -648,8 +648,9 @@ def create(definition, region, version, parameter, disable_rollback):
     region = get_region(region)
     args = parse_args(input, region, version, parameter)
 
-    data = evaluate(input.copy(), args)
-    cfjson = json.dumps(data, sort_keys=True, indent=4)
+    with Action('Generating Cloud Formation template..'):
+        data = evaluate(input.copy(), args)
+        cfjson = json.dumps(data, sort_keys=True, indent=4)
 
     stack_name = "{0}-{1}".format(input["SenzaInfo"]["StackName"], version)
 
@@ -669,8 +670,10 @@ def create(definition, region, version, parameter, disable_rollback):
         topics = None
 
     cf = boto.cloudformation.connect_to_region(region)
-    cf.create_stack(stack_name, template_body=cfjson, parameters=parameters, tags=tags, notification_arns=topics,
-                    disable_rollback=disable_rollback)
+
+    with Action('Creating Cloud Formation stack {}..'.format(stack_name)):
+        cf.create_stack(stack_name, template_body=cfjson, parameters=parameters, tags=tags, notification_arns=topics,
+                        disable_rollback=disable_rollback)
 
 
 @cli.command('print')

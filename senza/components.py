@@ -65,10 +65,10 @@ def component_stups_auto_configuration(definition, configuration, args, info):
         else:
             server_subnets.append(subnet.id)
     configuration = ensure_keys(configuration, "ServerSubnets", args.region)
-    configuration["ServerSubnets"][args.region]["Subnets"] = server_subnets
+    configuration["ServerSubnets"][args.region] = server_subnets
 
     configuration = ensure_keys(configuration, "LoadBalancerSubnets", args.region)
-    configuration["LoadBalancerSubnets"][args.region]["Subnets"] = lb_subnets
+    configuration["LoadBalancerSubnets"][args.region] = lb_subnets
 
     # Images
     filters = {'name': '*Taupage-AMI-*',
@@ -80,8 +80,8 @@ def component_stups_auto_configuration(definition, configuration, args, info):
     if not images:
         raise Exception('No Taupage AMI found')
     most_recent_image = sorted(images, key=lambda i: i.name)[-1]
-    configuration = ensure_keys(configuration, "Images", args.region, 'LatestTaupageImage')
-    configuration["Images"][args.region]['LatestTaupageImage'] = most_recent_image.id
+    configuration = ensure_keys(configuration, "Images", 'LatestTaupageImage', args.region)
+    configuration["Images"]['LatestTaupageImage'][args.region] = most_recent_image.id
 
     component_basic_configuration(definition, configuration, args, info)
 

@@ -69,7 +69,10 @@ def test_init(monkeypatch):
     runner = CliRunner()
 
     with runner.isolated_filesystem():
-        result = runner.invoke(cli, ['init', '--template=api', 'myapp.yaml', '--region=myregion'], catch_exceptions=False, input='sdf\nsdf\n8080\n\n')
+        result = runner.invoke(cli, ['init', '--template=webapp', 'myapp.yaml', '--region=myregion'], catch_exceptions=False, input='sdf\nsdf\n8080\n/\n')
         assert os.path.exists('myapp.yaml')
+        with open('myapp.yaml') as fd:
+            generated_definition = yaml.safe_load(fd)
 
     assert 'Generating Senza definition file myapp.yaml.. OK' in result.output
+    assert generated_definition['SenzaInfo']['StackName'] == 'sdf'

@@ -8,7 +8,7 @@ SenzaInfo:
   StackName: {{application_id}}
   Parameters:
     - ImageVersion:
-        Description: "Docker image version of MyApp."
+        Description: "Docker image version of {{ application_id }}."
 
 # a list of senza components to apply to the definition
 SenzaComponents:
@@ -20,35 +20,37 @@ SenzaComponents:
   # will create a launch configuration and auto scaling group with scaling triggers
   - AppServer:
       Type: Senza::TaupageAutoScalingGroup
-      InstanceType: t2.medium
+      InstanceType: {{ instance_type }}
       SecurityGroups:
         - app-{{application_id}}
       ElasticLoadBalancer: AppLoadBalancer
       TaupageConfig:
         runtime: Docker
-        source: "{{ docker_image }}:{{Arguments.ImageVersion}}"
+        source: "{{ docker_image }}:{{=<% %>=}}{{Arguments.ImageVersion}}<%={{ }}=%>"
         ports:
           {{http_port}}: {{http_port}}
-        environment:
-          SOME_ENV: foobar
 
   # creates an ELB entry and Route53 domains to this ELB
   - AppLoadBalancer:
       Type: Senza::WeightedDnsElasticLoadBalancer
       HTTPPort: {{http_port}}
-      HealthCheckPath: /
+      HealthCheckPath: {{http_health_check_path}}
       SecurityGroups:
         - app-{{application_id}}-lb
 '''
 
 
+def prompt(variables: dict, var_name, *args, **kwargs):
+    if var_name not in variables:
+        variables[var_name] = click.prompt(*args, **kwargs)
+
+
 def gather_user_variables(variables):
-    app_id = click.prompt('Application ID')
-    docker_image = click.prompt('Docker image')
-    http_port = click.prompt('HTTP port', default=8080, type=int)
-    variables['application_id'] = app_id
-    variables['docker_image'] = docker_image
-    variables['http_port'] = http_port
+    prompt(variables, 'application_id', 'Application ID')
+    prompt(variables, 'docker_image', 'Docker image')
+    prompt(variables, 'http_port', 'HTTP port', default=8080, type=int)
+    prompt(variables, 'http_health_check_path', 'HTTP health check path', default='/')
+    prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
     return variables
 
 

@@ -1,4 +1,4 @@
-
+import os
 from click.testing import CliRunner
 from mock import MagicMock
 import yaml
@@ -63,3 +63,13 @@ def test_print_auto(monkeypatch):
 
     assert 'AWSTemplateFormatVersion' in result.output
     assert 'subnet-123' in result.output
+
+
+def test_init(monkeypatch):
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli, ['init', '--template=api', 'myapp.yaml', '--region=myregion'], catch_exceptions=False, input='sdf\nsdf\n8080\n\n')
+        assert os.path.exists('myapp.yaml')
+
+    assert 'Generating Senza definition file myapp.yaml.. OK' in result.output

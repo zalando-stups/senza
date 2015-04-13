@@ -1,13 +1,14 @@
 #!/usr/bin/env python3
 import calendar
 import configparser
+import importlib
 import os
 
 import sys
 import json
 from boto.exception import BotoServerError
 import click
-from clickclick import AliasedGroup, Action
+from clickclick import AliasedGroup, Action, choice
 from clickclick.console import print_table
 import time
 
@@ -70,7 +71,24 @@ class DefinitionParamType(click.ParamType):
         return data
 
 
+class KeyValParamType(click.ParamType):
+    name = 'key_val'
+
+    def convert(self, value, param, ctx):
+        if isinstance(value, str):
+            try:
+                key, val = value.split('=', 1)
+            except:
+                self.fail('invalid key value parameter "{}" (must be KEY=VAL)'.format(value))
+            key_val = (key, val)
+        else:
+            key_val = value
+        return key_val
+
+
 DEFINITION = DefinitionParamType()
+
+KEY_VAL = KeyValParamType()
 
 
 def format_params(args):
@@ -767,6 +785,32 @@ def events(definition, version, region, watch):
             click.clear()
         else:
             version = False
+
+
+@cli.command()
+@click.argument('definition_file', type=click.File('w'))
+@click.option('--region', envvar='AWS_DEFAULT_REGION')
+@click.option('-t', '--template', help='Use a custom template')
+@click.option('-v', '--user-variable', help='Provide user variables for the template',
+              metavar='KEY=VAL', multiple=True, type=KEY_VAL)
+def init(definition_file, region, template, user_variable):
+    '''Initialize a new Senza definition'''
+    templates = []
+    for mod in os.listdir(os.path.join(os.path.dirname(__file__), 'templates')):
+        if not mod.startswith('_'):
+            templates.append(mod.split('.')[0])
+    while template not in templates:
+        template = choice('Please select the project template', templates)
+
+    module = importlib.import_module('senza.templates.{}'.format(template))
+    variables = {}
+    for key_val in user_variable:
+        key, val = key_val
+        variables[key] = val
+    variables = module.gather_user_variables(variables)
+    with Action('Generating Senza definition file {}..'.format(definition_file.name)):
+        definition = module.generate_definition(variables)
+        yaml.safe_dump(definition, definition_file, default_flow_style=False)
 
 
 def main():

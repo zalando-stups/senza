@@ -353,6 +353,8 @@ def get_template_description(template: str):
               metavar='KEY=VAL', multiple=True, type=KEY_VAL)
 def init(definition_file, region, template, user_variable):
     '''Initialize a new Senza definition'''
+    region = get_region(region)
+
     templates = []
     for mod in os.listdir(os.path.join(os.path.dirname(__file__), 'templates')):
         if not mod.startswith('_'):
@@ -366,7 +368,7 @@ def init(definition_file, region, template, user_variable):
     for key_val in user_variable:
         key, val = key_val
         variables[key] = val
-    variables = module.gather_user_variables(variables)
+    variables = module.gather_user_variables(variables, region)
     with Action('Generating Senza definition file {}..'.format(definition_file.name)):
         definition = module.generate_definition(variables)
         yaml.safe_dump(definition, definition_file, default_flow_style=False)

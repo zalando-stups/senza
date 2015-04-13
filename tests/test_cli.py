@@ -85,6 +85,10 @@ def test_print_auto(monkeypatch):
 
 
 def test_init(monkeypatch):
+    monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: MagicMock())
+    monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock())
+    monkeypatch.setattr('boto.vpc.connect_to_region', lambda x: MagicMock())
+
     runner = CliRunner()
 
     with runner.isolated_filesystem():

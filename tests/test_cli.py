@@ -60,11 +60,13 @@ def test_print_auto(monkeypatch):
     monkeypatch.setattr('boto.route53.connect_to_region', lambda x: MagicMock(get_zones=lambda: [zone]))
     monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: MagicMock(get_all_images=lambda filters: images))
 
-    data = {'SenzaInfo': {'StackName': 'test'},
+    data = {'SenzaInfo': {'StackName': 'test',
+                          'OperatorTopicId': 'mytopic'},
             'SenzaComponents': [{'Configuration': {'Type': 'Senza::StupsAutoConfiguration'}},
                                 {'AppServer': {'Type': 'Senza::TaupageAutoScalingGroup',
                                                'InstanceType': 't2.micro',
-                                               'TaupageConfig': {}}},
+                                               'TaupageConfig': {},
+                                               'SecurityGroups': ['app-sg']}},
                                 {'AppLoadBalancer': {'Type': 'Senza::WeightedDnsElasticLoadBalancer',
                                                      'HTTPPort': 8080,
                                                      'SecurityGroups': ['app-sg']}}]}

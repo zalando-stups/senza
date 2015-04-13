@@ -53,11 +53,6 @@ def component_basic_configuration(definition, configuration, args, info):
 
 
 def component_stups_auto_configuration(definition, configuration, args, info):
-    # add info as mappings
-    # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html
-    component_basic_configuration(definition, configuration, args, info)
-
-    # ServerSubnets
     vpc_conn = boto.vpc.connect_to_region(args.region)
     server_subnets = []
     lb_subnets = []
@@ -67,11 +62,11 @@ def component_stups_auto_configuration(definition, configuration, args, info):
             lb_subnets.append(subnet.id)
         else:
             server_subnets.append(subnet.id)
-    definition = ensure_keys(definition, "Mappings", "ServerSubnets", args.region)
-    definition["Mappings"]["ServerSubnets"][args.region]["Subnets"] = server_subnets
+    configuration = ensure_keys(configuration, "ServerSubnets", args.region)
+    configuration["ServerSubnets"][args.region]["Subnets"] = server_subnets
 
-    definition = ensure_keys(definition, "Mappings", "LoadBalancerSubnets", args.region)
-    definition["Mappings"]["LoadBalancerSubnets"][args.region]["Subnets"] = lb_subnets
+    configuration = ensure_keys(configuration, "LoadBalancerSubnets", args.region)
+    configuration["LoadBalancerSubnets"][args.region]["Subnets"] = lb_subnets
 
     # Images
     filters = {'name': '*Taupage-AMI-*',
@@ -83,8 +78,10 @@ def component_stups_auto_configuration(definition, configuration, args, info):
     if not images:
         raise Exception('No Taupage AMI found')
     most_recent_image = sorted(images, key=lambda i: i.name)[-1]
-    definition = ensure_keys(definition, "Mappings", "Images", args.region, 'LatestTaupageImage')
-    definition["Mappings"]["Images"][args.region]['LatestTaupageImage'] = most_recent_image.id
+    configuration = ensure_keys(configuration, "Images", args.region, 'LatestTaupageImage')
+    configuration["Images"][args.region]['LatestTaupageImage'] = most_recent_image.id
+
+    component_basic_configuration(definition, configuration, args, info)
 
     return definition
 

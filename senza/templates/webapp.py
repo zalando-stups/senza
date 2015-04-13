@@ -1,3 +1,7 @@
+'''
+HTTP app with auto scaling, ELB and DNS
+'''
+
 import click
 import pystache
 import yaml
@@ -46,8 +50,8 @@ def prompt(variables: dict, var_name, *args, **kwargs):
 
 
 def gather_user_variables(variables):
-    prompt(variables, 'application_id', 'Application ID')
-    prompt(variables, 'docker_image', 'Docker image')
+    prompt(variables, 'application_id', 'Application ID', default='hello-world')
+    prompt(variables, 'docker_image', 'Docker image', default='stups/hello-world')
     prompt(variables, 'http_port', 'HTTP port', default=8080, type=int)
     prompt(variables, 'http_health_check_path', 'HTTP health check path', default='/')
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')

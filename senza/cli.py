@@ -340,6 +340,11 @@ def events(definition, version, region, watch):
             version = False
 
 
+def get_template_description(template: str):
+    module = importlib.import_module('senza.templates.{}'.format(template))
+    return '{}: {}'.format(template, module.__doc__.strip())
+
+
 @cli.command()
 @click.argument('definition_file', type=click.File('w'))
 @click.option('--region', envvar='AWS_DEFAULT_REGION')
@@ -353,7 +358,8 @@ def init(definition_file, region, template, user_variable):
         if not mod.startswith('_'):
             templates.append(mod.split('.')[0])
     while template not in templates:
-        template = choice('Please select the project template', templates)
+        template = choice('Please select the project template',
+                          [(t, get_template_description(t)) for t in sorted(templates)])
 
     module = importlib.import_module('senza.templates.{}'.format(template))
     variables = {}

@@ -70,7 +70,8 @@ def test_print_auto(monkeypatch):
                                 {'AppServer': {'Type': 'Senza::TaupageAutoScalingGroup',
                                                'InstanceType': 't2.micro',
                                                'TaupageConfig': {},
-                                               'SecurityGroups': ['app-sg']}},
+                                               'IamRoles': ['app-myrole'],
+                                               'SecurityGroups': ['app-sg', 'sg-123']}},
                                 {'AppLoadBalancer': {'Type': 'Senza::WeightedDnsElasticLoadBalancer',
                                                      'HTTPPort': 8080,
                                                      'SecurityGroups': ['app-sg']}}]}

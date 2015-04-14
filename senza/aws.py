@@ -30,6 +30,10 @@ def find_ssl_certificate_arn(region, pattern):
 
 
 def parse_time(s: str) -> float:
+    '''
+    >>> parse_time('2015-04-14T19:09:01.000Z') > 0
+    True
+    '''
     try:
         utc = datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ').timestamp()
         return utc - time.timezone
@@ -38,7 +42,14 @@ def parse_time(s: str) -> float:
 
 
 def get_required_capabilities(data: dict):
-    '''Get capabilities for a given cloud formation template for the "create_stack" call'''
+    '''Get capabilities for a given cloud formation template for the "create_stack" call
+
+    >>> get_required_capabilities({})
+    []
+
+    >>> get_required_capabilities({'Resources': {'MyRole': {'Type': 'AWS::IAM::Role', 'a': 'b'}}})
+    ['CAPABILITY_IAM']
+    '''
     capabilities = []
     for logical_id, config in data.get('Resources', {}).items():
         if config.get('Type').startswith('AWS::IAM'):

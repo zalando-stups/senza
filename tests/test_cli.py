@@ -175,7 +175,10 @@ def test_list(monkeypatch):
 
 
 def test_delete(monkeypatch):
-    monkeypatch.setattr('boto.cloudformation.connect_to_region', MagicMock())
+    cf = MagicMock()
+    stack = MagicMock(stack_name='test-1')
+    cf.list_stacks.return_value = [stack]
+    monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: cf)
 
     runner = CliRunner()
 

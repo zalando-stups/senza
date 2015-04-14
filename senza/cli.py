@@ -246,6 +246,18 @@ def matches_any(cf_stack_name: str, stack_refs: list):
     return False
 
 
+def get_stacks(stack_refs: list, region, all=False):
+    cf = boto.cloudformation.connect_to_region(region)
+    if all:
+        status_filter = None
+    else:
+        status_filter = [st for st in cf.valid_states if st != 'DELETE_COMPLETE']
+    stacks = cf.list_stacks(stack_status_filters=status_filter)
+    for stack in stacks:
+        if not stack_refs or matches_any(stack.stack_name, stack_refs):
+            yield stack
+
+
 @cli.command('list')
 @click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
 @click.option('--all', is_flag=True, help='Show all stacks, including deleted ones')
@@ -256,18 +268,11 @@ def list_stacks(region, stack_ref, all):
 
     stack_refs = get_stack_refs(stack_ref)
 
-    cf = boto.cloudformation.connect_to_region(region)
-    if all:
-        status_filter = None
-    else:
-        status_filter = [st for st in cf.valid_states if st != 'DELETE_COMPLETE']
-    stacks = cf.list_stacks(stack_status_filters=status_filter)
     rows = []
-    for stack in stacks:
-        if not stack_refs or matches_any(stack.stack_name, stack_refs):
-            rows.append({'Name': stack.stack_name, 'Status': stack.stack_status,
-                         'creation_time': calendar.timegm(stack.creation_time.timetuple()),
-                         'Description': stack.template_description})
+    for stack in get_stacks(stack_refs, region, all=all):
+        rows.append({'Name': stack.stack_name, 'Status': stack.stack_status,
+                     'creation_time': calendar.timegm(stack.creation_time.timetuple()),
+                     'Description': stack.template_description})
 
     rows.sort(key=lambda x: x['Name'])
 
@@ -341,18 +346,22 @@ def print_cfjson(definition, region, version, parameter):
 
 
 @cli.command()
-@click.argument('definition', type=DEFINITION)
-@click.argument('version')
+@click.argument('stack_ref', nargs=-1)
 @click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
-def delete(definition, version, region):
+@click.option('--dry-run', is_flag=True, help='No-op mode: show what would be deleted')
+def delete(stack_ref, region, dry_run):
     '''Delete a single Cloud Formation stack'''
+    stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
     cf = boto.cloudformation.connect_to_region(region)
 
-    stack_name = '{}-{}'.format(definition['SenzaInfo']['StackName'], version)
+    if not stack_refs:
+        raise click.UsageError('Please specify at least one stack')
 
-    with Action('Deleting Cloud Formation stack {}..'.format(stack_name)):
-        cf.delete_stack(stack_name)
+    for stack in get_stacks(stack_refs, region):
+        with Action('Deleting Cloud Formation stack {}..'.format(stack.stack_name)):
+            if not dry_run:
+                cf.delete_stack(stack.stack_name)
 
 
 def format_resource_type(resource_type):

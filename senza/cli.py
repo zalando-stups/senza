@@ -371,67 +371,69 @@ def format_resource_type(resource_type):
 
 
 @cli.command()
-@click.argument('definition', type=DEFINITION)
-@click.argument('version')
+@click.argument('stack_ref', nargs=-1)
 @click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
 @click.option('-w', '--watch', type=click.IntRange(1, 300), help='Auto update the screen every X seconds',
               metavar='SECS')
-def resources(definition, version, region, watch):
+def resources(stack_ref, region, watch):
     '''Show all resources of a single Cloud Formation stack'''
+    stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
     cf = boto.cloudformation.connect_to_region(region)
 
-    stack_name = '{}-{}'.format(definition['SenzaInfo']['StackName'], version)
+    repeat = True
 
-    while version:
-        resources = cf.describe_stack_resources(stack_name)
+    while repeat:
+        for stack in get_stacks(stack_refs, region):
+            resources = cf.describe_stack_resources(stack.stack_name)
 
-        rows = []
-        for resource in resources:
-            d = resource.__dict__
-            d['resource_type'] = format_resource_type(d['resource_type'])
-            d['creation_time'] = calendar.timegm(resource.timestamp.timetuple())
-            rows.append(d)
+            rows = []
+            for resource in resources:
+                d = resource.__dict__
+                d['resource_type'] = format_resource_type(d['resource_type'])
+                d['creation_time'] = calendar.timegm(resource.timestamp.timetuple())
+                rows.append(d)
 
-        print_table('logical_resource_id resource_type resource_status creation_time'.split(), rows,
-                    styles=STYLES, titles=TITLES)
+            print_table('logical_resource_id resource_type resource_status creation_time'.split(), rows,
+                        styles=STYLES, titles=TITLES)
         if watch:
             time.sleep(watch)
             click.clear()
         else:
-            version = False
+            repeat = False
 
 
 @cli.command()
-@click.argument('definition', type=DEFINITION)
-@click.argument('version')
+@click.argument('stack_ref', nargs=-1)
 @click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
 @click.option('-w', '--watch', type=click.IntRange(1, 300), help='Auto update the screen every X seconds',
               metavar='SECS')
-def events(definition, version, region, watch):
+def events(stack_ref, region, watch):
     '''Show all Cloud Formation events for a single stack'''
+    stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
     cf = boto.cloudformation.connect_to_region(region)
 
-    stack_name = '{}-{}'.format(definition['SenzaInfo']['StackName'], version)
+    repeat = True
 
-    while version:
-        events = cf.describe_stack_events(stack_name)
+    while repeat:
+        for stack in get_stacks(stack_refs, region):
+            events = cf.describe_stack_events(stack.stack_name)
 
-        rows = []
-        for event in sorted(events, key=lambda x: x.timestamp):
-            d = event.__dict__
-            d['resource_type'] = format_resource_type(d['resource_type'])
-            d['event_time'] = calendar.timegm(event.timestamp.timetuple())
-            rows.append(d)
+            rows = []
+            for event in sorted(events, key=lambda x: x.timestamp):
+                d = event.__dict__
+                d['resource_type'] = format_resource_type(d['resource_type'])
+                d['event_time'] = calendar.timegm(event.timestamp.timetuple())
+                rows.append(d)
 
-        print_table('resource_type logical_resource_id resource_status resource_status_reason event_time'.split(), rows,
-                    styles=STYLES, titles=TITLES, max_column_widths=MAX_COLUMN_WIDTHS)
+            print_table('resource_type logical_resource_id resource_status resource_status_reason event_time'.split(),
+                        rows, styles=STYLES, titles=TITLES, max_column_widths=MAX_COLUMN_WIDTHS)
         if watch:
             time.sleep(watch)
             click.clear()
         else:
-            version = False
+            repeat = False
 
 
 def get_template_description(template: str):
@@ -469,24 +471,18 @@ def init(definition_file, region, template, user_variable):
 
 
 @cli.command()
-@click.argument('definition', type=DEFINITION)
-@click.argument('version')
+@click.argument('stack_ref', nargs=-1)
 @click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
-def instances(definition, version, region):
+def instances(stack_ref, region):
     '''List the stack's EC2 instances'''
+    stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
 
-    cf = boto.cloudformation.connect_to_region(region)
-
-    stack_name = '{}-{}'.format(definition['SenzaInfo']['StackName'], version)
-
-    stacks = cf.describe_stacks(stack_name)
-
     rows = []
-    for stack in stacks:
+    for stack in get_stacks(stack_refs, region):
         conn = boto.ec2.connect_to_region(region)
         for instance in conn.get_only_instances(filters={'tag:aws:cloudformation:stack-id': stack.stack_id}):
-            rows.append({'stack_name': stack_name,
+            rows.append({'stack_name': stack.stack_name,
                          'resource_id': instance.tags.get('aws:cloudformation:logical-id'),
                          'instance_id': instance.id,
                          'public_ip': instance.ip_address,

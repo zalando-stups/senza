@@ -26,12 +26,13 @@ def test_print_basic(monkeypatch):
 
     data = {'SenzaInfo': {'StackName': 'test'}, 'SenzaComponents': [{'Configuration': {'Type': 'Senza::Configuration',
                                                                                        'ServerSubnets': {
-                                                                                       'eu-west-1': ['subnet-123']}}},
+                                                                                           'eu-west-1': [
+                                                                                               'subnet-123']}}},
                                                                     {'AppServer': {
-                                                                    'Type': 'Senza::TaupageAutoScalingGroup',
-                                                                    'InstanceType': 't2.micro',
-                                                                    'Image': 'AppImage',
-                                                                    'TaupageConfig': {}}}]}
+                                                                        'Type': 'Senza::TaupageAutoScalingGroup',
+                                                                        'InstanceType': 't2.micro',
+                                                                        'Image': 'AppImage',
+                                                                        'TaupageConfig': {}}}]}
 
     runner = CliRunner()
 
@@ -52,7 +53,8 @@ def test_print_auto(monkeypatch):
     zone = MagicMock()
     zone.name = 'zo.ne'
     cert = {'server_certificate_name': 'zo-ne', 'arn': 'arn:aws:123'}
-    cert_response = {'list_server_certificates_response': {'list_server_certificates_result': {'server_certificate_metadata_list': [
+    cert_response = {
+    'list_server_certificates_response': {'list_server_certificates_result': {'server_certificate_metadata_list': [
         cert
     ]}}}
 
@@ -104,6 +106,7 @@ def test_init(monkeypatch):
     assert 'Generating Senza definition file myapp.yaml.. OK' in result.output
     assert generated_definition['SenzaInfo']['StackName'] == 'sdf'
 
+
 def test_instances(monkeypatch):
     stack = MagicMock()
     inst = MagicMock()
@@ -124,8 +127,11 @@ def test_instances(monkeypatch):
 
 
 def test_resources(monkeypatch):
+    stack = MagicMock(stack_name='test-1', creation_time=datetime.datetime.now())
     res = MagicMock(timestamp=datetime.datetime.now(), logical_resource_id='MyTestResource', resource_type='AWS::abc')
-    monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock(describe_stack_resources=lambda x: [res]))
+    monkeypatch.setattr('boto.cloudformation.connect_to_region',
+                        lambda x: MagicMock(describe_stack_resources=lambda x: [res],
+                                            list_stacks=lambda stack_status_filters: [stack]))
 
     runner = CliRunner()
 
@@ -141,8 +147,11 @@ def test_resources(monkeypatch):
 
 
 def test_events(monkeypatch):
+    stack = MagicMock(stack_name='test-1', creation_time=datetime.datetime.now())
     evt = MagicMock(timestamp=datetime.datetime.now(), logical_resource_id='MyTestEventRes', resource_type='foobar')
-    monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock(describe_stack_events=lambda x: [evt]))
+    monkeypatch.setattr('boto.cloudformation.connect_to_region',
+                        lambda x: MagicMock(describe_stack_events=lambda x: [evt],
+                                            list_stacks=lambda stack_status_filters: [stack]))
 
     runner = CliRunner()
 
@@ -159,7 +168,8 @@ def test_events(monkeypatch):
 
 def test_list(monkeypatch):
     stack = MagicMock(stack_name='test-1', creation_time=datetime.datetime.now())
-    monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock(list_stacks=lambda stack_status_filters: [stack]))
+    monkeypatch.setattr('boto.cloudformation.connect_to_region',
+                        lambda x: MagicMock(list_stacks=lambda stack_status_filters: [stack]))
 
     runner = CliRunner()
 
@@ -192,6 +202,7 @@ def test_delete(monkeypatch):
 
     assert 'OK' in result.output
 
+
 def test_create(monkeypatch):
     cf = MagicMock()
     monkeypatch.setattr('boto.cloudformation.connect_to_region', MagicMock(return_value=cf))
@@ -209,8 +220,8 @@ def test_create(monkeypatch):
                                catch_exceptions=False)
         assert 'OK' in result.output
 
-        cf.create_stack.side_effect=boto.exception.BotoServerError('sdf', 'already exists',
-                                                                   {'Error': {'Code': 'AlreadyExistsException'}})
+        cf.create_stack.side_effect = boto.exception.BotoServerError('sdf', 'already exists',
+                                                                     {'Error': {'Code': 'AlreadyExistsException'}})
         result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=myregion', '1', 'my-param-value'],
                                catch_exceptions=True)
         assert 'Stack test-1 already exists' in result.output

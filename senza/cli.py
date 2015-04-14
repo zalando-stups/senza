@@ -19,8 +19,9 @@ import boto.vpc
 import boto.ec2
 import boto.ec2.autoscale
 import boto.iam
+import boto.sns
 import boto.route53
-from .aws import parse_time, get_required_capabilities
+from .aws import parse_time, get_required_capabilities, resolve_topic_arn
 
 from .components import component_basic_configuration, component_stups_auto_configuration, \
     component_auto_scaling_group, component_taupage_auto_scaling_group, \
@@ -310,7 +311,11 @@ def create(definition, region, version, parameter, disable_rollback):
     }
 
     if "OperatorTopicId" in input["SenzaInfo"]:
-        topics = [input["SenzaInfo"]["OperatorTopicId"]]
+        topic = input["SenzaInfo"]["OperatorTopicId"]
+        topic_arn = resolve_topic_arn(region, topic)
+        if not topic_arn:
+            raise click.UsageError('SNS topic "{}" does not exist'.format(topic))
+        topics = [topic_arn]
     else:
         topics = None
 

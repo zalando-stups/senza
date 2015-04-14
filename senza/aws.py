@@ -55,3 +55,22 @@ def get_required_capabilities(data: dict):
         if config.get('Type').startswith('AWS::IAM'):
             capabilities.append('CAPABILITY_IAM')
     return capabilities
+
+
+def resolve_topic_arn(region, topic):
+    '''
+    >>> resolve_topic_arn(None, 'arn:123')
+    'arn:123'
+    '''
+    if topic.startswith('arn:'):
+        topic_arn = topic
+    else:
+        # resolve topic name to ARN
+        sns = boto.sns.connect_to_region(region)
+        response = sns.get_all_topics()
+        topic_arn = False
+        for obj in response['ListTopicsResponse']['ListTopicsResult']['Topics']:
+            if obj['TopicArn'].endswith(topic):
+                topic_arn = topic
+
+    return topic_arn

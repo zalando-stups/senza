@@ -11,13 +11,16 @@ from boto.exception import BotoServerError
 import click
 from clickclick import AliasedGroup, Action, choice
 from clickclick.console import print_table
+import collections
 import yaml
 import pystache
 import boto.cloudformation
 import boto.vpc
 import boto.ec2
+import boto.ec2.autoscale
 import boto.iam
 import boto.route53
+from .aws import parse_time
 
 from .components import component_basic_configuration, component_stups_auto_configuration, \
     component_auto_scaling_group, component_taupage_auto_scaling_group, \
@@ -28,6 +31,8 @@ from .utils import named_value
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 STYLES = {
+    'RUNNING': {'fg': 'green'},
+    'TERMINATED': {'fg': 'red'},
     'DELETE_COMPLETE': {'fg': 'red'},
     'ROLLBACK_COMPLETE': {'fg': 'red'},
     'CREATE_COMPLETE': {'fg': 'green'},
@@ -39,7 +44,8 @@ STYLES = {
 
 TITLES = {
     'creation_time': 'Created',
-    'logical_resource_id': 'ID'
+    'logical_resource_id': 'ID',
+    'launch_time': 'Launched'
 }
 
 
@@ -59,6 +65,11 @@ class DefinitionParamType(click.ParamType):
             if 'SenzaInfo' not in data:
                 self.fail('"{}" entry is missing in YAML file "{}"'.format(key, value), param, ctx)
         return data
+
+
+class StackReference(collections.namedtuple('StackReference', 'name version')):
+    def cf_stack_name(self):
+        return '{}-{}'.format(self.name, self.version)
 
 
 class KeyValParamType(click.ParamType):
@@ -243,8 +254,14 @@ def create(definition, region, version, parameter, disable_rollback):
     cf = boto.cloudformation.connect_to_region(region)
 
     with Action('Creating Cloud Formation stack {}..'.format(stack_name)):
-        cf.create_stack(stack_name, template_body=cfjson, parameters=parameters, tags=tags, notification_arns=topics,
-                        disable_rollback=disable_rollback)
+        try:
+            cf.create_stack(stack_name, template_body=cfjson, parameters=parameters, tags=tags,
+                            notification_arns=topics, disable_rollback=disable_rollback)
+        except boto.exception.BotoServerError as e:
+            if e.error_code == 'AlreadyExistsException':
+                raise click.UsageError('Stack {} already exists. Please choose another version.'.format(stack_name))
+            else:
+                raise
 
 
 @cli.command('print')
@@ -372,6 +389,36 @@ def init(definition_file, region, template, user_variable):
     with Action('Generating Senza definition file {}..'.format(definition_file.name)):
         definition = module.generate_definition(variables)
         yaml.safe_dump(definition, definition_file, default_flow_style=False)
+
+
+@cli.command()
+@click.argument('definition', type=DEFINITION)
+@click.argument('version')
+@click.option('--region', envvar='AWS_DEFAULT_REGION')
+def instances(definition, version, region):
+    '''List the stack's EC2 instances'''
+    region = get_region(region)
+
+    cf = boto.cloudformation.connect_to_region(region)
+
+    stack_name = '{}-{}'.format(definition['SenzaInfo']['StackName'], version)
+
+    stacks = cf.describe_stacks(stack_name)
+
+    rows = []
+    for stack in stacks:
+        conn = boto.ec2.connect_to_region(region)
+        for instance in conn.get_only_instances(filters={'tag:aws:cloudformation:stack-id': stack.stack_id}):
+            rows.append({'stack_name': stack_name,
+                         'resource_id': instance.tags.get('aws:cloudformation:logical-id'),
+                         'instance_id': instance.id,
+                         'public_ip': instance.ip_address,
+                         'private_ip': instance.private_ip_address,
+                         'state': instance.state.upper(),
+                         'launch_time': parse_time(instance.launch_time)})
+
+    print_table('stack_name resource_id instance_id public_ip private_ip state launch_time'.split(),
+                rows, styles=STYLES, titles=TITLES)
 
 
 def main():

@@ -1,7 +1,7 @@
+import datetime
 import boto.ec2
 import boto.iam
-
-__author__ = 'hjacobs'
+import time
 
 
 def get_security_group(region: str, sg_name: str):
@@ -26,4 +26,12 @@ def find_ssl_certificate_arn(region, pattern):
         # return first match (alphabetically sorted
         return sorted(candidates)[0]
     else:
+        return None
+
+
+def parse_time(s: str) -> float:
+    try:
+        utc = datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ').timestamp()
+        return utc - time.timezone
+    except:
         return None

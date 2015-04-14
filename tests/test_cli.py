@@ -90,6 +90,7 @@ def test_init(monkeypatch):
     monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: MagicMock())
     monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock())
     monkeypatch.setattr('boto.vpc.connect_to_region', lambda x: MagicMock())
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
 
     runner = CliRunner()
 
@@ -123,7 +124,7 @@ def test_instances(monkeypatch):
 
 
 def test_resources(monkeypatch):
-    res = MagicMock(timestamp=datetime.datetime.now(), logical_resource_id='MyTestResource')
+    res = MagicMock(timestamp=datetime.datetime.now(), logical_resource_id='MyTestResource', resource_type='AWS::abc')
     monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock(describe_stack_resources=lambda x: [res]))
 
     runner = CliRunner()
@@ -140,7 +141,7 @@ def test_resources(monkeypatch):
 
 
 def test_events(monkeypatch):
-    evt = MagicMock(timestamp=datetime.datetime.now(), logical_resource_id='MyTestEventRes')
+    evt = MagicMock(timestamp=datetime.datetime.now(), logical_resource_id='MyTestEventRes', resource_type='foobar')
     monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock(describe_stack_events=lambda x: [evt]))
 
     runner = CliRunner()

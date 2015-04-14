@@ -35,3 +35,12 @@ def parse_time(s: str) -> float:
         return utc - time.timezone
     except:
         return None
+
+
+def get_required_capabilities(data: dict):
+    '''Get capabilities for a given cloud formation template for the "create_stack" call'''
+    capabilities = []
+    for logical_id, config in data.get('Resources', {}).items():
+        if config.get('Type').startswith('AWS::IAM'):
+            capabilities.append('CAPABILITY_IAM')
+    return capabilities

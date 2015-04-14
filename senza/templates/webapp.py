@@ -31,6 +31,8 @@ SenzaComponents:
       InstanceType: {{ instance_type }}
       SecurityGroups:
         - app-{{application_id}}
+      IamRoles:
+        - app-{{application_id}}
       ElasticLoadBalancer: AppLoadBalancer
       TaupageConfig:
         runtime: Docker
@@ -108,6 +110,14 @@ def gather_user_variables(variables, region):
 
     if rules_missing:
         error('Load balancer security group {} does not allow inbound HTTPS traffic'.format(sg_name))
+
+    role_name = 'app-{}'.format(variables['application_id'])
+    iam = boto.iam.connect_to_region(region)
+    try:
+        iam.get_role(role_name)
+    except:
+        with Action('Creating IAM role {}..'.format(role_name)):
+            iam.create_role(role_name)
 
     return variables
 

@@ -158,6 +158,17 @@ def component_auto_scaling_group(definition, configuration, args, info):
     if "IamInstanceProfile" in configuration:
         definition["Resources"][config_name]["Properties"]["IamInstanceProfile"] = configuration["IamInstanceProfile"]
 
+    if 'IamRoles' in configuration:
+        logical_id = configuration['Name'] + 'InstanceProfile'
+        definition['Resources'][logical_id] = {
+            'Type': 'AWS::IAM::InstanceProfile',
+            'Properties': {
+                'Path': '/',
+                'Roles': configuration['IamRoles']
+            }
+        }
+        definition["Resources"][config_name]["Properties"]["IamInstanceProfile"] = {'Ref': logical_id}
+
     if "SecurityGroups" in configuration:
         definition["Resources"][config_name]["Properties"]["SecurityGroups"] =\
             resolve_security_groups(configuration["SecurityGroups"], args.region)

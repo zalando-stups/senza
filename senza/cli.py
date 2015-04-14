@@ -20,7 +20,7 @@ import boto.ec2
 import boto.ec2.autoscale
 import boto.iam
 import boto.route53
-from .aws import parse_time
+from .aws import parse_time, get_required_capabilities
 
 from .components import component_basic_configuration, component_stups_auto_configuration, \
     component_auto_scaling_group, component_taupage_auto_scaling_group, \
@@ -39,13 +39,20 @@ STYLES = {
     'CREATE_FAILED': {'fg': 'red'},
     'CREATE_IN_PROGRESS': {'fg': 'yellow', 'bold': True},
     'DELETE_IN_PROGRESS': {'fg': 'red', 'bold': True},
+    'ROLLBACK_IN_PROGRESS': {'fg': 'red', 'bold': True},
     }
 
 
 TITLES = {
     'creation_time': 'Created',
     'logical_resource_id': 'ID',
-    'launch_time': 'Launched'
+    'launch_time': 'Launched',
+    'resource_status': 'Status',
+    'resource_status_reason': 'Status Reason'
+}
+
+MAX_COLUMN_WIDTHS = {
+    'resource_status_reason': 50
 }
 
 
@@ -251,12 +258,14 @@ def create(definition, region, version, parameter, disable_rollback):
     else:
         topics = None
 
+    capabilities = get_required_capabilities(data)
+
     cf = boto.cloudformation.connect_to_region(region)
 
     with Action('Creating Cloud Formation stack {}..'.format(stack_name)):
         try:
             cf.create_stack(stack_name, template_body=cfjson, parameters=parameters, tags=tags,
-                            notification_arns=topics, disable_rollback=disable_rollback)
+                            notification_arns=topics, disable_rollback=disable_rollback, capabilities=capabilities)
         except boto.exception.BotoServerError as e:
             if e.error_code == 'AlreadyExistsException':
                 raise click.UsageError('Stack {} already exists. Please choose another version.'.format(stack_name))
@@ -295,6 +304,12 @@ def delete(definition, version, region):
         cf.delete_stack(stack_name)
 
 
+def format_resource_type(resource_type):
+    if resource_type and resource_type.startswith('AWS::'):
+        return resource_type[5:]
+    return resource_type
+
+
 @cli.command()
 @click.argument('definition', type=DEFINITION)
 @click.argument('version')
@@ -314,6 +329,7 @@ def resources(definition, version, region, watch):
         rows = []
         for resource in resources:
             d = resource.__dict__
+            d['resource_type'] = format_resource_type(d['resource_type'])
             d['creation_time'] = calendar.timegm(resource.timestamp.timetuple())
             rows.append(d)
 
@@ -345,11 +361,12 @@ def events(definition, version, region, watch):
         rows = []
         for event in sorted(events, key=lambda x: x.timestamp):
             d = event.__dict__
+            d['resource_type'] = format_resource_type(d['resource_type'])
             d['event_time'] = calendar.timegm(event.timestamp.timetuple())
             rows.append(d)
 
-        print_table('resource_type logical_resource_id resource_status event_time'.split(), rows,
-                    styles=STYLES, titles=TITLES)
+        print_table('resource_type logical_resource_id resource_status resource_status_reason event_time'.split(), rows,
+                    styles=STYLES, titles=TITLES, max_column_widths=MAX_COLUMN_WIDTHS)
         if watch:
             time.sleep(watch)
             click.clear()

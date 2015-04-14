@@ -193,17 +193,68 @@ def get_region(region):
     return region
 
 
+def get_stack_refs(refs: list):
+    '''
+    >>> get_stack_refs(['foobar-stack'])
+    [StackReference(name='foobar-stack', version=None)]
+
+    >>> get_stack_refs(['foobar-stack', '1'])
+    [StackReference(name='foobar-stack', version='1')]
+
+    >>> get_stack_refs(['foobar-stack', '1', 'other-stack'])
+    [StackReference(name='foobar-stack', version='1'), StackReference(name='other-stack', version=None)]
+    '''
+    refs = list(refs)
+    refs.reverse()
+    stack_refs = []
+    while refs:
+        ref = refs.pop()
+        try:
+            with open(ref) as fd:
+                data = yaml.safe_load(fd)
+            ref = data['SenzaInfo']['StackName']
+        except:
+            pass
+
+        if refs:
+            version = refs.pop()
+        else:
+            version = None
+        stack_refs.append(StackReference(ref, version))
+    return stack_refs
+
+
+def matches_any(cf_stack_name: str, stack_refs: list):
+    '''
+    >>> matches_any('foobar-1', [])
+    False
+
+    >>> matches_any('foobar-1', [StackReference(name='foobar', version=None)])
+    True
+
+    >>> matches_any('foobar-1', [StackReference(name='foobar', version='1')])
+    True
+
+    >>> matches_any('foobar-1', [StackReference(name='foobar', version='2')])
+    False
+    '''
+    for ref in stack_refs:
+        if ref.version and cf_stack_name == ref.cf_stack_name():
+            return True
+        elif not ref.version and cf_stack_name.rsplit('-', 1)[0] == ref.name:
+            return True
+    return False
+
+
 @cli.command('list')
-@click.option('--region', envvar='AWS_DEFAULT_REGION')
+@click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
 @click.option('--all', is_flag=True, help='Show all stacks, including deleted ones')
-@click.argument('definition', nargs=-1, type=DEFINITION)
-def list_stacks(region, definition, all):
+@click.argument('stack_ref', nargs=-1)
+def list_stacks(region, stack_ref, all):
     '''List Cloud Formation stacks'''
     region = get_region(region)
 
-    stack_names = set()
-    for defn in definition:
-        stack_names.add(defn['SenzaInfo']['StackName'])
+    stack_refs = get_stack_refs(stack_ref)
 
     cf = boto.cloudformation.connect_to_region(region)
     if all:
@@ -213,7 +264,7 @@ def list_stacks(region, definition, all):
     stacks = cf.list_stacks(stack_status_filters=status_filter)
     rows = []
     for stack in stacks:
-        if not stack_names or stack.stack_name.rsplit('-', 1)[0] in stack_names:
+        if not stack_refs or matches_any(stack.stack_name, stack_refs):
             rows.append({'Name': stack.stack_name, 'Status': stack.stack_status,
                          'creation_time': calendar.timegm(stack.creation_time.timetuple()),
                          'Description': stack.template_description})
@@ -227,10 +278,10 @@ def list_stacks(region, definition, all):
 @click.argument('definition', type=DEFINITION)
 @click.argument('version')
 @click.argument('parameter', nargs=-1)
-@click.option('--region', envvar='AWS_DEFAULT_REGION')
+@click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
 @click.option('--disable-rollback', is_flag=True, help='Disable Cloud Formation rollback on failure')
 def create(definition, region, version, parameter, disable_rollback):
-    '''Create a new stack'''
+    '''Create a new Cloud Formation stack from the given Senza definition file'''
 
     input = definition
 
@@ -277,7 +328,7 @@ def create(definition, region, version, parameter, disable_rollback):
 @click.argument('definition', type=DEFINITION)
 @click.argument('version')
 @click.argument('parameter', nargs=-1)
-@click.option('--region', envvar='AWS_DEFAULT_REGION')
+@click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
 def print_cfjson(definition, region, version, parameter):
     '''Print the generated Cloud Formation template'''
     input = definition
@@ -292,7 +343,7 @@ def print_cfjson(definition, region, version, parameter):
 @cli.command()
 @click.argument('definition', type=DEFINITION)
 @click.argument('version')
-@click.option('--region', envvar='AWS_DEFAULT_REGION')
+@click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
 def delete(definition, version, region):
     '''Delete a single Cloud Formation stack'''
     region = get_region(region)
@@ -313,7 +364,7 @@ def format_resource_type(resource_type):
 @cli.command()
 @click.argument('definition', type=DEFINITION)
 @click.argument('version')
-@click.option('--region', envvar='AWS_DEFAULT_REGION')
+@click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
 @click.option('-w', '--watch', type=click.IntRange(1, 300), help='Auto update the screen every X seconds',
               metavar='SECS')
 def resources(definition, version, region, watch):
@@ -345,7 +396,7 @@ def resources(definition, version, region, watch):
 @cli.command()
 @click.argument('definition', type=DEFINITION)
 @click.argument('version')
-@click.option('--region', envvar='AWS_DEFAULT_REGION')
+@click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
 @click.option('-w', '--watch', type=click.IntRange(1, 300), help='Auto update the screen every X seconds',
               metavar='SECS')
 def events(definition, version, region, watch):
@@ -381,8 +432,8 @@ def get_template_description(template: str):
 
 @cli.command()
 @click.argument('definition_file', type=click.File('w'))
-@click.option('--region', envvar='AWS_DEFAULT_REGION')
-@click.option('-t', '--template', help='Use a custom template')
+@click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
+@click.option('-t', '--template', help='Use a custom template', metavar='TEMPLATE_ID')
 @click.option('-v', '--user-variable', help='Provide user variables for the template',
               metavar='KEY=VAL', multiple=True, type=KEY_VAL)
 def init(definition_file, region, template, user_variable):
@@ -411,7 +462,7 @@ def init(definition_file, region, template, user_variable):
 @cli.command()
 @click.argument('definition', type=DEFINITION)
 @click.argument('version')
-@click.option('--region', envvar='AWS_DEFAULT_REGION')
+@click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
 def instances(definition, version, region):
     '''List the stack's EC2 instances'''
     region = get_region(region)

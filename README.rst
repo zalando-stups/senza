@@ -4,9 +4,23 @@ Senza
 
 .. image:: https://travis-ci.org/zalando-stups/senza.svg?branch=master
    :target: https://travis-ci.org/zalando-stups/senza
+   :alt: Build Status
 
 .. image:: https://coveralls.io/repos/zalando-stups/senza/badge.svg
    :target: https://coveralls.io/r/zalando-stups/senza
+   :alt: Code Coverage
+
+.. image:: https://pypip.in/download/stups-senza/badge.svg
+   :target: https://pypi.python.org/pypi/stups-senza/
+   :alt: PyPI Downloads
+
+.. image:: https://pypip.in/version/stups-senza/badge.svg
+   :target: https://pypi.python.org/pypi/stups-senza/
+   :alt: Latest PyPI version
+
+.. image:: https://pypip.in/license/stups-senza/badge.svg
+   :target: https://pypi.python.org/pypi/stups-senza/
+   :alt: License
 
 
 Senza is a command line tool for generating and executing AWS Cloud Formation templates in a sane way. It supports

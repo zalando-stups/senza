@@ -5,7 +5,7 @@ import boto.vpc
 import click
 import yaml
 
-from .aws import get_security_group, find_ssl_certificate_arn
+from .aws import get_security_group, find_ssl_certificate_arn, resolve_topic_arn
 from .utils import named_value, ensure_keys
 
 
@@ -225,7 +225,7 @@ def component_auto_scaling_group(definition, configuration, args, info):
                 "autoscaling:EC2_INSTANCE_TERMINATE",
                 "autoscaling:EC2_INSTANCE_TERMINATE_ERROR"
             ],
-            "TopicARN": info["OperatorTopicId"]
+            "TopicARN": resolve_topic_arn(args.region, info["OperatorTopicId"])
         }
 
     if "ElasticLoadBalancer" in configuration:

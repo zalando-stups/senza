@@ -69,6 +69,11 @@ def test_print_auto(monkeypatch):
     monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: MagicMock(get_all_images=lambda filters: images,
                                                                           get_all_security_groups=lambda: [sg]))
 
+    sns = MagicMock()
+    topic = {'TopicArn': 'arn:123:mytopic'}
+    sns.get_all_topics.return_value = {'ListTopicsResponse': {'ListTopicsResult': {'Topics': [topic]}}}
+    monkeypatch.setattr('boto.sns.connect_to_region', MagicMock(return_value=sns))
+
     data = {'SenzaInfo': {'StackName': 'test',
                           'OperatorTopicId': 'mytopic'},
             'SenzaComponents': [{'Configuration': {'Type': 'Senza::StupsAutoConfiguration'}},

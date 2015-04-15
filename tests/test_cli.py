@@ -58,11 +58,16 @@ def test_print_auto(monkeypatch):
         cert
     ]}}}
 
+    sg = MagicMock()
+    sg.name = 'app-sg'
+    sg.id = 'sg-007'
+
     monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock())
     monkeypatch.setattr('boto.vpc.connect_to_region', lambda x: MagicMock())
     monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock(list_server_certs=lambda: cert_response))
     monkeypatch.setattr('boto.route53.connect_to_region', lambda x: MagicMock(get_zones=lambda: [zone]))
-    monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: MagicMock(get_all_images=lambda filters: images))
+    monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: MagicMock(get_all_images=lambda filters: images,
+                                                                          get_all_security_groups=lambda: [sg]))
 
     data = {'SenzaInfo': {'StackName': 'test',
                           'OperatorTopicId': 'mytopic'},

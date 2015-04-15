@@ -413,8 +413,9 @@ def resolve_security_groups(security_groups: list, region: str):
             result.append(id_or_name)
         else:
             sg = get_security_group(region, id_or_name)
-            if sg:
-                result.append(sg.id)
+            if not sg:
+                raise ValueError('Security Group "{}" does not exist'.format(id_or_name))
+            result.append(sg.id)
 
     return result
 

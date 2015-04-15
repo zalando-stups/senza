@@ -9,7 +9,7 @@ import time
 
 from boto.exception import BotoServerError
 import click
-from clickclick import AliasedGroup, Action, choice
+from clickclick import AliasedGroup, Action, choice, info
 from clickclick.console import print_table
 import collections
 import yaml
@@ -286,7 +286,8 @@ def list_stacks(region, stack_ref, all):
 @click.argument('parameter', nargs=-1)
 @click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
 @click.option('--disable-rollback', is_flag=True, help='Disable Cloud Formation rollback on failure')
-def create(definition, region, version, parameter, disable_rollback):
+@click.option('--dry-run', is_flag=True, help='No-op mode: show what would be created')
+def create(definition, region, version, parameter, disable_rollback, dry_run):
     '''Create a new Cloud Formation stack from the given Senza definition file'''
 
     input = definition
@@ -325,8 +326,11 @@ def create(definition, region, version, parameter, disable_rollback):
 
     with Action('Creating Cloud Formation stack {}..'.format(stack_name)):
         try:
-            cf.create_stack(stack_name, template_body=cfjson, parameters=parameters, tags=tags,
-                            notification_arns=topics, disable_rollback=disable_rollback, capabilities=capabilities)
+            if dry_run:
+                info('**DRY-RUN** {}'.format(topics))
+            else:
+                cf.create_stack(stack_name, template_body=cfjson, parameters=parameters, tags=tags,
+                                notification_arns=topics, disable_rollback=disable_rollback, capabilities=capabilities)
         except boto.exception.BotoServerError as e:
             if e.error_code == 'AlreadyExistsException':
                 raise click.UsageError('Stack {} already exists. Please choose another version.'.format(stack_name))

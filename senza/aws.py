@@ -71,6 +71,6 @@ def resolve_topic_arn(region, topic):
         topic_arn = False
         for obj in response['ListTopicsResponse']['ListTopicsResult']['Topics']:
             if obj['TopicArn'].endswith(topic):
-                topic_arn = topic
+                topic_arn = obj['TopicArn']
 
     return topic_arn

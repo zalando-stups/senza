@@ -211,17 +211,27 @@ def test_delete(monkeypatch):
 
 def test_create(monkeypatch):
     cf = MagicMock()
+    sns = MagicMock()
+    topic = MagicMock()
+    sns.get_all_topics.return_value = {'ListTopicsResponse': {'ListTopicsResult': {'Topics': [topic]}}}
     monkeypatch.setattr('boto.cloudformation.connect_to_region', MagicMock(return_value=cf))
+    monkeypatch.setattr('boto.sns.connect_to_region', MagicMock(return_value=sns))
 
     runner = CliRunner()
 
     data = {'SenzaInfo': {
+        'OperatorTopicId': 'my-topic',
         'StackName': 'test', 'Parameters': [{'MyParam': {'Type': 'String'}}]},
             'SenzaComponents': [{'Config': {'Type': 'Senza::Configuration'}}]}
 
     with runner.isolated_filesystem():
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
+
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '1', 'my-param-value'],
+                               catch_exceptions=False)
+        assert 'DRY-RUN' in result.output
+
         result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=myregion', '1', 'my-param-value'],
                                catch_exceptions=False)
         assert 'OK' in result.output

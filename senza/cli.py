@@ -26,7 +26,7 @@ from .aws import parse_time, get_required_capabilities, resolve_topic_arn
 from .components import component_basic_configuration, component_stups_auto_configuration, \
     component_auto_scaling_group, component_taupage_auto_scaling_group, \
     component_load_balancer, component_weighted_dns_load_balancer
-from .utils import named_value
+from .utils import named_value, camel_case_to_underscore
 
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -41,6 +41,8 @@ STYLES = {
     'CREATE_IN_PROGRESS': {'fg': 'yellow', 'bold': True},
     'DELETE_IN_PROGRESS': {'fg': 'red', 'bold': True},
     'ROLLBACK_IN_PROGRESS': {'fg': 'red', 'bold': True},
+    'IN_SERVICE': {'fg': 'green'},
+    'OUT_OF_SERVICE': {'fg': 'red'},
     }
 
 
@@ -49,7 +51,8 @@ TITLES = {
     'logical_resource_id': 'ID',
     'launch_time': 'Launched',
     'resource_status': 'Status',
-    'resource_status_reason': 'Status Reason'
+    'resource_status_reason': 'Status Reason',
+    'lb_status': 'LB Status'
 }
 
 MAX_COLUMN_WIDTHS = {
@@ -487,9 +490,24 @@ def instances(stack_ref, region):
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
 
+    conn = boto.ec2.connect_to_region(region)
+    elb = boto.ec2.elb.connect_to_region(region)
+
     rows = []
     for stack in get_stacks(stack_refs, region):
-        conn = boto.ec2.connect_to_region(region)
+        if stack.stack_status == 'ROLLBACK_COMPLETE':
+            # performance optimization: do not call EC2 API for "dead" stacks
+            continue
+
+        instance_health = {}
+        try:
+            instance_states = elb.describe_instance_health(stack.stack_name)
+            for istate in instance_states:
+                instance_health[istate.instance_id] = camel_case_to_underscore(istate.state).upper()
+        except boto.exception.BotoServerError as e:
+            if e.code != 'LoadBalancerNotFound':
+                raise
+
         for instance in conn.get_only_instances(filters={'tag:aws:cloudformation:stack-id': stack.stack_id}):
             rows.append({'stack_name': stack.stack_name,
                          'resource_id': instance.tags.get('aws:cloudformation:logical-id'),
@@ -497,9 +515,10 @@ def instances(stack_ref, region):
                          'public_ip': instance.ip_address,
                          'private_ip': instance.private_ip_address,
                          'state': instance.state.upper(),
+                         'lb_status': instance_health.get(instance.id),
                          'launch_time': parse_time(instance.launch_time)})
 
-    print_table('stack_name resource_id instance_id public_ip private_ip state launch_time'.split(),
+    print_table('stack_name resource_id instance_id public_ip private_ip state lb_status launch_time'.split(),
                 rows, styles=STYLES, titles=TITLES)
 
 

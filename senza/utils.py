@@ -1,3 +1,4 @@
+import re
 
 
 def named_value(d):
@@ -13,3 +14,12 @@ def ensure_keys(dict, *keys):
             dict[first] = {}
         dict[first] = ensure_keys(dict[first], *rest)
         return dict
+
+
+def camel_case_to_underscore(name):
+    '''
+    >>> camel_case_to_underscore('CamelCaseToUnderscore')
+    'camel_case_to_underscore'
+    '''
+    s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
+    return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()

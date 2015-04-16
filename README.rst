@@ -39,7 +39,7 @@ Usage
 
 .. code-block:: bash
 
-    $ senza create ./my-definition.yaml --region=eu-west-1 1.0
+    $ senza create ./my-definition.yaml --region=eu-west-1 1 1.0
 
 Senza Definition
 ================
@@ -49,23 +49,20 @@ Senza Definition
     # basic information for generating and executing this definition
     SenzaInfo:
       StackName: kio
-      OperatorTopicId: arn:aws:sns:eu-west-1:1234567890:kio-operators
+      OperatorTopicId: kio-operators
       Parameters:
           - ImageVersion:
               Description: "Docker image version of Kio."
 
     # a list of senza components to apply to the definition
     SenzaComponents:
-
       - Configuration:
           Type: Senza::StupsAutoConfiguration # auto-detect network setup
-
       # will create a launch configuration and auto scaling group with min/max=1
       - AppServer:
           Type: Senza::TaupageAutoScalingGroup
           InstanceType: t2.micro
-          SecurityGroups:
-            - app-kio # can be either name or id ("sg-..")
+          SecurityGroups: [app-kio] # can be either name or id ("sg-..")
           ElasticLoadBalancer: AppLoadBalancer
           TaupageConfig:
             runtime: Docker
@@ -73,32 +70,29 @@ Senza Definition
             ports:
               8080: 8080
             environment:
-              HTTP_CORS_ORIGIN: "*.example.com"
               PGSSLMODE: verify-full
               DB_SUBNAME: "//kio.example.eu-west-1.rds.amazonaws.com:5432/kio?ssl=true"
               DB_USER: kio
               DB_PASSWORD: aws:kms:abcdef1234567890abcdef=
-
       # creates an ELB entry and Route53 domains to this ELB
       - AppLoadBalancer:
           Type: Senza::WeightedDnsElasticLoadBalancer
           HTTPPort: 8080
           HealthCheckPath: /ui/
-          SecurityGroups:
-              - app-kio-lb
+          SecurityGroups: [app-kio-lb]
 
     # just plain Cloud Formation definitions are fully supported:
     Outputs:
-    URL:
-      Description: "The ELB URL of the new Kio deployment."
-      Value:
-        "Fn::Join":
-            - ""
-            -
-            - "http://"
-            - "Fn::GetAtt":
-                - AppLoadBalancer
-                - DNSName
+      URL:
+        Description: "The ELB URL of the new Kio deployment."
+        Value:
+          "Fn::Join":
+              - ""
+              -
+              - "http://"
+              - "Fn::GetAtt":
+                  - AppLoadBalancer
+                  - DNSName
 
 During evaluation, you can mustache templating with access to the rendered definition, including the SenzaInfo,
 SenzaComponents and Arguments key (containing all given arguments).
@@ -107,11 +101,17 @@ See the `STUPS documentation on Senza`_ for details.
 
 .. _STUPS documentation on Senza: http://stups.readthedocs.org/en/latest/components/senza.html
 
-
 Unit Tests
 ==========
 
 .. code-block:: bash
 
     $ python3 setup.py test --cov-html=true
+
+Releasing
+=========
+
+.. code-block:: bash
+
+    $ ./release.sh <NEW-VERSION>
 

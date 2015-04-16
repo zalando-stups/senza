@@ -27,6 +27,7 @@ from .aws import parse_time, get_required_capabilities, resolve_topic_arn
 from .components import component_basic_configuration, component_stups_auto_configuration, \
     component_auto_scaling_group, component_taupage_auto_scaling_group, \
     component_load_balancer, component_weighted_dns_load_balancer
+import senza
 from .utils import named_value, camel_case_to_underscore
 
 
@@ -130,6 +131,13 @@ BASE_TEMPLATE = {
 }
 
 
+def print_version(ctx, param, value):
+    if not value or ctx.resilient_parsing:
+        return
+    click.echo('Senza {}'.format(senza.__version__))
+    ctx.exit()
+
+
 def evaluate(definition, args):
     # extract Senza* meta information
     info = definition.pop("SenzaInfo")
@@ -166,6 +174,8 @@ def evaluate(definition, args):
 
 
 @click.group(cls=AliasedGroup, context_settings=CONTEXT_SETTINGS)
+@click.option('-V', '--version', is_flag=True, callback=print_version, expose_value=False, is_eager=True,
+              help='Print the current version number and exit.')
 def cli():
     pass
 

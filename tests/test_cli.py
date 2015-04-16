@@ -21,6 +21,12 @@ def test_invalid_definition():
     assert 'Error: Invalid value for "definition"' in result.output
 
 
+def test_version():
+    runner = CliRunner()
+    result = runner.invoke(cli, ['--version'])
+    assert result.output.startswith('Senza ')
+
+
 def test_print_basic(monkeypatch):
     monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock())
 

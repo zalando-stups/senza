@@ -546,6 +546,47 @@ def instances(stack_ref, region):
                 rows, styles=STYLES, titles=TITLES)
 
 
+@cli.command()
+@click.argument('stack_ref', nargs=-1)
+@click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
+def domains(stack_ref, region):
+    '''List the stack's Route53 domains'''
+    stack_refs = get_stack_refs(stack_ref)
+    region = get_region(region)
+
+    cf = boto.cloudformation.connect_to_region(region)
+    route53 = boto.route53.connect_to_region(region)
+
+    records_by_name = {}
+
+    rows = []
+    for stack in get_stacks(stack_refs, region):
+        if stack.stack_status == 'ROLLBACK_COMPLETE':
+            # performance optimization: do not call EC2 API for "dead" stacks
+            continue
+
+        resources = cf.describe_stack_resources(stack.stack_id)
+        for res in resources:
+            if res.resource_type == 'AWS::Route53::RecordSet':
+                name = res.physical_resource_id
+                if name not in records_by_name:
+                    zone_name = name.split('.', 1)[1]
+                    zone = route53.get_zone(zone_name)
+                    for rec in zone.get_records():
+                        records_by_name[rec.name.rstrip('.')] = rec
+                record = records_by_name.get(name)
+                rows.append({'stack_name': stack.stack_name,
+                             'resource_id': res.logical_resource_id,
+                             'domain': res.physical_resource_id,
+                             'weight': record.weight if record else None,
+                             'type': record.type if record else None,
+                             'value': ','.join(record.resource_records) if record else None,
+                             'create_time': calendar.timegm(res.timestamp.timetuple())})
+
+    print_table('stack_name resource_id domain weight type value create_time'.split(),
+                rows, styles=STYLES, titles=TITLES)
+
+
 def main():
     try:
         cli()

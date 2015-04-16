@@ -53,7 +53,11 @@ TITLES = {
     'launch_time': 'Launched',
     'resource_status': 'Status',
     'resource_status_reason': 'Status Reason',
-    'lb_status': 'LB Status'
+    'lb_status': 'LB Status',
+    'private_ip': 'Private IP',
+    'public_ip': 'Public IP',
+    'resource_id': 'Resource ID',
+    'instance_id': 'Instance ID',
 }
 
 MAX_COLUMN_WIDTHS = {

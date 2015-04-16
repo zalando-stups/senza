@@ -3,6 +3,7 @@ import calendar
 import configparser
 import importlib
 import os
+import re
 import sys
 import json
 import time
@@ -96,6 +97,15 @@ class KeyValParamType(click.ParamType):
         else:
             key_val = value
         return key_val
+
+
+VERSION_PATTERN = re.compile(r'^[a-zA-Z0-9]+$')
+
+
+def validate_version(ctx, param, value):
+    if not VERSION_PATTERN.match(value):
+        raise click.BadParameter('Version must satisfy regular expression pattern "[a-zA-Z0-9]+"')
+    return value
 
 
 DEFINITION = DefinitionParamType()
@@ -285,7 +295,7 @@ def list_stacks(region, stack_ref, all):
 
 @cli.command()
 @click.argument('definition', type=DEFINITION)
-@click.argument('version')
+@click.argument('version', callback=validate_version)
 @click.argument('parameter', nargs=-1)
 @click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
 @click.option('--disable-rollback', is_flag=True, help='Disable Cloud Formation rollback on failure')
@@ -343,7 +353,7 @@ def create(definition, region, version, parameter, disable_rollback, dry_run):
 
 @cli.command('print')
 @click.argument('definition', type=DEFINITION)
-@click.argument('version')
+@click.argument('version', callback=validate_version)
 @click.argument('parameter', nargs=-1)
 @click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
 def print_cfjson(definition, region, version, parameter):

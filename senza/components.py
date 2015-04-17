@@ -390,12 +390,12 @@ def component_weighted_dns_load_balancer(definition, configuration, args, info):
         dns_conn = boto.route53.connect_to_region(args.region)
         zones = dns_conn.get_zones()
         if 'MainDomain' in configuration:
+            main_domain = configuration.get('MainDomain')
+        else:
             domains = sorted([zone.name.rstrip('.') for zone in zones])
             if not domains:
                 raise Exception('No Route53 hosted zone found')
             main_domain = domains[0]
-        else:
-            main_domain = configuration.get('MainDomain')
         if 'VersionDomain' in configuration:
             version_subdomain = configuration.get('VersionDomain').split('.', 1)[0]
         else:

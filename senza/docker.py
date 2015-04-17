@@ -155,7 +155,7 @@ def docker_image_exists(docker_image: str) -> bool:
             url = '{scheme}://{registry}/v1/repositories/{repo}/tags'.format(scheme=scheme,
                                                                              registry=registry,
                                                                              repo=repo)
-            r = requests.get(url, timeout=5, verify=False)
+            r = requests.get(url, timeout=5)
             result = r.json()
             return tag in result
         except:

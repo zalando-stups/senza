@@ -99,6 +99,10 @@ class KeyValParamType(click.ParamType):
         return key_val
 
 
+# from AWS docs:
+# Stack name must contain only alphanumeric characters (case sensitive)
+# and start with an alpha character. Maximum length of the name is 255 characters.
+STACK_NAME_PATTERN = re.compile(r'^[a-zA-Z][a-zA-Z0-9-]*$')
 VERSION_PATTERN = re.compile(r'^[a-zA-Z0-9]+$')
 
 
@@ -230,8 +234,11 @@ def get_stack_refs(refs: list):
             with open(ref) as fd:
                 data = yaml.safe_load(fd)
             ref = data['SenzaInfo']['StackName']
-        except:
-            pass
+        except Exception as e:
+            if not STACK_NAME_PATTERN.match(ref):
+                # we can be sure that ref is a file path,
+                # as stack names cannot contain dots or slashes
+                raise click.FileError(ref, str(e))
 
         if refs:
             version = refs.pop()

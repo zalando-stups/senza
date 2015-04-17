@@ -113,8 +113,9 @@ def set_new_weights(dns_name, identifier, lb_dns_name: str, new_record_weights, 
                     did_the_upsert = True
             else:
                 rr.add_change_record('DELETE', r)
-    if percentage > 0 and not did_the_upsert:
-        change = rr.add_change('CREATE', dns_name, 'CNAME', ttl=20, identifier=identifier, weight=percentage)
+    if new_record_weights[identifier] > 0 and not did_the_upsert:
+        change = rr.add_change('CREATE', dns_name, 'CNAME', ttl=20, identifier=identifier,
+                               weight=new_record_weights[identifier])
         change.add_value(lb_dns_name)
     if rr.changes:
         rr.commit()
@@ -250,7 +251,7 @@ def change_version_traffic(stack_ref: StackReference, percentage: float, region)
     zone = dns_conn.get_zone(domain + '.')
     if not zone:
         raise ValueError('Zone {} not found'.format(domain))
-    dns_name = '{}.{}.'.format(stack_ref.name, domain)
+    dns_name = version.domain + '.'
     lb_dns_name = version.lb_dns_name
     rr = zone.get_records()
     percentage = int(percentage * PERCENT_RESOLUTION)

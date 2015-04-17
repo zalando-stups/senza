@@ -103,7 +103,6 @@ def set_new_weights(dns_name, identifier, lb_dns_name: str, new_record_weights, 
     action('Setting weights for {dns_name}..', **vars())
     did_the_upsert = False
     for r in rr:
-        print(r.name, dns_name)
         if r.type == 'CNAME' and r.name == dns_name:
             w = new_record_weights[r.identifier]
             if w:
@@ -193,6 +192,45 @@ def get_stack_versions(stack_name: str, region: str):
                 if 'version' not in res.logical_resource_id.lower():
                     domain = res.physical_resource_id
         yield StackVersion(stack_name, details.tags.get('StackVersion'), domain, lb_dns_name)
+
+
+def print_version_traffic(stack_ref: StackReference, region):
+    versions = list(get_stack_versions(stack_ref.name, region))
+
+    identifier_versions = collections.OrderedDict(
+        (version.identifier, version.version) for version in versions)
+    try:
+        version = next(v for v in versions if v.version == stack_ref.version)
+    except StopIteration:
+        raise ValueError('Version {} not found'.format(stack_ref.version))
+
+    identifier = version.identifier
+    dns_conn = boto.route53.connect_to_region(region)
+
+    domain = version.domain.split('.', 1)[1]
+    zone = dns_conn.get_zone(domain + '.')
+    if not zone:
+        raise ValueError('Zone {} not found'.format(domain))
+    rr = zone.get_records()
+    dns_name = '{}.{}.'.format(stack_ref.name, domain)
+    known_record_weights, partial_count, partial_sum = get_weights(dns_name, identifier, rr)
+
+    rows = [
+        {
+            'stack_name': version.name,
+            'version': str(identifier_versions[i]),
+            'identifier': i,
+            'weight': known_record_weights[i],
+            } for i in known_record_weights.keys()
+    ]
+
+    for r in rows:
+        r['weight'] /= PERCENT_RESOLUTION
+        if identifier == r['identifier']:
+            r['current'] = '<'
+
+    print_table('stack_name version identifier weight current'.split(),
+                sorted(rows, key=lambda x: identifier_versions[x['identifier']]))
 
 
 def change_version_traffic(stack_ref: StackReference, percentage: float, region):

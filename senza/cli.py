@@ -27,7 +27,7 @@ from .components import component_basic_configuration, component_stups_auto_conf
     component_auto_scaling_group, component_taupage_auto_scaling_group, \
     component_load_balancer, component_weighted_dns_load_balancer
 import senza
-from .traffic import change_version_traffic
+from .traffic import change_version_traffic, print_version_traffic
 from .utils import named_value, camel_case_to_underscore
 
 
@@ -50,7 +50,7 @@ STYLES = {
 
 TITLES = {
     'creation_time': 'Created',
-    'logical_resource_id': 'ID',
+    'logical_resource_id': 'Resource ID',
     'launch_time': 'Launched',
     'resource_status': 'Status',
     'resource_status_reason': 'Status Reason',
@@ -260,15 +260,15 @@ def list_stacks(region, stack_ref, all):
 
     rows = []
     for stack in get_stacks(stack_refs, region, all=all):
-        rows.append({'name': stack.name,
+        rows.append({'stack_name': stack.name,
                      'version': stack.version,
                      'status': stack.stack_status,
                      'creation_time': calendar.timegm(stack.creation_time.timetuple()),
                      'description': stack.template_description})
 
-    rows.sort(key=lambda x: (x['name'], x['version']))
+    rows.sort(key=lambda x: (x['stack_name'], x['version']))
 
-    print_table('name version status creation_time description'.split(), rows, styles=STYLES, titles=TITLES)
+    print_table('stack_name version status creation_time description'.split(), rows, styles=STYLES, titles=TITLES)
 
 
 @cli.command()
@@ -384,18 +384,22 @@ def resources(stack_ref, region, watch):
     repeat = True
 
     while repeat:
+        rows = []
         for stack in get_stacks(stack_refs, region):
             resources = cf.describe_stack_resources(stack.stack_name)
 
-            rows = []
             for resource in resources:
                 d = resource.__dict__
+                d['stack_name'] = stack.name
+                d['version'] = stack.version
                 d['resource_type'] = format_resource_type(d['resource_type'])
                 d['creation_time'] = calendar.timegm(resource.timestamp.timetuple())
                 rows.append(d)
 
-            print_table('logical_resource_id resource_type resource_status creation_time'.split(), rows,
-                        styles=STYLES, titles=TITLES)
+        rows.sort(key=lambda x: (x['stack_name'], x['version'], x['logical_resource_id']))
+
+        print_table('stack_name version logical_resource_id resource_type resource_status creation_time'.split(), rows,
+                    styles=STYLES, titles=TITLES)
         if watch:
             time.sleep(watch)
             click.clear()
@@ -417,18 +421,23 @@ def events(stack_ref, region, watch):
     repeat = True
 
     while repeat:
+        rows = []
         for stack in get_stacks(stack_refs, region):
             events = cf.describe_stack_events(stack.stack_name)
 
-            rows = []
-            for event in sorted(events, key=lambda x: x.timestamp):
+            for event in events:
                 d = event.__dict__
+                d['stack_name'] = stack.name
+                d['version'] = stack.version
                 d['resource_type'] = format_resource_type(d['resource_type'])
                 d['event_time'] = calendar.timegm(event.timestamp.timetuple())
                 rows.append(d)
 
-            print_table('resource_type logical_resource_id resource_status resource_status_reason event_time'.split(),
-                        rows, styles=STYLES, titles=TITLES, max_column_widths=MAX_COLUMN_WIDTHS)
+        rows.sort(key=lambda x: x['event_time'])
+
+        print_table(('stack_name version resource_type logical_resource_id ' +
+                    'resource_status resource_status_reason event_time').split(),
+                    rows, styles=STYLES, titles=TITLES, max_column_widths=MAX_COLUMN_WIDTHS)
         if watch:
             time.sleep(watch)
             click.clear()
@@ -554,18 +563,20 @@ def domains(stack_ref, region):
 
 
 @cli.command()
-@click.argument('stack_ref', nargs=-1)
-@click.argument('percentage', type=FloatRange(0, 100, clamp=True))
+@click.argument('stack_name')
+@click.argument('stack_version')
+@click.argument('percentage', type=FloatRange(0, 100, clamp=True), required=False)
 @click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
-def traffic(stack_ref, percentage, region):
+def traffic(stack_name, stack_version, percentage, region):
     '''Route traffic to a specific stack (weighted DNS record)'''
-    stack_refs = get_stack_refs(stack_ref)
+    stack_refs = get_stack_refs([stack_name, stack_version])
     region = get_region(region)
 
     for ref in stack_refs:
-        if not ref.version:
-            raise click.UsageError('You must specify the stack version')
-        change_version_traffic(ref, percentage, region)
+        if percentage is None:
+            print_version_traffic(ref, region)
+        else:
+            change_version_traffic(ref, percentage, region)
 
 
 def main():

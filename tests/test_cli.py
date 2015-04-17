@@ -63,9 +63,9 @@ def test_print_auto(monkeypatch):
     zone.name = 'zo.ne'
     cert = {'server_certificate_name': 'zo-ne', 'arn': 'arn:aws:123'}
     cert_response = {
-    'list_server_certificates_response': {'list_server_certificates_result': {'server_certificate_metadata_list': [
-        cert
-    ]}}}
+        'list_server_certificates_response': {'list_server_certificates_result': {'server_certificate_metadata_list': [
+            cert
+        ]}}}
 
     sg = MagicMock()
     sg.name = 'app-sg'
@@ -272,36 +272,39 @@ def test_traffic(monkeypatch):
     ]
     monkeypatch.setattr('senza.traffic.get_stack_versions', MagicMock(return_value=stacks))
 
-    security_group = MagicMock()
-
     # start creating mocking of the route53 record sets and Application Versions
     # this is a lot of dirty and nasty code. Please, somebody help this code.
     class ApplicationVersion(collections.namedtuple('ApplicationVersion', 'version weight')):
         @property
         def dns_identifier(self):
             return 'myapp-{}'.format(self.version)
+
     versions = [ApplicationVersion('v1', 60 * PERCENT_RESOLUTION),
                 ApplicationVersion('v2', 30 * PERCENT_RESOLUTION),
                 ApplicationVersion('v3', 10 * PERCENT_RESOLUTION),
                 ApplicationVersion('v4', 0),
-                ]
+    ]
+
+    def record(dns_identifier, weight):
+        rec = MagicMock(name=dns_identifier + '-record',
+                        weight=weight,
+                        identifier=dns_identifier,
+                        type='CNAME')
+        rec.name = 'myapp.example.org.'
+        return rec
 
     r53conn = Mock(name='r53conn')
     rr = MagicMock()
-    records = collections.OrderedDict((versions[i].dns_identifier,
-                                       MagicMock(weight=versions[i].weight,
-                                                 identifier=versions[i].dns_identifier
-                                                 )) for i in (0, 1, 2, 3))
+    records = collections.OrderedDict((ver.dns_identifier,
+                                       record(ver.dns_identifier, ver.weight)
+                                      ) for ver in versions)
 
     rr.__iter__ = lambda x: iter(records.values())
-    for r in rr:
-        r.name = "myapp.example.org."
-        r.type = "CNAME"
 
     def add_change(op, dns_name, rtype, ttl, identifier, weight):
         if op == 'CREATE':
             x = MagicMock(weight=weight, identifier=identifier)
-            x.name = "myapp.example.org"
+            x.name = "myapp.example.org."
             x.type = "CNAME"
             records[identifier] = x
         return MagicMock(name='change')
@@ -317,7 +320,6 @@ def test_traffic(monkeypatch):
 
     r53conn().get_zone().get_records.return_value = rr
     monkeypatch.setattr('boto.route53.connect_to_region', r53conn)
-
 
     runner = CliRunner()
 

@@ -13,7 +13,6 @@ import click
 from clickclick import AliasedGroup, Action, choice, info, FloatRange
 from clickclick.console import print_table
 import yaml
-import pystache
 import boto.cloudformation
 import boto.vpc
 import boto.ec2
@@ -25,7 +24,7 @@ import boto.route53
 from .aws import parse_time, get_required_capabilities, resolve_topic_arn, get_stacks, StackReference
 from .components import component_basic_configuration, component_stups_auto_configuration, \
     component_auto_scaling_group, component_taupage_auto_scaling_group, \
-    component_load_balancer, component_weighted_dns_load_balancer
+    component_load_balancer, component_weighted_dns_load_balancer, evaluate_template
 import senza
 from .traffic import change_version_traffic, print_version_traffic
 from .utils import named_value, camel_case_to_underscore
@@ -156,14 +155,8 @@ def evaluate(definition, args):
         definition = componentfn(definition, configuration, args, info)
 
     # throw executed template to templating engine and provide all information for substitutions
-    template_data = definition.copy()
-    template_data.update({"SenzaInfo": info,
-                          "SenzaComponents": components,
-                          "Arguments": args})
-
     template = yaml.dump(definition, default_flow_style=False)
-    definition = pystache.render(template, template_data)
-
+    definition = evaluate_template(template, info, components, args)
     definition = yaml.load(definition)
 
     return definition
@@ -294,7 +287,7 @@ def create(definition, region, version, parameter, disable_rollback, dry_run):
 
     parameters = []
     for name, parameter in data.get("Parameters", {}).items():
-        parameters.append([name, getattr(args, name)])
+        parameters.append([name, getattr(args, name, None)])
 
     tags = {
         "Name": stack_name,

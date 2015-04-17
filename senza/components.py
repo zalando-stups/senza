@@ -3,10 +3,20 @@ import boto.iam
 import boto.route53
 import boto.vpc
 import click
+import pystache
 import yaml
 
 from .aws import get_security_group, find_ssl_certificate_arn, resolve_topic_arn
+from .docker import docker_image_exists, extract_registry
 from .utils import named_value, ensure_keys
+
+
+def evaluate_template(template, info, components, args):
+    data = {"SenzaInfo": info,
+            "SenzaComponents": components,
+            "Arguments": args}
+    result = pystache.render(template, data)
+    return result
 
 
 def component_basic_configuration(definition, configuration, args, info):
@@ -170,7 +180,7 @@ def component_auto_scaling_group(definition, configuration, args, info):
         definition["Resources"][config_name]["Properties"]["IamInstanceProfile"] = {'Ref': logical_id}
 
     if "SecurityGroups" in configuration:
-        definition["Resources"][config_name]["Properties"]["SecurityGroups"] =\
+        definition["Resources"][config_name]["Properties"]["SecurityGroups"] = \
             resolve_security_groups(configuration["SecurityGroups"], args.region)
 
     if "UserData" in configuration:
@@ -283,6 +293,21 @@ def component_taupage_auto_scaling_group(definition, configuration, args, info):
         taupage_config['notify_cfn'] = {'stack': '{}-{}'.format(info["StackName"], info["StackVersion"]),
                                         'resource': configuration['Name']}
 
+    runtime = taupage_config.get('runtime')
+    if runtime != 'Docker':
+        raise click.UsageError('Taupage only supports the "Docker" runtime currently')
+
+    source = taupage_config.get('source')
+    if not source:
+        raise click.UsageError('The "source" property of TaupageConfig must be specified')
+
+    source = evaluate_template(source, info, [], args)
+
+    registry = extract_registry(source)
+
+    if registry and not docker_image_exists(source):
+        raise click.UsageError('Docker image "{}" does not exist'.format(source))
+
     userdata = "#zalando-ami-config\n" + yaml.dump(taupage_config, default_flow_style=False)
 
     config_name = configuration["Name"] + "Config"
@@ -310,7 +335,7 @@ def component_load_balancer(definition, configuration, args, info):
                     "Name": "{0}.{1}".format(domain["Subdomain"], domain["Zone"]),
                     "HostedZoneName": "{0}.".format(domain["Zone"])
                 },
-                }
+            }
 
             if domain["Type"] == "weighted":
                 definition["Resources"][name]["Properties"]['Weight'] = 0

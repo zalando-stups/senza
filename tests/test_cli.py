@@ -40,7 +40,8 @@ def test_print_basic(monkeypatch):
                                                                         'Type': 'Senza::TaupageAutoScalingGroup',
                                                                         'InstanceType': 't2.micro',
                                                                         'Image': 'AppImage',
-                                                                        'TaupageConfig': {}}}]}
+                                                                        'TaupageConfig': {'runtime': 'Docker',
+                                                                                          'source': 'foo/bar'}}}]}
 
     runner = CliRunner()
 
@@ -83,11 +84,13 @@ def test_print_auto(monkeypatch):
     monkeypatch.setattr('boto.sns.connect_to_region', MagicMock(return_value=sns))
 
     data = {'SenzaInfo': {'StackName': 'test',
-                          'OperatorTopicId': 'mytopic'},
+                          'OperatorTopicId': 'mytopic',
+                          'Parameters': [{'ImageVersion': {'Description': ''}}]},
             'SenzaComponents': [{'Configuration': {'Type': 'Senza::StupsAutoConfiguration'}},
                                 {'AppServer': {'Type': 'Senza::TaupageAutoScalingGroup',
                                                'InstanceType': 't2.micro',
-                                               'TaupageConfig': {},
+                                               'TaupageConfig': {'runtime': 'Docker',
+                                                                 'source': 'foo/bar:{{Arguments.ImageVersion}}'},
                                                'IamRoles': ['app-myrole'],
                                                'SecurityGroups': ['app-sg', 'sg-123']}},
                                 {'AppLoadBalancer': {'Type': 'Senza::WeightedDnsElasticLoadBalancer',
@@ -105,6 +108,7 @@ def test_print_auto(monkeypatch):
 
     assert 'AWSTemplateFormatVersion' in result.output
     assert 'subnet-123' in result.output
+    assert 'source: foo/bar:1.0-SNAPSHOT' in result.output
 
 
 def test_init(monkeypatch):

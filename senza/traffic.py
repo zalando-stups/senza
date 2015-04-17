@@ -103,6 +103,7 @@ def set_new_weights(dns_name, identifier, lb_dns_name: str, new_record_weights, 
     action('Setting weights for {dns_name}..', **vars())
     did_the_upsert = False
     for r in rr:
+        print(r.name, dns_name)
         if r.type == 'CNAME' and r.name == dns_name:
             w = new_record_weights[r.identifier]
             if w:

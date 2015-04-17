@@ -59,6 +59,7 @@ TITLES = {
     'public_ip': 'Public IP',
     'resource_id': 'Resource ID',
     'instance_id': 'Instance ID',
+    'version': 'Ver.'
 }
 
 MAX_COLUMN_WIDTHS = {
@@ -259,13 +260,15 @@ def list_stacks(region, stack_ref, all):
 
     rows = []
     for stack in get_stacks(stack_refs, region, all=all):
-        rows.append({'Name': stack.stack_name, 'Status': stack.stack_status,
+        rows.append({'name': stack.name,
+                     'version': stack.version,
+                     'status': stack.stack_status,
                      'creation_time': calendar.timegm(stack.creation_time.timetuple()),
-                     'Description': stack.template_description})
+                     'description': stack.template_description})
 
-    rows.sort(key=lambda x: x['Name'])
+    rows.sort(key=lambda x: (x['name'], x['version']))
 
-    print_table('Name Status creation_time Description'.split(), rows, styles=STYLES, titles=TITLES)
+    print_table('name version status creation_time description'.split(), rows, styles=STYLES, titles=TITLES)
 
 
 @cli.command()
@@ -494,7 +497,8 @@ def instances(stack_ref, region):
                 raise
 
         for instance in conn.get_only_instances(filters={'tag:aws:cloudformation:stack-id': stack.stack_id}):
-            rows.append({'stack_name': stack.stack_name,
+            rows.append({'stack_name': stack.name,
+                         'version': stack.version,
                          'resource_id': instance.tags.get('aws:cloudformation:logical-id'),
                          'instance_id': instance.id,
                          'public_ip': instance.ip_address,
@@ -503,7 +507,7 @@ def instances(stack_ref, region):
                          'lb_status': instance_health.get(instance.id),
                          'launch_time': parse_time(instance.launch_time)})
 
-    print_table('stack_name resource_id instance_id public_ip private_ip state lb_status launch_time'.split(),
+    print_table('stack_name version resource_id instance_id public_ip private_ip state lb_status launch_time'.split(),
                 rows, styles=STYLES, titles=TITLES)
 
 
@@ -534,9 +538,10 @@ def domains(stack_ref, region):
                     zone_name = name.split('.', 1)[1]
                     zone = route53.get_zone(zone_name)
                     for rec in zone.get_records():
-                        records_by_name[rec.name.rstrip('.')] = rec
-                record = records_by_name.get(name)
-                rows.append({'stack_name': stack.stack_name,
+                        records_by_name[(rec.name.rstrip('.'), rec.identifier)] = rec
+                record = records_by_name.get((name, stack.stack_name)) or records_by_name.get((name, None))
+                rows.append({'stack_name': stack.name,
+                             'version': stack.version,
                              'resource_id': res.logical_resource_id,
                              'domain': res.physical_resource_id,
                              'weight': record.weight if record else None,
@@ -544,7 +549,7 @@ def domains(stack_ref, region):
                              'value': ','.join(record.resource_records) if record else None,
                              'create_time': calendar.timegm(res.timestamp.timetuple())})
 
-    print_table('stack_name resource_id domain weight type value create_time'.split(),
+    print_table('stack_name version resource_id domain weight type value create_time'.split(),
                 rows, styles=STYLES, titles=TITLES)
 
 

@@ -1,5 +1,6 @@
 import collections
 import datetime
+import functools
 import boto.cloudformation
 import boto.ec2
 import boto.iam
@@ -78,6 +79,31 @@ def resolve_topic_arn(region, topic):
     return topic_arn
 
 
+@functools.total_ordering
+class SenzaStackSummary:
+    def __init__(self, stack):
+        self.stack = stack
+        parts = stack.stack_name.rsplit('-', 1)
+        self.name = parts[0]
+        if len(parts) > 1:
+            self.version = parts[1]
+        else:
+            self.version = ''
+
+    def __getattr__(self, item):
+        if item in self.__dict__:
+            return self.__dict__[item]
+        return getattr(self.stack, item)
+
+    def __lt__(self, other):
+        def key(v):
+            return (v.name, v.version)
+        return key(self) < key(other)
+
+    def __eq__(self, other):
+        return self.stack_name == other.stack_name
+
+
 def get_stacks(stack_refs: list, region, all=False):
     cf = boto.cloudformation.connect_to_region(region)
     if all:
@@ -87,7 +113,7 @@ def get_stacks(stack_refs: list, region, all=False):
     stacks = cf.list_stacks(stack_status_filters=status_filter)
     for stack in stacks:
         if not stack_refs or matches_any(stack.stack_name, stack_refs):
-            yield stack
+            yield SenzaStackSummary(stack)
 
 
 def matches_any(cf_stack_name: str, stack_refs: list):

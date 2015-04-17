@@ -186,13 +186,13 @@ def test_events(monkeypatch):
 
 
 def test_list(monkeypatch):
-    stack = MagicMock(stack_name='test-1', creation_time=datetime.datetime.now())
+    stack = MagicMock(stack_name='test-stack-1', creation_time=datetime.datetime.now())
     monkeypatch.setattr('boto.cloudformation.connect_to_region',
                         lambda x: MagicMock(list_stacks=lambda stack_status_filters: [stack]))
 
     runner = CliRunner()
 
-    data = {'SenzaInfo': {'StackName': 'test'}}
+    data = {'SenzaInfo': {'StackName': 'test-stack'}}
 
     with runner.isolated_filesystem():
         with open('myapp.yaml', 'w') as fd:
@@ -200,7 +200,7 @@ def test_list(monkeypatch):
         result = runner.invoke(cli, ['list', 'myapp.yaml', '--region=myregion'],
                                catch_exceptions=False)
 
-    assert 'test-1' in result.output
+    assert 'test-stack' in result.output
 
 
 def test_delete(monkeypatch):

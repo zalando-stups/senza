@@ -142,11 +142,11 @@ def dump_traffic_changes(stack_name: str,
             'stack_name': stack_name,
             'version': str(identifier_versions[i]),
             'identifier': i,
-            'old_weight': known_record_weights[i],
+            'old_weight%': known_record_weights[i],
             # 'delta': (delta if new_record_weights[i] else 0 if i != identifier else forced_delta),
             'delta': deltas[i],
             'compensation': compensations.get(i),
-            'new_weight': new_record_weights[i],
+            'new_weight%': new_record_weights[i],
         } for i in known_record_weights.keys()
     ]
 
@@ -158,13 +158,13 @@ def dump_traffic_changes(stack_name: str,
         if full_switch and not d and c:
             d = -c
         r['delta'] = (d / PERCENT_RESOLUTION) if d else None
-        r['old_weight'] /= PERCENT_RESOLUTION
-        r['new_weight'] /= PERCENT_RESOLUTION
+        r['old_weight%'] /= PERCENT_RESOLUTION
+        r['new_weight%'] /= PERCENT_RESOLUTION
         r['compensation'] = (c / PERCENT_RESOLUTION) if c else None
         if identifier == r['identifier']:
             r['current'] = '<'
 
-    print_table('stack_name version identifier old_weight delta compensation new_weight current'.split(),
+    print_table('stack_name version identifier old_weight% delta compensation new_weight% current'.split(),
                 sorted(rows, key=lambda x: identifier_versions[x['identifier']]))
 
 
@@ -220,16 +220,16 @@ def print_version_traffic(stack_ref: StackReference, region):
             'stack_name': version.name,
             'version': str(identifier_versions[i]),
             'identifier': i,
-            'weight': known_record_weights[i],
+            'weight%': known_record_weights[i],
             } for i in known_record_weights.keys()
     ]
 
     for r in rows:
-        r['weight'] /= PERCENT_RESOLUTION
+        r['weight%'] /= PERCENT_RESOLUTION
         if identifier == r['identifier']:
             r['current'] = '<'
 
-    print_table('stack_name version identifier weight current'.split(),
+    print_table('stack_name version identifier weight% current'.split(),
                 sorted(rows, key=lambda x: identifier_versions[x['identifier']]))
 
 

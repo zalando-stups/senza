@@ -1,4 +1,4 @@
-clickclick>=0.5
+clickclick>=0.7
 pystache
 boto>=2.37.0
 PyYAML

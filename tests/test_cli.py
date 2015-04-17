@@ -1,10 +1,12 @@
 import datetime
 import os
 from click.testing import CliRunner
-from mock import MagicMock
+import collections
+from mock import MagicMock, Mock
 import yaml
 from senza.cli import cli
 import boto.exception
+from senza.traffic import PERCENT_RESOLUTION, StackVersion
 
 
 def test_invalid_definition():
@@ -252,3 +254,129 @@ def test_create(monkeypatch):
         result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=myregion', '1', 'my-param-value'],
                                catch_exceptions=True)
         assert 'Stack test-1 already exists' in result.output
+
+
+def test_traffic(monkeypatch):
+    monkeypatch.setattr('boto.ec2.connect_to_region', MagicMock())
+    monkeypatch.setattr('boto.ec2.elb.connect_to_region', MagicMock())
+    monkeypatch.setattr('boto.cloudformation.connect_to_region', MagicMock())
+    stacks = [
+        StackVersion('myapp', 'v1', 'myapp.example.org', 'some-lb'),
+        StackVersion('myapp', 'v2', 'myapp.example.org', 'another-elb'),
+        StackVersion('myapp', 'v3', 'myapp.example.org', 'elb-3'),
+        StackVersion('myapp', 'v4', 'myapp.example.org', 'elb-4'),
+    ]
+    monkeypatch.setattr('senza.traffic.get_stack_versions', MagicMock(return_value=stacks))
+
+    security_group = MagicMock()
+
+    # start creating mocking of the route53 record sets and Application Versions
+    # this is a lot of dirty and nasty code. Please, somebody help this code.
+    class ApplicationVersion(collections.namedtuple('ApplicationVersion', 'version weight')):
+        @property
+        def dns_identifier(self):
+            return 'myapp-{}'.format(self.version)
+    versions = [ApplicationVersion('v1', 60 * PERCENT_RESOLUTION),
+                ApplicationVersion('v2', 30 * PERCENT_RESOLUTION),
+                ApplicationVersion('v3', 10 * PERCENT_RESOLUTION),
+                ApplicationVersion('v4', 0),
+                ]
+
+    r53conn = Mock(name='r53conn')
+    rr = MagicMock()
+    records = collections.OrderedDict((versions[i].dns_identifier,
+                                       MagicMock(weight=versions[i].weight,
+                                                 identifier=versions[i].dns_identifier
+                                                 )) for i in (0, 1, 2, 3))
+
+    rr.__iter__ = lambda x: iter(records.values())
+    for r in rr:
+        r.name = "myapp.example.org."
+        r.type = "CNAME"
+
+    def add_change(op, dns_name, rtype, ttl, identifier, weight):
+        if op == 'CREATE':
+            x = MagicMock(weight=weight, identifier=identifier)
+            x.name = "myapp.example.org"
+            x.type = "CNAME"
+            records[identifier] = x
+        return MagicMock(name='change')
+
+    def add_change_record(op, record):
+        if op == 'DELETE':
+            records[record.identifier].weight = 0
+        elif op == 'USPERT':
+            assert records[record.identifier].weight == record.weight
+
+    rr.add_change = add_change
+    rr.add_change_record = add_change_record
+
+    r53conn().get_zone().get_records.return_value = rr
+    monkeypatch.setattr('boto.route53.connect_to_region', r53conn)
+
+
+    runner = CliRunner()
+
+    common_opts = ['traffic', 'myapp']
+
+    def run(opts):
+        result = runner.invoke(cli, common_opts + opts, catch_exceptions=False)
+        return result
+
+    with runner.isolated_filesystem():
+        run(['v4', '100'])
+
+        ri = iter(rr)
+        assert next(ri).weight == 0
+        assert next(ri).weight == 0
+        assert next(ri).weight == 0
+        assert next(ri).weight == 200
+
+        run(['v3', '10'])
+        ri = iter(rr)
+        assert next(ri).weight == 0
+        assert next(ri).weight == 0
+        assert next(ri).weight == 20
+        assert next(ri).weight == 180
+
+        run(['v2', '0.5'])
+        ri = iter(rr)
+        assert next(ri).weight == 0
+        assert next(ri).weight == 1
+        assert next(ri).weight == 20
+        assert next(ri).weight == 179
+
+        run(['v1', '1'])
+        ri = iter(rr)
+        assert next(ri).weight == 2
+        assert next(ri).weight == 1
+        assert next(ri).weight == 19
+        assert next(ri).weight == 178
+
+        run(['v4', '95'])
+        ri = iter(rr)
+        assert next(ri).weight == 1
+        assert next(ri).weight == 1
+        assert next(ri).weight == 13
+        assert next(ri).weight == 185
+
+        run(['v4', '100'])
+        ri = iter(rr)
+        assert next(ri).weight == 0
+        assert next(ri).weight == 0
+        assert next(ri).weight == 0
+        assert next(ri).weight == 200
+
+        run(['v4', '10'])
+        ri = iter(rr)
+        assert next(ri).weight == 0
+        assert next(ri).weight == 0
+        assert next(ri).weight == 0
+        assert next(ri).weight == 200
+
+        run(['v4', '0'])
+        ri = iter(rr)
+        assert next(ri).weight == 0
+        assert next(ri).weight == 0
+        assert next(ri).weight == 0
+        assert next(ri).weight == 0

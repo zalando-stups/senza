@@ -1,4 +1,6 @@
+import collections
 import datetime
+import boto.cloudformation
 import boto.ec2
 import boto.iam
 import time
@@ -74,3 +76,42 @@ def resolve_topic_arn(region, topic):
                 topic_arn = obj['TopicArn']
 
     return topic_arn
+
+
+def get_stacks(stack_refs: list, region, all=False):
+    cf = boto.cloudformation.connect_to_region(region)
+    if all:
+        status_filter = None
+    else:
+        status_filter = [st for st in cf.valid_states if st != 'DELETE_COMPLETE']
+    stacks = cf.list_stacks(stack_status_filters=status_filter)
+    for stack in stacks:
+        if not stack_refs or matches_any(stack.stack_name, stack_refs):
+            yield stack
+
+
+def matches_any(cf_stack_name: str, stack_refs: list):
+    '''
+    >>> matches_any('foobar-1', [])
+    False
+
+    >>> matches_any('foobar-1', [StackReference(name='foobar', version=None)])
+    True
+
+    >>> matches_any('foobar-1', [StackReference(name='foobar', version='1')])
+    True
+
+    >>> matches_any('foobar-1', [StackReference(name='foobar', version='2')])
+    False
+    '''
+    for ref in stack_refs:
+        if ref.version and cf_stack_name == ref.cf_stack_name():
+            return True
+        elif not ref.version and cf_stack_name.rsplit('-', 1)[0] == ref.name:
+            return True
+    return False
+
+
+class StackReference(collections.namedtuple('StackReference', 'name version')):
+    def cf_stack_name(self):
+        return '{}-{}'.format(self.name, self.version)

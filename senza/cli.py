@@ -10,9 +10,8 @@ import time
 
 from boto.exception import BotoServerError
 import click
-from clickclick import AliasedGroup, Action, choice, info
+from clickclick import AliasedGroup, Action, choice, info, FloatRange
 from clickclick.console import print_table
-import collections
 import yaml
 import pystache
 import boto.cloudformation
@@ -22,12 +21,13 @@ import boto.ec2.autoscale
 import boto.iam
 import boto.sns
 import boto.route53
-from .aws import parse_time, get_required_capabilities, resolve_topic_arn
 
+from .aws import parse_time, get_required_capabilities, resolve_topic_arn, get_stacks, StackReference
 from .components import component_basic_configuration, component_stups_auto_configuration, \
     component_auto_scaling_group, component_taupage_auto_scaling_group, \
     component_load_balancer, component_weighted_dns_load_balancer
 import senza
+from .traffic import change_version_traffic
 from .utils import named_value, camel_case_to_underscore
 
 
@@ -82,11 +82,6 @@ class DefinitionParamType(click.ParamType):
             if 'SenzaInfo' not in data:
                 self.fail('"{}" entry is missing in YAML file "{}"'.format(key, value), param, ctx)
         return data
-
-
-class StackReference(collections.namedtuple('StackReference', 'name version')):
-    def cf_stack_name(self):
-        return '{}-{}'.format(self.name, self.version)
 
 
 class KeyValParamType(click.ParamType):
@@ -250,40 +245,6 @@ def get_stack_refs(refs: list):
             version = None
         stack_refs.append(StackReference(ref, version))
     return stack_refs
-
-
-def matches_any(cf_stack_name: str, stack_refs: list):
-    '''
-    >>> matches_any('foobar-1', [])
-    False
-
-    >>> matches_any('foobar-1', [StackReference(name='foobar', version=None)])
-    True
-
-    >>> matches_any('foobar-1', [StackReference(name='foobar', version='1')])
-    True
-
-    >>> matches_any('foobar-1', [StackReference(name='foobar', version='2')])
-    False
-    '''
-    for ref in stack_refs:
-        if ref.version and cf_stack_name == ref.cf_stack_name():
-            return True
-        elif not ref.version and cf_stack_name.rsplit('-', 1)[0] == ref.name:
-            return True
-    return False
-
-
-def get_stacks(stack_refs: list, region, all=False):
-    cf = boto.cloudformation.connect_to_region(region)
-    if all:
-        status_filter = None
-    else:
-        status_filter = [st for st in cf.valid_states if st != 'DELETE_COMPLETE']
-    stacks = cf.list_stacks(stack_status_filters=status_filter)
-    for stack in stacks:
-        if not stack_refs or matches_any(stack.stack_name, stack_refs):
-            yield stack
 
 
 @cli.command('list')
@@ -585,6 +546,21 @@ def domains(stack_ref, region):
 
     print_table('stack_name resource_id domain weight type value create_time'.split(),
                 rows, styles=STYLES, titles=TITLES)
+
+
+@cli.command()
+@click.argument('stack_ref', nargs=-1)
+@click.argument('percentage', type=FloatRange(0, 100, clamp=True))
+@click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
+def traffic(stack_ref, percentage, region):
+    '''Route traffic to a specific stack (weighted DNS record)'''
+    stack_refs = get_stack_refs(stack_ref)
+    region = get_region(region)
+
+    for ref in stack_refs:
+        if not ref.version:
+            raise click.UsageError('You must specify the stack version')
+        change_version_traffic(ref, percentage, region)
 
 
 def main():

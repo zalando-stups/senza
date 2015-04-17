@@ -38,8 +38,11 @@ def parse_time(s: str) -> float:
     True
     '''
     try:
-        utc = datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ').timestamp()
-        return utc - time.timezone
+        utc = datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ')
+        ts = time.time()
+        utc_offset = datetime.datetime.fromtimestamp(ts) - datetime.datetime.utcfromtimestamp(ts)
+        local = utc + utc_offset
+        return local.timestamp()
     except:
         return None
 

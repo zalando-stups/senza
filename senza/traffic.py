@@ -10,7 +10,7 @@ PERCENT_RESOLUTION = 2
 FULL_PERCENTAGE = PERCENT_RESOLUTION * 100
 
 
-def get_weights(dns_name: str, identifier: str, rr: ResourceRecordSets) -> ({str: int}, int, int):
+def get_weights(dns_name: str, identifier: str, rr: ResourceRecordSets, all_identifiers) -> ({str: int}, int, int):
     """
     For the given dns_name, get the dns record weights from provided dns record set
     followed by partial count and partial weight sum.
@@ -33,6 +33,9 @@ def get_weights(dns_name: str, identifier: str, rr: ResourceRecordSets) -> ({str
                 partial_count += 1
     if identifier not in known_record_weights:
         known_record_weights[identifier] = 0
+    for ident in all_identifiers:
+        if ident not in known_record_weights:
+            known_record_weights[ident] = 0
     return known_record_weights, partial_count, partial_sum
 
 
@@ -227,10 +230,14 @@ def print_version_traffic(stack_ref: StackReference, region):
     else:
         raise click.UsageError('No stack version of "{}" found'.format(stack_ref.name))
 
+    if not version.domain:
+        raise click.UsageError('Stack {} version {} has no domain'.format(version.name, version.version))
+
     domain = version.domain.split('.', 1)[1]
     zone = get_zone(region, domain)
     rr = zone.get_records()
-    known_record_weights, partial_count, partial_sum = get_weights(version.dns_name, version.identifier, rr)
+    known_record_weights, partial_count, partial_sum = get_weights(version.dns_name, version.identifier, rr,
+                                                                   identifier_versions.keys())
 
     rows = [
         {
@@ -266,7 +273,8 @@ def change_version_traffic(stack_ref: StackReference, percentage: float, region)
     zone = get_zone(region, domain)
     rr = zone.get_records()
     percentage = int(percentage * PERCENT_RESOLUTION)
-    known_record_weights, partial_count, partial_sum = get_weights(version.dns_name, identifier, rr)
+    known_record_weights, partial_count, partial_sum = get_weights(version.dns_name, identifier, rr,
+                                                                   identifier_versions.keys())
 
     if partial_count == 0 and percentage == 0:
         # disable the last remaining version

@@ -1,4 +1,5 @@
 from boto.route53.record import ResourceRecordSets
+import click
 from clickclick import warning, action, ok, print_table, Action
 import collections
 from .aws import get_stacks, StackReference
@@ -141,13 +142,13 @@ def dump_traffic_changes(stack_name: str,
     rows = [
         {
             'stack_name': stack_name,
-            'version': str(identifier_versions[i]),
+            'version': identifier_versions.get(i),
             'identifier': i,
-            'old_weight%': known_record_weights[i],
+            'old_weight%': known_record_weights.get(i),
             # 'delta': (delta if new_record_weights[i] else 0 if i != identifier else forced_delta),
             'delta': deltas[i],
             'compensation': compensations.get(i),
-            'new_weight%': new_record_weights[i],
+            'new_weight%': new_record_weights.get(i),
         } for i in known_record_weights.keys()
     ]
 
@@ -166,7 +167,7 @@ def dump_traffic_changes(stack_name: str,
             r['current'] = '<'
 
     print_table('stack_name version identifier old_weight% delta compensation new_weight% current'.split(),
-                sorted(rows, key=lambda x: identifier_versions[x['identifier']]))
+                sorted(rows, key=lambda x: identifier_versions.get(x['identifier'], '')))
 
 
 class StackVersion(collections.namedtuple('StackVersion', 'name version domain lb_dns_name')):
@@ -203,7 +204,7 @@ def get_version(versions: list, version: str):
     for ver in versions:
         if ver.version == version:
             return ver
-    raise ValueError('Version {} not found'.format(version))
+    raise click.UsageError('Stack version {} not found'.format(version))
 
 
 def get_zone(region: str, domain: str):
@@ -219,7 +220,12 @@ def print_version_traffic(stack_ref: StackReference, region):
 
     identifier_versions = collections.OrderedDict(
         (version.identifier, version.version) for version in versions)
-    version = get_version(versions, stack_ref.version)
+    if stack_ref.version:
+        version = get_version(versions, stack_ref.version)
+    elif versions:
+        version = versions[0]
+    else:
+        raise click.UsageError('No stack version of "{}" found'.format(stack_ref.name))
 
     domain = version.domain.split('.', 1)[1]
     zone = get_zone(region, domain)
@@ -229,7 +235,7 @@ def print_version_traffic(stack_ref: StackReference, region):
     rows = [
         {
             'stack_name': version.name,
-            'version': str(identifier_versions[i]),
+            'version': identifier_versions.get(i),
             'identifier': i,
             'weight%': known_record_weights[i],
             } for i in known_record_weights.keys()
@@ -240,8 +246,11 @@ def print_version_traffic(stack_ref: StackReference, region):
         if version.identifier == r['identifier']:
             r['current'] = '<'
 
-    print_table('stack_name version identifier weight% current'.split(),
-                sorted(rows, key=lambda x: identifier_versions[x['identifier']]))
+    cols = 'stack_name version identifier weight%'.split()
+    if stack_ref.version:
+        cols.append('current')
+    print_table(cols,
+                sorted(rows, key=lambda x: identifier_versions.get(x['identifier'], '')))
 
 
 def change_version_traffic(stack_ref: StackReference, percentage: float, region):

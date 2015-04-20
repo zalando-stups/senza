@@ -476,7 +476,7 @@ def init(definition_file, region, template, user_variable):
     variables = module.gather_user_variables(variables, region)
     with Action('Generating Senza definition file {}..'.format(definition_file.name)):
         definition = module.generate_definition(variables)
-        yaml.safe_dump(definition, definition_file, default_flow_style=False)
+        definition_file.write(definition)
 
 
 @cli.command()
@@ -564,7 +564,7 @@ def domains(stack_ref, region):
 
 @cli.command()
 @click.argument('stack_name')
-@click.argument('stack_version')
+@click.argument('stack_version', required=False)
 @click.argument('percentage', type=FloatRange(0, 100, clamp=True), required=False)
 @click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
 def traffic(stack_name, stack_version, percentage, region):

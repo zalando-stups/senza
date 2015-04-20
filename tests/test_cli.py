@@ -300,6 +300,7 @@ def test_traffic(monkeypatch):
     rr.__iter__ = lambda x: iter(records.values())
 
     def add_change(op, dns_name, rtype, ttl, identifier, weight):
+        print('CHANGE', op, weight)
         if op == 'CREATE':
             x = MagicMock(weight=weight, identifier=identifier)
             x.name = "myapp.example.org."
@@ -308,6 +309,7 @@ def test_traffic(monkeypatch):
         return MagicMock(name='change')
 
     def add_change_record(op, record):
+        print('CHANGE', op, record.identifier, record.weight)
         if op == 'DELETE':
             records[record.identifier].weight = 0
         elif op == 'UPSERT':
@@ -324,6 +326,7 @@ def test_traffic(monkeypatch):
 
     def run(opts):
         result = runner.invoke(cli, common_opts + opts, catch_exceptions=False)
+        print(result.output)
         return result
 
     def weights():

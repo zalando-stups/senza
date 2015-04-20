@@ -174,6 +174,10 @@ class StackVersion(collections.namedtuple('StackVersion', 'name version domain l
     def identifier(self):
         return '{}-{}'.format(self.name, self.version)
 
+    @property
+    def dns_name(self):
+        return self.domain + '.'
+
 
 def get_stack_versions(stack_name: str, region: str):
     cf = boto.cloudformation.connect_to_region(region)
@@ -195,26 +199,32 @@ def get_stack_versions(stack_name: str, region: str):
         yield StackVersion(stack_name, details.tags.get('StackVersion'), domain, lb_dns_name)
 
 
+def get_version(versions: list, version: str):
+    for ver in versions:
+        if ver.version == version:
+            return ver
+    raise ValueError('Version {} not found'.format(version))
+
+
+def get_zone(region: str, domain: str):
+    dns_conn = boto.route53.connect_to_region(region)
+    zone = dns_conn.get_zone(domain + '.')
+    if not zone:
+        raise ValueError('Zone {} not found'.format(domain))
+    return zone
+
+
 def print_version_traffic(stack_ref: StackReference, region):
     versions = list(get_stack_versions(stack_ref.name, region))
 
     identifier_versions = collections.OrderedDict(
         (version.identifier, version.version) for version in versions)
-    try:
-        version = next(v for v in versions if v.version == stack_ref.version)
-    except StopIteration:
-        raise ValueError('Version {} not found'.format(stack_ref.version))
-
-    identifier = version.identifier
-    dns_conn = boto.route53.connect_to_region(region)
+    version = get_version(versions, stack_ref.version)
 
     domain = version.domain.split('.', 1)[1]
-    zone = dns_conn.get_zone(domain + '.')
-    if not zone:
-        raise ValueError('Zone {} not found'.format(domain))
+    zone = get_zone(region, domain)
     rr = zone.get_records()
-    dns_name = '{}.{}.'.format(stack_ref.name, domain)
-    known_record_weights, partial_count, partial_sum = get_weights(dns_name, identifier, rr)
+    known_record_weights, partial_count, partial_sum = get_weights(version.dns_name, version.identifier, rr)
 
     rows = [
         {
@@ -227,7 +237,7 @@ def print_version_traffic(stack_ref: StackReference, region):
 
     for r in rows:
         r['weight%'] /= PERCENT_RESOLUTION
-        if identifier == r['identifier']:
+        if version.identifier == r['identifier']:
             r['current'] = '<'
 
     print_table('stack_name version identifier weight% current'.split(),
@@ -239,28 +249,20 @@ def change_version_traffic(stack_ref: StackReference, percentage: float, region)
     versions = list(get_stack_versions(stack_ref.name, region))
     identifier_versions = collections.OrderedDict(
         (version.identifier, version.version) for version in versions)
-    try:
-        version = next(v for v in versions if v.version == stack_ref.version)
-    except StopIteration:
-        raise ValueError('Version {} not found'.format(stack_ref.version))
+    version = get_version(versions, stack_ref.version)
 
     identifier = version.identifier
-    dns_conn = boto.route53.connect_to_region(region)
 
     domain = version.domain.split('.', 1)[1]
-    zone = dns_conn.get_zone(domain + '.')
-    if not zone:
-        raise ValueError('Zone {} not found'.format(domain))
-    dns_name = version.domain + '.'
-    lb_dns_name = version.lb_dns_name
+    zone = get_zone(region, domain)
     rr = zone.get_records()
     percentage = int(percentage * PERCENT_RESOLUTION)
-    known_record_weights, partial_count, partial_sum = get_weights(dns_name, identifier, rr)
+    known_record_weights, partial_count, partial_sum = get_weights(version.dns_name, identifier, rr)
 
     if partial_count == 0 and percentage == 0:
         # disable the last remaining version
         new_record_weights = {i: 0 for i in known_record_weights.keys()}
-        ok(msg='DNS record "{dns_name}" will be removed from that stack'.format(**vars()))
+        ok(msg='DNS record "{dns_name}" will be removed from that stack'.format(dns_name=version.dns_name))
     else:
         with Action('Calculating new weights..'):
             compensations = {}
@@ -286,4 +288,4 @@ def change_version_traffic(stack_ref: StackReference, percentage: float, region)
                              new_record_weights,
                              compensations,
                              deltas)
-    set_new_weights(dns_name, identifier, lb_dns_name, new_record_weights, percentage, rr)
+    set_new_weights(version.dns_name, identifier, version.lb_dns_name, new_record_weights, percentage, rr)

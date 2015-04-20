@@ -290,12 +290,12 @@ def test_traffic(monkeypatch):
     rr = MagicMock()
     records = collections.OrderedDict()
 
-    for ver, weight in [('v1', 60 * PERCENT_RESOLUTION),
-                        ('v2', 30 * PERCENT_RESOLUTION),
-                        ('v3', 10 * PERCENT_RESOLUTION),
+    for ver, percentage in [('v1', 60),
+                        ('v2', 30),
+                        ('v3', 10),
                         ('v4', 0)]:
         dns_identifier = 'myapp-{}'.format(ver)
-        records[dns_identifier] = record(dns_identifier, weight)
+        records[dns_identifier] = record(dns_identifier, percentage * PERCENT_RESOLUTION)
 
     rr.__iter__ = lambda x: iter(records.values())
 

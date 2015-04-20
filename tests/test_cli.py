@@ -261,9 +261,13 @@ def test_create(monkeypatch):
 
 
 def test_traffic(monkeypatch):
+
+    r53conn = Mock(name='r53conn')
+
     monkeypatch.setattr('boto.ec2.connect_to_region', MagicMock())
     monkeypatch.setattr('boto.ec2.elb.connect_to_region', MagicMock())
     monkeypatch.setattr('boto.cloudformation.connect_to_region', MagicMock())
+    monkeypatch.setattr('boto.route53.connect_to_region', r53conn)
     stacks = [
         StackVersion('myapp', 'v1', 'myapp.example.org', 'some-lb'),
         StackVersion('myapp', 'v2', 'myapp.example.org', 'another-elb'),
@@ -274,16 +278,6 @@ def test_traffic(monkeypatch):
 
     # start creating mocking of the route53 record sets and Application Versions
     # this is a lot of dirty and nasty code. Please, somebody help this code.
-    class ApplicationVersion(collections.namedtuple('ApplicationVersion', 'version weight')):
-        @property
-        def dns_identifier(self):
-            return 'myapp-{}'.format(self.version)
-
-    versions = [ApplicationVersion('v1', 60 * PERCENT_RESOLUTION),
-                ApplicationVersion('v2', 30 * PERCENT_RESOLUTION),
-                ApplicationVersion('v3', 10 * PERCENT_RESOLUTION),
-                ApplicationVersion('v4', 0),
-    ]
 
     def record(dns_identifier, weight):
         rec = MagicMock(name=dns_identifier + '-record',
@@ -293,11 +287,15 @@ def test_traffic(monkeypatch):
         rec.name = 'myapp.example.org.'
         return rec
 
-    r53conn = Mock(name='r53conn')
     rr = MagicMock()
-    records = collections.OrderedDict((ver.dns_identifier,
-                                       record(ver.dns_identifier, ver.weight)
-                                      ) for ver in versions)
+    records = collections.OrderedDict()
+
+    for ver, weight in [('v1', 60 * PERCENT_RESOLUTION),
+                        ('v2', 30 * PERCENT_RESOLUTION),
+                        ('v3', 10 * PERCENT_RESOLUTION),
+                        ('v4', 0)]:
+        dns_identifier = 'myapp-{}'.format(ver)
+        records[dns_identifier] = record(dns_identifier, weight)
 
     rr.__iter__ = lambda x: iter(records.values())
 
@@ -312,14 +310,13 @@ def test_traffic(monkeypatch):
     def add_change_record(op, record):
         if op == 'DELETE':
             records[record.identifier].weight = 0
-        elif op == 'USPERT':
-            assert records[record.identifier].weight == record.weight
+        elif op == 'UPSERT':
+            records[record.identifier].weight = record.weight
 
     rr.add_change = add_change
     rr.add_change_record = add_change_record
 
     r53conn().get_zone().get_records.return_value = rr
-    monkeypatch.setattr('boto.route53.connect_to_region', r53conn)
 
     runner = CliRunner()
 
@@ -329,60 +326,30 @@ def test_traffic(monkeypatch):
         result = runner.invoke(cli, common_opts + opts, catch_exceptions=False)
         return result
 
+    def weights():
+        return [r.weight for r in records.values()]
+
     with runner.isolated_filesystem():
         run(['v4', '100'])
-
-        ri = iter(rr)
-        assert next(ri).weight == 0
-        assert next(ri).weight == 0
-        assert next(ri).weight == 0
-        assert next(ri).weight == 200
+        assert weights() == [0, 0, 0, 200]
 
         run(['v3', '10'])
-        ri = iter(rr)
-        assert next(ri).weight == 0
-        assert next(ri).weight == 0
-        assert next(ri).weight == 20
-        assert next(ri).weight == 180
+        assert weights() == [0, 0, 20, 180]
 
         run(['v2', '0.5'])
-        ri = iter(rr)
-        assert next(ri).weight == 0
-        assert next(ri).weight == 1
-        assert next(ri).weight == 20
-        assert next(ri).weight == 179
+        assert weights() == [0, 1, 20, 179]
 
         run(['v1', '1'])
-        ri = iter(rr)
-        assert next(ri).weight == 2
-        assert next(ri).weight == 1
-        assert next(ri).weight == 19
-        assert next(ri).weight == 178
+        assert weights() == [2, 1, 19, 178]
 
         run(['v4', '95'])
-        ri = iter(rr)
-        assert next(ri).weight == 1
-        assert next(ri).weight == 1
-        assert next(ri).weight == 13
-        assert next(ri).weight == 185
+        assert weights() == [1, 1, 13, 185]
 
         run(['v4', '100'])
-        ri = iter(rr)
-        assert next(ri).weight == 0
-        assert next(ri).weight == 0
-        assert next(ri).weight == 0
-        assert next(ri).weight == 200
+        assert weights() == [0, 0, 0, 200]
 
         run(['v4', '10'])
-        ri = iter(rr)
-        assert next(ri).weight == 0
-        assert next(ri).weight == 0
-        assert next(ri).weight == 0
-        assert next(ri).weight == 200
+        assert weights() == [0, 0, 0, 200]
 
         run(['v4', '0'])
-        ri = iter(rr)
-        assert next(ri).weight == 0
-        assert next(ri).weight == 0
-        assert next(ri).weight == 0
-        assert next(ri).weight == 0
+        assert weights() == [0, 0, 0, 0]

@@ -322,7 +322,7 @@ def test_traffic(monkeypatch):
 
     runner = CliRunner()
 
-    common_opts = ['traffic', 'myapp']
+    common_opts = ['traffic', '--region=my-region', 'myapp']
 
     def run(opts):
         result = runner.invoke(cli, common_opts + opts, catch_exceptions=False)

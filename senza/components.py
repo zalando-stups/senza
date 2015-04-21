@@ -308,7 +308,7 @@ def component_taupage_auto_scaling_group(definition, configuration, args, info):
     if registry and not docker_image_exists(source):
         raise click.UsageError('Docker image "{}" does not exist'.format(source))
 
-    userdata = "#zalando-ami-config\n" + yaml.dump(taupage_config, default_flow_style=False)
+    userdata = "#taupage-ami-config\n" + yaml.dump(taupage_config, default_flow_style=False)
 
     config_name = configuration["Name"] + "Config"
     ensure_keys(definition, "Resources", config_name, "Properties", "UserData")

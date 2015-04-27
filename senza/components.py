@@ -293,6 +293,12 @@ def component_taupage_auto_scaling_group(definition, configuration, args, info):
         taupage_config['notify_cfn'] = {'stack': '{}-{}'.format(info["StackName"], info["StackVersion"]),
                                         'resource': configuration['Name']}
 
+    if 'application_id' not in taupage_config:
+        taupage_config['application_id'] = info['StackName']
+
+    if 'application_version' not in taupage_config:
+        taupage_config['application_version'] = info['StackVersion']
+
     runtime = taupage_config.get('runtime')
     if runtime != 'Docker':
         raise click.UsageError('Taupage only supports the "Docker" runtime currently')

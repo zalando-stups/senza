@@ -39,7 +39,11 @@ Usage
 
 .. code-block:: bash
 
-    $ senza create ./my-definition.yaml --region=eu-west-1 1 1.0
+    $ senza init my-definition.yaml # bootstrap a new app
+    $ senza create ./my-definition.yaml 1 1.0
+
+Please read the `STUPS documentation on Senza`_ to learn more.
+
 
 Senza Definition
 ================
@@ -87,8 +91,8 @@ Senza Definition
         Description: "The ELB URL of the new Kio deployment."
         Value:
           "Fn::Join":
-              - ""
-              -
+            - ""
+            -
               - "http://"
               - "Fn::GetAtt":
                   - AppLoadBalancer

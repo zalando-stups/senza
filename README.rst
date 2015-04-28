@@ -10,15 +10,15 @@ Senza
    :target: https://coveralls.io/r/zalando-stups/senza
    :alt: Code Coverage
 
-.. image:: https://pypip.in/download/stups-senza/badge.svg
+.. image:: https://img.shields.io/pypip/dw/stups-senza.svg
    :target: https://pypi.python.org/pypi/stups-senza/
    :alt: PyPI Downloads
 
-.. image:: https://pypip.in/version/stups-senza/badge.svg
+.. image:: https://img.shields.io/pypi/v/stups-senza.svg
    :target: https://pypi.python.org/pypi/stups-senza/
    :alt: Latest PyPI version
 
-.. image:: https://pypip.in/license/stups-senza/badge.svg
+.. image:: https://img.shields.io/pypi/l/stups-senza.svg
    :target: https://pypi.python.org/pypi/stups-senza/
    :alt: License
 

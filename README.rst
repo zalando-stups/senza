@@ -10,7 +10,7 @@ Senza
    :target: https://coveralls.io/r/zalando-stups/senza
    :alt: Code Coverage
 
-.. image:: https://img.shields.io/pypip/dw/stups-senza.svg
+.. image:: https://img.shields.io/pypi/dw/stups-senza.svg
    :target: https://pypi.python.org/pypi/stups-senza/
    :alt: PyPI Downloads
 

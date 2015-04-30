@@ -10,7 +10,7 @@ import time
 
 from boto.exception import BotoServerError
 import click
-from clickclick import AliasedGroup, Action, choice, info, FloatRange
+from clickclick import AliasedGroup, Action, choice, info, FloatRange, OutputFormat
 from clickclick.console import print_table
 import yaml
 import boto.cloudformation
@@ -251,8 +251,9 @@ def get_stack_refs(refs: list):
 @cli.command('list')
 @click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
 @click.option('--all', is_flag=True, help='Show all stacks, including deleted ones')
+@click.option('--output', type=click.Choice(['text', 'json']), default='text', help='Use alternative output format')
 @click.argument('stack_ref', nargs=-1)
-def list_stacks(region, stack_ref, all):
+def list_stacks(region, stack_ref, all, output):
     '''List Cloud Formation stacks'''
     region = get_region(region)
 
@@ -268,7 +269,8 @@ def list_stacks(region, stack_ref, all):
 
     rows.sort(key=lambda x: (x['stack_name'], x['version']))
 
-    print_table('stack_name version status creation_time description'.split(), rows, styles=STYLES, titles=TITLES)
+    with OutputFormat(output):
+        print_table('stack_name version status creation_time description'.split(), rows, styles=STYLES, titles=TITLES)
 
 
 @cli.command()
@@ -490,7 +492,8 @@ def init(definition_file, region, template, user_variable):
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
 @click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
-def instances(stack_ref, region):
+@click.option('--output', type=click.Choice(['text', 'json']), default='text', help='Use alternative output format')
+def instances(stack_ref, region, output):
     '''List the stack's EC2 instances'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
@@ -524,8 +527,9 @@ def instances(stack_ref, region):
                          'lb_status': instance_health.get(instance.id),
                          'launch_time': parse_time(instance.launch_time)})
 
-    print_table('stack_name version resource_id instance_id public_ip private_ip state lb_status launch_time'.split(),
-                rows, styles=STYLES, titles=TITLES)
+    with OutputFormat(output):
+        print_table(('stack_name version resource_id instance_id public_ip ' +
+                     'private_ip state lb_status launch_time').split(), rows, styles=STYLES, titles=TITLES)
 
 
 @cli.command()

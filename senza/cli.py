@@ -349,7 +349,8 @@ def print_cfjson(definition, region, version, parameter):
 @click.argument('stack_ref', nargs=-1)
 @click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
 @click.option('--dry-run', is_flag=True, help='No-op mode: show what would be deleted')
-def delete(stack_ref, region, dry_run):
+@click.option('-f', '--force', is_flag=True, help='Allow deleting multiple stacks')
+def delete(stack_ref, region, dry_run, force):
     '''Delete a single Cloud Formation stack'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
@@ -358,7 +359,14 @@ def delete(stack_ref, region, dry_run):
     if not stack_refs:
         raise click.UsageError('Please specify at least one stack')
 
-    for stack in get_stacks(stack_refs, region):
+    stacks = list(get_stacks(stack_refs, region))
+
+    if len(stacks) > 1 and not dry_run and not force:
+        raise click.UsageError(('{} matching stacks found. ' +
+                                'Please use the "--force" flag if you really want to delete multiple stacks.').format(
+                                len(stacks)))
+
+    for stack in stacks:
         with Action('Deleting Cloud Formation stack {}..'.format(stack.stack_name)):
             if not dry_run:
                 cf.delete_stack(stack.stack_name)

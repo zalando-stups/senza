@@ -222,8 +222,16 @@ def test_delete(monkeypatch):
             yaml.dump(data, fd)
         result = runner.invoke(cli, ['delete', 'myapp.yaml', '--region=myregion', '1'],
                                catch_exceptions=False)
+        assert 'OK' in result.output
 
-    assert 'OK' in result.output
+        cf.list_stacks.return_value = [stack, stack]
+        result = runner.invoke(cli, ['delete', 'myapp.yaml', '--region=myregion'],
+                               catch_exceptions=False)
+        assert 'Please use the "--force" flag if you really want to delete multiple stacks' in result.output
+
+        result = runner.invoke(cli, ['delete', 'myapp.yaml', '--region=myregion', '--force'],
+                               catch_exceptions=False)
+        assert 'OK' in result.output
 
 
 def test_create(monkeypatch):

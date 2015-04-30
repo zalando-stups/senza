@@ -365,8 +365,8 @@ def delete(stack_ref, region, dry_run, force):
 
     if len(stacks) > 1 and not dry_run and not force:
         raise click.UsageError(('{} matching stacks found. ' +
-                                'Please use the "--force" flag if you really want to delete multiple stacks.').format(
-                                len(stacks)))
+                               'Please use the "--force" flag if you really want to delete multiple stacks.').format(
+                               len(stacks)))
 
     for stack in stacks:
         with Action('Deleting Cloud Formation stack {}..'.format(stack.stack_name)):

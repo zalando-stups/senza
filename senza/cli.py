@@ -101,7 +101,7 @@ class KeyValParamType(click.ParamType):
 
 region_option = click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID',
                              help='AWS region ID (e.g. eu-west-1)')
-output_option = click.option('--output', type=click.Choice(['text', 'json']), default='text',
+output_option = click.option('-o', '--output', type=click.Choice(['text', 'json']), default='text',
                              help='Use alternative output format')
 watch_option = click.option('-w', '--watch', type=click.IntRange(1, 300), metavar='SECS',
                             help='Auto update the screen every X seconds')
@@ -391,7 +391,8 @@ def format_resource_type(resource_type):
 @click.argument('stack_ref', nargs=-1)
 @region_option
 @watch_option
-def resources(stack_ref, region, watch):
+@output_option
+def resources(stack_ref, region, watch, output):
     '''Show all resources of a single Cloud Formation stack'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
@@ -414,8 +415,9 @@ def resources(stack_ref, region, watch):
 
         rows.sort(key=lambda x: (x['stack_name'], x['version'], x['logical_resource_id']))
 
-        print_table('stack_name version logical_resource_id resource_type resource_status creation_time'.split(), rows,
-                    styles=STYLES, titles=TITLES)
+        with OutputFormat(output):
+            print_table('stack_name version logical_resource_id resource_type resource_status creation_time'.split(),
+                        rows, styles=STYLES, titles=TITLES)
         if watch:
             time.sleep(watch)
             click.clear()
@@ -427,7 +429,8 @@ def resources(stack_ref, region, watch):
 @click.argument('stack_ref', nargs=-1)
 @region_option
 @watch_option
-def events(stack_ref, region, watch):
+@output_option
+def events(stack_ref, region, watch, output):
     '''Show all Cloud Formation events for a single stack'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
@@ -450,9 +453,10 @@ def events(stack_ref, region, watch):
 
         rows.sort(key=lambda x: x['event_time'])
 
-        print_table(('stack_name version resource_type logical_resource_id ' +
-                    'resource_status resource_status_reason event_time').split(),
-                    rows, styles=STYLES, titles=TITLES, max_column_widths=MAX_COLUMN_WIDTHS)
+        with OutputFormat(output):
+            print_table(('stack_name version resource_type logical_resource_id ' +
+                        'resource_status resource_status_reason event_time').split(),
+                        rows, styles=STYLES, titles=TITLES, max_column_widths=MAX_COLUMN_WIDTHS)
         if watch:
             time.sleep(watch)
             click.clear()
@@ -540,7 +544,8 @@ def instances(stack_ref, region, output):
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
 @region_option
-def domains(stack_ref, region):
+@output_option
+def domains(stack_ref, region, output):
     '''List the stack's Route53 domains'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
@@ -575,8 +580,9 @@ def domains(stack_ref, region):
                              'value': ','.join(record.resource_records) if record else None,
                              'create_time': calendar.timegm(res.timestamp.timetuple())})
 
-    print_table('stack_name version resource_id domain weight type value create_time'.split(),
-                rows, styles=STYLES, titles=TITLES)
+    with OutputFormat(output):
+        print_table('stack_name version resource_id domain weight type value create_time'.split(),
+                    rows, styles=STYLES, titles=TITLES)
 
 
 @cli.command()
@@ -584,16 +590,18 @@ def domains(stack_ref, region):
 @click.argument('stack_version', required=False)
 @click.argument('percentage', type=FloatRange(0, 100, clamp=True), required=False)
 @region_option
-def traffic(stack_name, stack_version, percentage, region):
+@output_option
+def traffic(stack_name, stack_version, percentage, region, output):
     '''Route traffic to a specific stack (weighted DNS record)'''
     stack_refs = get_stack_refs([stack_name, stack_version])
     region = get_region(region)
 
-    for ref in stack_refs:
-        if percentage is None:
-            print_version_traffic(ref, region)
-        else:
-            change_version_traffic(ref, percentage, region)
+    with OutputFormat(output):
+        for ref in stack_refs:
+            if percentage is None:
+                print_version_traffic(ref, region)
+            else:
+                change_version_traffic(ref, percentage, region)
 
 
 def main():

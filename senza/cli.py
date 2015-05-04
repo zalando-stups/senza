@@ -101,7 +101,7 @@ class KeyValParamType(click.ParamType):
 
 region_option = click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID',
                              help='AWS region ID (e.g. eu-west-1)')
-output_option = click.option('-o', '--output', type=click.Choice(['text', 'json']), default='text',
+output_option = click.option('-o', '--output', type=click.Choice(['text', 'json', 'tsv']), default='text',
                              help='Use alternative output format')
 watch_option = click.option('-w', '--watch', type=click.IntRange(1, 300), metavar='SECS',
                             help='Auto update the screen every X seconds')

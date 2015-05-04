@@ -99,6 +99,13 @@ class KeyValParamType(click.ParamType):
         return key_val
 
 
+region_option = click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID',
+                             help='AWS region ID (e.g. eu-west-1)')
+output_option = click.option('--output', type=click.Choice(['text', 'json']), default='text',
+                             help='Use alternative output format')
+watch_option = click.option('-w', '--watch', type=click.IntRange(1, 300), metavar='SECS',
+                            help='Auto update the screen every X seconds')
+
 # from AWS docs:
 # Stack name must contain only alphanumeric characters (case sensitive)
 # and start with an alpha character. Maximum length of the name is 255 characters.
@@ -249,9 +256,9 @@ def get_stack_refs(refs: list):
 
 
 @cli.command('list')
-@click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
+@region_option
+@output_option
 @click.option('--all', is_flag=True, help='Show all stacks, including deleted ones')
-@click.option('--output', type=click.Choice(['text', 'json']), default='text', help='Use alternative output format')
 @click.argument('stack_ref', nargs=-1)
 def list_stacks(region, stack_ref, all, output):
     '''List Cloud Formation stacks'''
@@ -277,7 +284,7 @@ def list_stacks(region, stack_ref, all, output):
 @click.argument('definition', type=DEFINITION)
 @click.argument('version', callback=validate_version)
 @click.argument('parameter', nargs=-1)
-@click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
+@region_option
 @click.option('--disable-rollback', is_flag=True, help='Disable Cloud Formation rollback on failure')
 @click.option('--dry-run', is_flag=True, help='No-op mode: show what would be created')
 def create(definition, region, version, parameter, disable_rollback, dry_run):
@@ -335,7 +342,7 @@ def create(definition, region, version, parameter, disable_rollback, dry_run):
 @click.argument('definition', type=DEFINITION)
 @click.argument('version', callback=validate_version)
 @click.argument('parameter', nargs=-1)
-@click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
+@region_option
 def print_cfjson(definition, region, version, parameter):
     '''Print the generated Cloud Formation template'''
     input = definition
@@ -349,7 +356,7 @@ def print_cfjson(definition, region, version, parameter):
 
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
-@click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
+@region_option
 @click.option('--dry-run', is_flag=True, help='No-op mode: show what would be deleted')
 @click.option('-f', '--force', is_flag=True, help='Allow deleting multiple stacks')
 def delete(stack_ref, region, dry_run, force):
@@ -382,9 +389,8 @@ def format_resource_type(resource_type):
 
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
-@click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
-@click.option('-w', '--watch', type=click.IntRange(1, 300), help='Auto update the screen every X seconds',
-              metavar='SECS')
+@region_option
+@watch_option
 def resources(stack_ref, region, watch):
     '''Show all resources of a single Cloud Formation stack'''
     stack_refs = get_stack_refs(stack_ref)
@@ -419,9 +425,8 @@ def resources(stack_ref, region, watch):
 
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
-@click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
-@click.option('-w', '--watch', type=click.IntRange(1, 300), help='Auto update the screen every X seconds',
-              metavar='SECS')
+@region_option
+@watch_option
 def events(stack_ref, region, watch):
     '''Show all Cloud Formation events for a single stack'''
     stack_refs = get_stack_refs(stack_ref)
@@ -462,7 +467,7 @@ def get_template_description(template: str):
 
 @cli.command()
 @click.argument('definition_file', type=click.File('w'))
-@click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
+@region_option
 @click.option('-t', '--template', help='Use a custom template', metavar='TEMPLATE_ID')
 @click.option('-v', '--user-variable', help='Provide user variables for the template',
               metavar='KEY=VAL', multiple=True, type=KEY_VAL)
@@ -491,8 +496,8 @@ def init(definition_file, region, template, user_variable):
 
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
-@click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
-@click.option('--output', type=click.Choice(['text', 'json']), default='text', help='Use alternative output format')
+@region_option
+@output_option
 def instances(stack_ref, region, output):
     '''List the stack's EC2 instances'''
     stack_refs = get_stack_refs(stack_ref)
@@ -534,7 +539,7 @@ def instances(stack_ref, region, output):
 
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
-@click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
+@region_option
 def domains(stack_ref, region):
     '''List the stack's Route53 domains'''
     stack_refs = get_stack_refs(stack_ref)
@@ -578,7 +583,7 @@ def domains(stack_ref, region):
 @click.argument('stack_name')
 @click.argument('stack_version', required=False)
 @click.argument('percentage', type=FloatRange(0, 100, clamp=True), required=False)
-@click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID', help='AWS region ID (e.g. eu-west-1)')
+@region_option
 def traffic(stack_name, stack_version, percentage, region):
     '''Route traffic to a specific stack (weighted DNS record)'''
     stack_refs = get_stack_refs([stack_name, stack_version])

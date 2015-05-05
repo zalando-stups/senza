@@ -60,7 +60,7 @@ def gather_user_variables(variables, region):
     http_port = variables['http_port']
 
     sg_name = 'app-{}'.format(variables['application_id'])
-    rules_missing = check_security_group(sg_name, [('tcp', 22), ('tcp', http_port)], region)
+    rules_missing = check_security_group(sg_name, [('tcp', 22), ('tcp', http_port)], region, allow_from_self=True)
 
     if ('tcp', 22) in rules_missing:
         warning('Security group {} does not allow SSH access, you will not be able to ssh into your servers'.format(

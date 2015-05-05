@@ -43,7 +43,7 @@ def gather_user_variables(variables, region):
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
 
     sg_name = 'app-{}'.format(variables['application_id'])
-    rules_missing = check_security_group(sg_name, [('tcp', 22)], region)
+    rules_missing = check_security_group(sg_name, [('tcp', 22)], region, allow_from_self=True)
 
     if ('tcp', 22) in rules_missing:
         warning('Security group {} does not allow SSH access, you will not be able to ssh into your servers'.format(

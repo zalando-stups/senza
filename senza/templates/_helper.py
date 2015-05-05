@@ -12,7 +12,7 @@ def prompt(variables: dict, var_name, *args, **kwargs):
         variables[var_name] = click.prompt(*args, **kwargs)
 
 
-def check_security_group(sg_name, rules, region):
+def check_security_group(sg_name, rules, region, allow_from_self=False):
     rules_missing = set()
     for rule in rules:
         rules_missing.add(rule)
@@ -39,4 +39,6 @@ def check_security_group(sg_name, rules, region):
             sg.add_tags({'Name': sg_name})
             for proto, port in rules:
                 sg.authorize(ip_protocol=proto, from_port=port, to_port=port, cidr_ip='0.0.0.0/0')
+            if allow_from_self:
+                sg.authorize(ip_protocol='tcp', from_port=0, to_port=65535, src_group=sg)
         return set()

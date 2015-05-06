@@ -88,6 +88,7 @@ def test_print_auto(monkeypatch):
                           'Parameters': [{'ImageVersion': {'Description': ''}}]},
             'SenzaComponents': [{'Configuration': {'Type': 'Senza::StupsAutoConfiguration'}},
                                 {'AppServer': {'Type': 'Senza::TaupageAutoScalingGroup',
+                                               'ElasticLoadBalancer': 'AppLoadBalancer',
                                                'InstanceType': 't2.micro',
                                                'TaupageConfig': {'runtime': 'Docker',
                                                                  'source': 'foo/bar:{{Arguments.ImageVersion}}'},
@@ -109,6 +110,7 @@ def test_print_auto(monkeypatch):
     assert 'AWSTemplateFormatVersion' in result.output
     assert 'subnet-123' in result.output
     assert 'source: foo/bar:1.0-SNAPSHOT' in result.output
+    assert '"HealthCheckType": "ELB"' in result.output
 
 
 def test_init(monkeypatch):

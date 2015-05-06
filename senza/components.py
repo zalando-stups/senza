@@ -238,9 +238,18 @@ def component_auto_scaling_group(definition, configuration, args, info):
             "TopicARN": resolve_topic_arn(args.region, info["OperatorTopicId"])
         }
 
+    default_health_check_type = 'EC2'
+
     if "ElasticLoadBalancer" in configuration:
         definition["Resources"][asg_name]["Properties"]["LoadBalancerNames"] = [
             {"Ref": configuration["ElasticLoadBalancer"]}]
+        # use ELB health check by default
+        default_health_check_type = 'ELB'
+
+    definition["Resources"][asg_name]['Properties']['HealthCheckType'] =\
+        configuration.get('HealthCheckType', default_health_check_type)
+    definition["Resources"][asg_name]['Properties']['HealthCheckGracePeriod'] =\
+        configuration.get('HealthCheckGracePeriod', 300)
 
     if "AutoScaling" in configuration:
         definition["Resources"][asg_name]["Properties"]["MaxSize"] = configuration["AutoScaling"]["Maximum"]

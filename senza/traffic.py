@@ -269,6 +269,9 @@ def change_version_traffic(stack_ref: StackReference, percentage: float, region)
 
     identifier = version.identifier
 
+    if not version.domain:
+        raise click.UsageError('Stack {} version {} has no domain'.format(version.name, version.version))
+
     domain = version.domain.split('.', 1)[1]
     zone = get_zone(region, domain)
     rr = zone.get_records()

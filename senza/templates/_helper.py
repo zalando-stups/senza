@@ -79,7 +79,8 @@ def get_iam_role_policy(application_id: str, region: str):
                 "Sid": "AllowMintRead",
                 "Effect": "Allow",
                 "Action": [
-                    "s3:GetObject"
+                    "s3:GetObject",
+                    "s3:ListBucket"
                 ],
                 "Resource": [
                     "arn:aws:s3:::{}".format(bucket_name),

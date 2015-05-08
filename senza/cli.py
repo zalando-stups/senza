@@ -58,7 +58,10 @@ TITLES = {
     'public_ip': 'Public IP',
     'resource_id': 'Resource ID',
     'instance_id': 'Instance ID',
-    'version': 'Ver.'
+    'version': 'Ver.',
+    'total_instances': 'Inst.#',
+    'running_instances': 'Running',
+    'healthy_instances': 'Healthy',
 }
 
 MAX_COLUMN_WIDTHS = {
@@ -539,6 +542,51 @@ def instances(stack_ref, region, output):
     with OutputFormat(output):
         print_table(('stack_name version resource_id instance_id public_ip ' +
                      'private_ip state lb_status launch_time').split(), rows, styles=STYLES, titles=TITLES)
+
+
+@cli.command()
+@click.argument('stack_ref', nargs=-1)
+@region_option
+@output_option
+def status(stack_ref, region, output):
+    '''Show stack status information'''
+    stack_refs = get_stack_refs(stack_ref)
+    region = get_region(region)
+
+    conn = boto.ec2.connect_to_region(region)
+    elb = boto.ec2.elb.connect_to_region(region)
+    cf = boto.cloudformation.connect_to_region(region)
+
+    rows = []
+    for stack in get_stacks(stack_refs, region):
+        instance_health = {}
+        try:
+            instance_states = elb.describe_instance_health(stack.stack_name)
+            for istate in instance_states:
+                instance_health[istate.instance_id] = camel_case_to_underscore(istate.state).upper()
+        except boto.exception.BotoServerError as e:
+            if e.code != 'LoadBalancerNotFound':
+                raise
+
+        resources = cf.describe_stack_resources(stack.stack_id)
+        for res in resources:
+            if res.resource_type == 'AWS::Route53::RecordSet':
+                name = res.physical_resource_id
+                print(name)
+
+        instances = conn.get_only_instances(filters={'tag:aws:cloudformation:stack-id': stack.stack_id})
+        rows.append({'stack_name': stack.name,
+                     'version': stack.version,
+                     'status': stack.stack_status,
+                     'total_instances': len(instances),
+                     'running_instances': len([i for i in instances if i.state == 'running']),
+                     'healthy_instances': len([i for i in instance_health.values() if i == 'IN_SERVICE']),
+                     'lb_status': ','.join(set(instance_health.values()))
+                     })
+
+    with OutputFormat(output):
+        print_table(('stack_name version status total_instances running_instances healthy_instances ' +
+                     'lb_status').split(), rows, styles=STYLES, titles=TITLES)
 
 
 @cli.command()

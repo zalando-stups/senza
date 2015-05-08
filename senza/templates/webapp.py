@@ -2,12 +2,10 @@
 HTTP app with auto scaling, ELB and DNS
 '''
 
-from clickclick import Action, warning, error
+from clickclick import warning, error
 import pystache
-import boto.ec2
-import boto.vpc
 
-from ._helper import prompt, check_security_group
+from ._helper import prompt, check_security_group, check_iam_role
 
 
 TEMPLATE = '''
@@ -76,13 +74,7 @@ def gather_user_variables(variables, region):
     if rules_missing:
         error('Load balancer security group {} does not allow inbound HTTPS traffic'.format(sg_name))
 
-    role_name = 'app-{}'.format(variables['application_id'])
-    iam = boto.iam.connect_to_region(region)
-    try:
-        iam.get_role(role_name)
-    except:
-        with Action('Creating IAM role {}..'.format(role_name)):
-            iam.create_role(role_name)
+    check_iam_role(variables['application_id'], region)
 
     return variables
 

@@ -10,6 +10,10 @@ __author__ = 'hjacobs'
 
 def prompt(variables: dict, var_name, *args, **kwargs):
     if var_name not in variables:
+        if callable(kwargs.get('default')):
+            # evaluate callable
+            kwargs['default'] = kwargs['default']()
+
         variables[var_name] = click.prompt(*args, **kwargs)
 
 
@@ -47,15 +51,15 @@ def check_security_group(sg_name, rules, region, allow_from_self=False):
 
 def get_account_id(region):
     conn = boto.iam.connect_to_region(region)
-    users = conn.list_roles()['list_roles_response']['list_roles_result']['roles']
-    if not users:
+    roles = conn.list_roles()['list_roles_response']['list_roles_result']['roles']
+    if not roles:
         with Action('Creating temporary IAM role to determine account ID..'):
             temp_role_name = 'temp-senza-account-id'
             res = conn.create_role(temp_role_name)
             arn = res['create_role_response']['create_role_result']['role']['arn']
             conn.delete_role(temp_role_name)
     else:
-        arn = [u['arn'] for u in users][0]
+        arn = [r['arn'] for r in roles][0]
     account_id = arn.split(':')[4]
     return account_id
 
@@ -66,12 +70,16 @@ def get_account_alias(region):
     return resp['list_account_aliases_response']['list_account_aliases_result']['account_aliases'][0]
 
 
-def get_iam_role_policy(application_id: str, region: str):
+def get_mint_bucket_name(region: str):
     account_id = get_account_id(region)
     account_alias = get_account_alias(region)
     parts = account_alias.split('-')
     prefix = parts[0]
     bucket_name = '{}-stups-mint-{}-{}'.format(prefix, account_id, region)
+    return bucket_name
+
+
+def get_iam_role_policy(application_id: str, bucket_name: str, region: str):
     return {
         "Version": "2012-10-17",
         "Statement": [
@@ -91,7 +99,7 @@ def get_iam_role_policy(application_id: str, region: str):
     }
 
 
-def check_iam_role(application_id: str, region: str):
+def check_iam_role(application_id: str, bucket_name: str, region: str):
     role_name = 'app-{}'.format(application_id)
     with Action('Checking IAM role {}..'.format(role_name)):
         iam = boto.iam.connect_to_region(region)
@@ -106,8 +114,9 @@ def check_iam_role(application_id: str, region: str):
         with Action('Creating IAM role {}..'.format(role_name)):
             iam.create_role(role_name)
 
-    if not exists or \
-        click.confirm('IAM role {} already exists. Do you want Senza to overwrite the role policy?'.format(role_name)):
+    update_policy = not exists or \
+        click.confirm('IAM role {} already exists. Do you want Senza to overwrite the role policy?'.format(role_name))
+    if update_policy:
         with Action('Updating IAM role policy of {}..'.format(role_name)):
-            policy = get_iam_role_policy(application_id, region)
+            policy = get_iam_role_policy(application_id, bucket_name, region)
             iam.put_role_policy(role_name, role_name, json.dumps(policy))

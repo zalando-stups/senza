@@ -122,7 +122,8 @@ def test_init(monkeypatch):
     runner = CliRunner()
 
     with runner.isolated_filesystem():
-        result = runner.invoke(cli, ['init', 'myapp.yaml', '--region=myregion', '-v', 'test=123'],
+        result = runner.invoke(cli, ['init', 'myapp.yaml', '--region=myregion', '-v', 'test=123',
+                                     '-v', 'mint_bucket=mybucket'],
                                catch_exceptions=False, input='1\nsdf\nsdf\n8080\n/\n')
         assert os.path.exists('myapp.yaml')
         with open('myapp.yaml') as fd:

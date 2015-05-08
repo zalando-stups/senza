@@ -4,7 +4,7 @@ Background app with single EC2 instance
 
 from clickclick import warning
 import pystache
-from ._helper import prompt, check_security_group, check_iam_role
+from ._helper import prompt, check_security_group, check_iam_role, get_mint_bucket_name
 
 TEMPLATE = '''
 # basic information for generating and executing this definition
@@ -32,6 +32,7 @@ SenzaComponents:
       TaupageConfig:
         runtime: Docker
         source: "{{ docker_image }}:{{=<% %>=}}{{Arguments.ImageVersion}}<%={{ }}=%>"
+        mint_bucket: "{{ mint_bucket }}"
 '''
 
 
@@ -39,6 +40,7 @@ def gather_user_variables(variables, region):
     prompt(variables, 'application_id', 'Application ID', default='hello-world')
     prompt(variables, 'docker_image', 'Docker image', default='stups/hello-world')
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
+    prompt(variables, 'mint_bucket', 'Mint S3 bucket name', default=lambda: get_mint_bucket_name(region))
 
     sg_name = 'app-{}'.format(variables['application_id'])
     rules_missing = check_security_group(sg_name, [('tcp', 22)], region, allow_from_self=True)
@@ -47,7 +49,7 @@ def gather_user_variables(variables, region):
         warning('Security group {} does not allow SSH access, you will not be able to ssh into your servers'.format(
             sg_name))
 
-    check_iam_role(variables['application_id'], region)
+    check_iam_role(variables['application_id'], variables['mint_bucket'], region)
 
     return variables
 

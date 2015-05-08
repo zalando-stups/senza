@@ -1,9 +1,9 @@
 import json
 from mock import MagicMock
-from senza.templates._helper import get_iam_role_policy
+from senza.templates._helper import get_iam_role_policy, get_mint_bucket_name
 
 
-def test_template_helper_get_iam_role_policy(monkeypatch):
+def test_template_helper_get_mint_bucket_name(monkeypatch):
     iam = MagicMock()
     iam.list_roles.return_value = {'list_roles_response': {'list_roles_result': {'is_truncated': 'false', 'roles': [
         {'arn': 'arn:aws:iam::123:role/app-delivery'}]}}}
@@ -12,6 +12,10 @@ def test_template_helper_get_iam_role_policy(monkeypatch):
     }
     monkeypatch.setattr('boto.iam.connect_to_region', MagicMock(return_value=iam))
 
+    assert 'myorg-stups-mint-123-myregion' == get_mint_bucket_name('myregion')
+
+
+def test_template_helper_get_iam_role_policy(monkeypatch):
     expected_policy = {
         "Version": "2012-10-17",
         "Statement": [
@@ -23,11 +27,11 @@ def test_template_helper_get_iam_role_policy(monkeypatch):
                     "s3:ListBucket"
                 ],
                 "Resource": [
-                    "arn:aws:s3:::myorg-stups-mint-123-myregion",
-                    "arn:aws:s3:::myorg-stups-mint-123-myregion/myapp/*"
+                    "arn:aws:s3:::bucket-name",
+                    "arn:aws:s3:::bucket-name/myapp/*"
                 ]
             },
         ]
     }
 
-    assert expected_policy == get_iam_role_policy('myapp', 'myregion')
+    assert expected_policy == get_iam_role_policy('myapp', 'bucket-name', 'myregion')

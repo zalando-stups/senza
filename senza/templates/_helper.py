@@ -1,5 +1,6 @@
 import boto.ec2
 import boto.vpc
+import boto.s3
 import click
 import json
 from clickclick import Action
@@ -120,3 +121,16 @@ def check_iam_role(application_id: str, bucket_name: str, region: str):
         with Action('Updating IAM role policy of {}..'.format(role_name)):
             policy = get_iam_role_policy(application_id, bucket_name, region)
             iam.put_role_policy(role_name, role_name, json.dumps(policy))
+
+
+def check_s3_bucket(bucket_name: str, region: str):
+    with Action("Checking S3 bucket {}..".format(bucket_name)):
+        exists = False
+        try:
+            s3 = boto.s3.connect_to_region(region)
+            exists = s3.lookup(bucket_name, validate=True)
+        except:
+            pass
+    if not exists:
+        with Action("Creating S3 bucket {}...".format(bucket_name)):
+            s3.create_bucket(bucket_name, location=region)

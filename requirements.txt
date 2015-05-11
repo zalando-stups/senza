@@ -2,3 +2,4 @@ clickclick>=0.9
 pystache
 boto>=2.37.0
 PyYAML
+dnspython3

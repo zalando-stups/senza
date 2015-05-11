@@ -6,6 +6,7 @@ import os
 import re
 import sys
 import json
+import dns.resolver
 import time
 
 from boto.exception import BotoServerError
@@ -568,11 +569,16 @@ def status(stack_ref, region, output):
             if e.code != 'LoadBalancerNotFound':
                 raise
 
+        dns_resolves = False
         resources = cf.describe_stack_resources(stack.stack_id)
         for res in resources:
             if res.resource_type == 'AWS::Route53::RecordSet':
                 name = res.physical_resource_id
-                print(name)
+                if 'version' not in res.logical_resource_id.lower():
+                    answers = dns.resolver.query(name, 'CNAME')
+                    for answer in answers:
+                        if answer.target.to_text().startswith('{}-'.format(stack.stack_name)):
+                            dns_resolves = True
 
         instances = conn.get_only_instances(filters={'tag:aws:cloudformation:stack-id': stack.stack_id})
         rows.append({'stack_name': stack.name,
@@ -581,12 +587,13 @@ def status(stack_ref, region, output):
                      'total_instances': len(instances),
                      'running_instances': len([i for i in instances if i.state == 'running']),
                      'healthy_instances': len([i for i in instance_health.values() if i == 'IN_SERVICE']),
-                     'lb_status': ','.join(set(instance_health.values()))
+                     'lb_status': ','.join(set(instance_health.values())),
+                     'dns_resolves': dns_resolves
                      })
 
     with OutputFormat(output):
         print_table(('stack_name version status total_instances running_instances healthy_instances ' +
-                     'lb_status').split(), rows, styles=STYLES, titles=TITLES)
+                     'lb_status dns_resolves').split(), rows, styles=STYLES, titles=TITLES)
 
 
 @cli.command()

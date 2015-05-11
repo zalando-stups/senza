@@ -13,6 +13,7 @@ from boto.exception import BotoServerError
 import click
 from clickclick import AliasedGroup, Action, choice, info, FloatRange, OutputFormat
 from clickclick.console import print_table
+import requests
 import yaml
 import boto.cloudformation
 import boto.vpc
@@ -45,6 +46,8 @@ STYLES = {
     'ROLLBACK_IN_PROGRESS': {'fg': 'red', 'bold': True},
     'IN_SERVICE': {'fg': 'green'},
     'OUT_OF_SERVICE': {'fg': 'red'},
+    'OK': {'fg': 'green'},
+    'ERROR': {'fg': 'red'},
     }
 
 
@@ -63,6 +66,8 @@ TITLES = {
     'total_instances': 'Inst.#',
     'running_instances': 'Running',
     'healthy_instances': 'Healthy',
+    'http_status': 'HTTP',
+    'main_dns': 'Main DNS'
 }
 
 MAX_COLUMN_WIDTHS = {
@@ -559,7 +564,7 @@ def status(stack_ref, region, output):
     cf = boto.cloudformation.connect_to_region(region)
 
     rows = []
-    for stack in get_stacks(stack_refs, region):
+    for stack in sorted(get_stacks(stack_refs, region)):
         instance_health = {}
         try:
             instance_states = elb.describe_instance_health(stack.stack_name)
@@ -569,16 +574,23 @@ def status(stack_ref, region, output):
             if e.code != 'LoadBalancerNotFound':
                 raise
 
-        dns_resolves = False
+        main_dns_resolves = False
+        http_status = None
         resources = cf.describe_stack_resources(stack.stack_id)
         for res in resources:
             if res.resource_type == 'AWS::Route53::RecordSet':
                 name = res.physical_resource_id
-                if 'version' not in res.logical_resource_id.lower():
+                if 'version' in res.logical_resource_id.lower():
+                    try:
+                        requests.get('https://{}/'.format(name), timeout=2)
+                        http_status = 'OK'
+                    except:
+                        http_status = 'ERROR'
+                else:
                     answers = dns.resolver.query(name, 'CNAME')
                     for answer in answers:
                         if answer.target.to_text().startswith('{}-'.format(stack.stack_name)):
-                            dns_resolves = True
+                            main_dns_resolves = True
 
         instances = conn.get_only_instances(filters={'tag:aws:cloudformation:stack-id': stack.stack_id})
         rows.append({'stack_name': stack.name,
@@ -588,12 +600,13 @@ def status(stack_ref, region, output):
                      'running_instances': len([i for i in instances if i.state == 'running']),
                      'healthy_instances': len([i for i in instance_health.values() if i == 'IN_SERVICE']),
                      'lb_status': ','.join(set(instance_health.values())),
-                     'dns_resolves': dns_resolves
+                     'main_dns': main_dns_resolves,
+                     'http_status': http_status
                      })
 
     with OutputFormat(output):
         print_table(('stack_name version status total_instances running_instances healthy_instances ' +
-                     'lb_status dns_resolves').split(), rows, styles=STYLES, titles=TITLES)
+                     'lb_status http_status main_dns').split(), rows, styles=STYLES, titles=TITLES)
 
 
 @cli.command()

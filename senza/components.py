@@ -1,3 +1,5 @@
+import json
+import urllib
 import boto.ec2
 import boto.iam
 import boto.route53
@@ -151,6 +153,19 @@ def component_auto_scaling_group_metric_cpu(asg_name, definition, configuration,
     return definition
 
 
+def get_merged_policies(roles: list, region: str):
+    iam = boto.iam.connect_to_region(region)
+    policies = []
+    for role in roles:
+        policy_names = iam.list_role_policies(role)
+        for policy_name in policy_names['list_role_policies_response']['list_role_policies_result']['policy_names']:
+            policy = iam.get_role_policy(role, policy_name)['get_role_policy_response']['get_role_policy_result']
+            document = urllib.parse.unquote(policy['policy_document'])
+            policies.append({'PolicyName': policy_name,
+                             'PolicyDocument': json.loads(document)})
+    return policies
+
+
 def component_auto_scaling_group(definition, configuration, args, info):
     definition = ensure_keys(definition, "Resources")
 
@@ -170,11 +185,36 @@ def component_auto_scaling_group(definition, configuration, args, info):
 
     if 'IamRoles' in configuration:
         logical_id = configuration['Name'] + 'InstanceProfile'
+        roles = configuration['IamRoles']
+        if len(roles) > 1:
+            logical_role_id = configuration['Name'] + 'Role'
+            definition['Resources'][logical_role_id] = {
+                'Type': 'AWS::IAM::Role',
+                'Properties': {
+                    "AssumeRolePolicyDocument": {
+                        "Version": "2012-10-17",
+                        "Statement": [
+                            {
+                                "Effect": "Allow",
+                                "Principal": {
+                                    "Service": ["ec2.amazonaws.com"]
+                                },
+                                "Action": ["sts:AssumeRole"]
+                            }
+                        ]
+                    },
+                    'Path': '/',
+                    'Policies': get_merged_policies(roles, args.region)
+                }
+            }
+            instance_profile_roles = [{'Ref': logical_role_id}]
+        else:
+            instance_profile_roles = roles
         definition['Resources'][logical_id] = {
             'Type': 'AWS::IAM::InstanceProfile',
             'Properties': {
                 'Path': '/',
-                'Roles': configuration['IamRoles']
+                'Roles': instance_profile_roles
             }
         }
         definition["Resources"][config_name]["Properties"]["IamInstanceProfile"] = {'Ref': logical_id}
@@ -246,9 +286,9 @@ def component_auto_scaling_group(definition, configuration, args, info):
         # use ELB health check by default
         default_health_check_type = 'ELB'
 
-    definition["Resources"][asg_name]['Properties']['HealthCheckType'] =\
+    definition["Resources"][asg_name]['Properties']['HealthCheckType'] = \
         configuration.get('HealthCheckType', default_health_check_type)
-    definition["Resources"][asg_name]['Properties']['HealthCheckGracePeriod'] =\
+    definition["Resources"][asg_name]['Properties']['HealthCheckGracePeriod'] = \
         configuration.get('HealthCheckGracePeriod', 300)
 
     if "AutoScaling" in configuration:

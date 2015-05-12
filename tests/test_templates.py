@@ -23,11 +23,9 @@ def test_template_helper_get_iam_role_policy(monkeypatch):
                 "Sid": "AllowMintRead",
                 "Effect": "Allow",
                 "Action": [
-                    "s3:GetObject",
-                    "s3:ListBucket"
+                    "s3:GetObject"
                 ],
                 "Resource": [
-                    "arn:aws:s3:::bucket-name",
                     "arn:aws:s3:::bucket-name/myapp/*"
                 ]
             },

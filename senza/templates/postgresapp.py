@@ -5,7 +5,7 @@ HA Postgres app, which needs an S3 bucket to store WAL files
 from clickclick import warning, error
 import pystache
 
-from ._helper import prompt, check_security_group, check_iam_role, check_s3_bucket
+from ._helper import prompt, check_security_group, check_s3_bucket
 
 POSTGRES_PORT = 5432
 
@@ -14,8 +14,6 @@ TEMPLATE = '''
 SenzaInfo:
   StackName: spilo
   Parameters:
-    - EtcdDiscoveryUrl:
-        Description: "Discovery URL for etcd service"
     - ImageVersion:
         Description: "Docker image version of spilo."
 
@@ -45,7 +43,7 @@ SenzaComponents:
           5432: 5432
         environment:
           SCOPE: "{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>"
-          ETCD_DISCOVERY_URL: "{{=<% %>=}}{{Arguments.EtcdDiscoveryUrl}}<%={{ }}=%>"
+          ETCD_DISCOVERY_URL: "{{discovery_url}}"
           WAL_S3_BUCKET: "{{wal_s3_bucket}}"
         root: True
 Resources:
@@ -74,9 +72,11 @@ Resources:
 def gather_user_variables(variables, region):
     prompt(variables, 'wal_s3_bucket', 'Postgres WAL S3 bucket to use', default='zalando-spilo-app')
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
+    prompt(variables, 'discovery_url', 'ETCD Discovery URL', default='postgres.acid.example.com')
 
     sg_name = 'app-spilo'
-    rules_missing = check_security_group(sg_name, [('tcp', 22), ('tcp', POSTGRES_PORT)], region, allow_from_self=True)
+    rules_missing = check_security_group(sg_name, [('tcp', 22), ('tcp', POSTGRES_PORT)], region,
+                                         allow_from_self=True)
 
     if ('tcp', 22) in rules_missing:
         warning('Security group {} does not allow SSH access, you will not be able to ssh into your servers'.format(

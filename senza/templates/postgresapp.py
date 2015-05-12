@@ -84,12 +84,12 @@ def gather_user_variables(variables, region):
             sg_name))
 
     if ('tcp', POSTGRES_PORT) in rules_missing:
-        error('Security group {} does not allow inbound TCP traffic on the default Postgres port {}}'.format(
+        error('Security group {} does not allow inbound TCP traffic on the default postgres port ({})'.format(
             sg_name, POSTGRES_PORT
         ))
 
     if ('tcp', HEALTHCHECK_PORT) in rules_missing:
-        error('Security group {} does not allow inbound TCP traffic on the default health check port {}}'.format(
+        error('Security group {} does not allow inbound TCP traffic on the default health check port ({})'.format(
             sg_name, HEALTHCHECK_PORT
         ))
 

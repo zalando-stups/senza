@@ -8,6 +8,7 @@ import pystache
 from ._helper import prompt, check_security_group, check_s3_bucket
 
 POSTGRES_PORT = 5432
+HEALTHCHECK_PORT = 8008
 
 TEMPLATE = '''
 # basic information for generating and executing this definition
@@ -75,8 +76,8 @@ def gather_user_variables(variables, region):
     prompt(variables, 'discovery_url', 'ETCD Discovery URL', default='postgres.acid.example.com')
 
     sg_name = 'app-spilo'
-    rules_missing = check_security_group(sg_name, [('tcp', 22), ('tcp', POSTGRES_PORT)], region,
-                                         allow_from_self=True)
+    rules_missing = check_security_group(sg_name, [('tcp', 22), ('tcp', POSTGRES_PORT), ('tcp', HEALTHCHECK_PORT)],
+                                         region, allow_from_self=True)
 
     if ('tcp', 22) in rules_missing:
         warning('Security group {} does not allow SSH access, you will not be able to ssh into your servers'.format(
@@ -85,6 +86,11 @@ def gather_user_variables(variables, region):
     if ('tcp', POSTGRES_PORT) in rules_missing:
         error('Security group {} does not allow inbound TCP traffic on the default Postgres port {}}'.format(
             sg_name, POSTGRES_PORT
+        ))
+
+    if ('tcp', HEALTHCHECK_PORT) in rules_missing:
+        error('Security group {} does not allow inbound TCP traffic on the default health check port {}}'.format(
+            sg_name, HEALTHCHECK_PORT
         ))
 
     check_s3_bucket(variables['wal_s3_bucket'], region)

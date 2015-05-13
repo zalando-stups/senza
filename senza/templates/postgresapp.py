@@ -41,7 +41,8 @@ SenzaComponents:
         runtime: Docker
         source: "{{=<% %>=}}{{Arguments.ImageVersion}}<%={{ }}=%>"
         ports:
-          5432: 5432
+          {{postgres_port}}: {{postgres_port}}
+          {{healthcheck_port}}: {{healthcheck_port}}
         environment:
           SCOPE: "{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>"
           ETCD_DISCOVERY_URL: "{{discovery_url}}"
@@ -74,6 +75,9 @@ def gather_user_variables(variables, region):
     prompt(variables, 'wal_s3_bucket', 'Postgres WAL S3 bucket to use', default='zalando-spilo-app')
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
     prompt(variables, 'discovery_url', 'ETCD Discovery URL', default='postgres.acid.example.com')
+
+    variables['postgres_port'] = POSTGRES_PORT
+    variables['healthcheck_port'] = HEALTHCHECK_PORT
 
     sg_name = 'app-spilo'
     rules_missing = check_security_group(sg_name, [('tcp', 22), ('tcp', POSTGRES_PORT), ('tcp', HEALTHCHECK_PORT)],

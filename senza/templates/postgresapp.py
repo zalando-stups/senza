@@ -33,6 +33,10 @@ SenzaComponents:
         Maximum: 3
         MetricType: CPU
       InstanceType: {{instance_type}}
+      ElasticLoadBalancer: PostgresLoadBalancer
+      HealthCheckType: EC2
+      LoadBalancerNames:
+        - Ref: PostgresLoadBalancer
       SecurityGroups:
         - app-spilo
       IamRoles:
@@ -49,6 +53,40 @@ SenzaComponents:
           WAL_S3_BUCKET: "{{wal_s3_bucket}}"
         root: True
 Resources:
+  PostgresRoute53Record:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Type: CNAME
+      TTL: 20
+      HostedZoneName: {{hosted_zone}}
+      Name: "{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>.{{hosted_zone}}"
+      ResourceRecords:
+        - Fn::GetAtt:
+           - PostgresLoadBalancer
+           - DNSName
+  PostgresLoadBalancer:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      CrossZone: true
+      HealthCheck:
+        HealthyThreshold: 2
+        Interval: 5
+        Target: HTTP:{{healthcheck_port}}/pg_master
+        Timeout: 3
+        UnhealthyThreshold: 2
+      Listeners:
+        - InstancePort: 5432
+          LoadBalancerPort: 5432
+          Protocol: TCP
+      LoadBalancerName: "spilo-{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>"
+      SecurityGroup:
+        - app-spilo
+      Scheme: internal
+      Subnets:
+        Fn::FindInMap:
+          - LoadBalancerSubnets
+          - Ref: AWS::Region
+          - Subnets
   PostgresS3AccessRole:
     Type: AWS::IAM::Role
     Properties:
@@ -75,6 +113,9 @@ def gather_user_variables(variables, region):
     prompt(variables, 'wal_s3_bucket', 'Postgres WAL S3 bucket to use', default='zalando-spilo-app')
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
     prompt(variables, 'discovery_url', 'ETCD Discovery URL', default='postgres.acid.example.com')
+    prompt(variables, 'hosted_zone', 'Hosted Zone', default='acid.example.com.')
+    if not variables['hosted_zone'].endswith('.'):
+        variables['hosted_zone'] += '.'
 
     variables['postgres_port'] = POSTGRES_PORT
     variables['healthcheck_port'] = HEALTHCHECK_PORT

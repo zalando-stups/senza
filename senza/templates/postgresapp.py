@@ -79,6 +79,8 @@ Resources:
           LoadBalancerPort: 5432
           Protocol: TCP
       LoadBalancerName: "spilo-{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>"
+      SecurityGroup:
+        - app-spilo
       Scheme: internal
       Subnets:
         Fn::FindInMap:

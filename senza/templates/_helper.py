@@ -49,6 +49,14 @@ def check_security_group(sg_name, rules, region, allow_from_self=False):
                 sg.authorize(ip_protocol='tcp', from_port=0, to_port=65535, src_group=sg)
         return set()
 
+def get_hosted_zones(region):
+    dns_conn = boto.route53.connect_to_region(region)
+    zones = dns_conn.get_zones()
+    domains = sorted([zone.name.rstrip('.') for zone in zones])
+    if not domains:
+        raise Exception('No Route53 hosted zone found')
+    return domains
+
 
 def get_account_id(region):
     conn = boto.iam.connect_to_region(region)

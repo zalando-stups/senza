@@ -6,7 +6,7 @@ from clickclick import warning, error
 from senza.aws import get_security_group
 import pystache
 
-from ._helper import prompt, check_security_group, check_s3_bucket
+from ._helper import prompt, check_security_group, check_s3_bucket, get_hosted_zones
 
 POSTGRES_PORT = 5432
 HEALTHCHECK_PORT = 8008
@@ -113,8 +113,8 @@ Resources:
 def gather_user_variables(variables, region):
     prompt(variables, 'wal_s3_bucket', 'Postgres WAL S3 bucket to use', default='zalando-spilo-app')
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
-    prompt(variables, 'discovery_url', 'ETCD Discovery URL', default='postgres.acid.example.com')
-    prompt(variables, 'hosted_zone', 'Hosted Zone', default='acid.example.com.')
+    prompt(variables, 'discovery_url', 'ETCD Discovery URL', default='postgres.'+get_hosted_zones(region)[0])
+    prompt(variables, 'hosted_zone', 'Hosted Zone', default=get_hosted_zones(region)[0])
     if not variables['hosted_zone'].endswith('.'):
         variables['hosted_zone'] += '.'
 

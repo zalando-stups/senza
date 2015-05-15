@@ -3,9 +3,10 @@ HA Postgres app, which needs an S3 bucket to store WAL files
 '''
 
 from clickclick import warning, error
+from senza.aws import get_security_group
 import pystache
 
-from ._helper import prompt, check_security_group, check_s3_bucket
+from ._helper import prompt, check_security_group, check_s3_bucket, get_hosted_zones
 
 POSTGRES_PORT = 5432
 HEALTHCHECK_PORT = 8008
@@ -79,8 +80,8 @@ Resources:
           LoadBalancerPort: 5432
           Protocol: TCP
       LoadBalancerName: "spilo-{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>"
-      SecurityGroup:
-        - app-spilo
+      SecurityGroups:
+        - {{spilo_sg_id}}
       Scheme: internal
       Subnets:
         Fn::FindInMap:
@@ -112,8 +113,8 @@ Resources:
 def gather_user_variables(variables, region):
     prompt(variables, 'wal_s3_bucket', 'Postgres WAL S3 bucket to use', default='zalando-spilo-app')
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
-    prompt(variables, 'discovery_url', 'ETCD Discovery URL', default='postgres.acid.example.com')
-    prompt(variables, 'hosted_zone', 'Hosted Zone', default='acid.example.com.')
+    prompt(variables, 'discovery_url', 'ETCD Discovery URL', default='postgres.'+get_hosted_zones(region)[0])
+    prompt(variables, 'hosted_zone', 'Hosted Zone', default=get_hosted_zones(region)[0])
     if not variables['hosted_zone'].endswith('.'):
         variables['hosted_zone'] += '.'
 
@@ -121,6 +122,7 @@ def gather_user_variables(variables, region):
     variables['healthcheck_port'] = HEALTHCHECK_PORT
 
     sg_name = 'app-spilo'
+    variables['spilo_sg_id'] = get_security_group(region, sg_name).id
     rules_missing = check_security_group(sg_name, [('tcp', 22), ('tcp', POSTGRES_PORT), ('tcp', HEALTHCHECK_PORT)],
                                          region, allow_from_self=True)
 

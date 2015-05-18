@@ -94,6 +94,10 @@ class DefinitionParamType(click.ParamType):
 
 
 class KeyValParamType(click.ParamType):
+    '''
+    >>> KeyValParamType().convert(('a', 'b'), None, None)
+    ('a', 'b')
+    '''
     name = 'key_val'
 
     def convert(self, value, param, ctx):
@@ -114,6 +118,18 @@ output_option = click.option('-o', '--output', type=click.Choice(['text', 'json'
                              help='Use alternative output format')
 watch_option = click.option('-w', '--watch', type=click.IntRange(1, 300), metavar='SECS',
                             help='Auto update the screen every X seconds')
+
+
+def watching(watch: int):
+    if watch:
+        click.clear()
+    yield 0
+    if watch:
+        while True:
+            time.sleep(watch)
+            click.clear()
+            yield 0
+
 
 # from AWS docs:
 # Stack name must contain only alphanumeric characters (case sensitive)
@@ -267,26 +283,29 @@ def get_stack_refs(refs: list):
 @cli.command('list')
 @region_option
 @output_option
+@watch_option
 @click.option('--all', is_flag=True, help='Show all stacks, including deleted ones')
 @click.argument('stack_ref', nargs=-1)
-def list_stacks(region, stack_ref, all, output):
+def list_stacks(region, stack_ref, all, output, watch):
     '''List Cloud Formation stacks'''
     region = get_region(region)
 
     stack_refs = get_stack_refs(stack_ref)
 
-    rows = []
-    for stack in get_stacks(stack_refs, region, all=all):
-        rows.append({'stack_name': stack.name,
-                     'version': stack.version,
-                     'status': stack.stack_status,
-                     'creation_time': calendar.timegm(stack.creation_time.timetuple()),
-                     'description': stack.template_description})
+    for _ in watching(watch):
+        rows = []
+        for stack in get_stacks(stack_refs, region, all=all):
+            rows.append({'stack_name': stack.name,
+                         'version': stack.version,
+                         'status': stack.stack_status,
+                         'creation_time': calendar.timegm(stack.creation_time.timetuple()),
+                         'description': stack.template_description})
 
-    rows.sort(key=lambda x: (x['stack_name'], x['version']))
+        rows.sort(key=lambda x: (x['stack_name'], x['version']))
 
-    with OutputFormat(output):
-        print_table('stack_name version status creation_time description'.split(), rows, styles=STYLES, titles=TITLES)
+        with OutputFormat(output):
+            print_table('stack_name version status creation_time description'.split(), rows,
+                        styles=STYLES, titles=TITLES)
 
 
 @cli.command()
@@ -407,9 +426,7 @@ def resources(stack_ref, region, watch, output):
     region = get_region(region)
     cf = boto.cloudformation.connect_to_region(region)
 
-    repeat = True
-
-    while repeat:
+    for _ in watching(watch):
         rows = []
         for stack in get_stacks(stack_refs, region):
             resources = cf.describe_stack_resources(stack.stack_name)
@@ -427,11 +444,6 @@ def resources(stack_ref, region, watch, output):
         with OutputFormat(output):
             print_table('stack_name version logical_resource_id resource_type resource_status creation_time'.split(),
                         rows, styles=STYLES, titles=TITLES)
-        if watch:
-            time.sleep(watch)
-            click.clear()
-        else:
-            repeat = False
 
 
 @cli.command()
@@ -445,9 +457,7 @@ def events(stack_ref, region, watch, output):
     region = get_region(region)
     cf = boto.cloudformation.connect_to_region(region)
 
-    repeat = True
-
-    while repeat:
+    for _ in watching(watch):
         rows = []
         for stack in get_stacks(stack_refs, region):
             events = cf.describe_stack_events(stack.stack_name)
@@ -466,11 +476,6 @@ def events(stack_ref, region, watch, output):
             print_table(('stack_name version resource_type logical_resource_id ' +
                         'resource_status resource_status_reason event_time').split(),
                         rows, styles=STYLES, titles=TITLES, max_column_widths=MAX_COLUMN_WIDTHS)
-        if watch:
-            time.sleep(watch)
-            click.clear()
-        else:
-            repeat = False
 
 
 def get_template_description(template: str):
@@ -511,7 +516,8 @@ def init(definition_file, region, template, user_variable):
 @click.argument('stack_ref', nargs=-1)
 @region_option
 @output_option
-def instances(stack_ref, region, output):
+@watch_option
+def instances(stack_ref, region, output, watch):
     '''List the stack's EC2 instances'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
@@ -519,42 +525,44 @@ def instances(stack_ref, region, output):
     conn = boto.ec2.connect_to_region(region)
     elb = boto.ec2.elb.connect_to_region(region)
 
-    rows = []
-    for stack in get_stacks(stack_refs, region):
-        if stack.stack_status == 'ROLLBACK_COMPLETE':
-            # performance optimization: do not call EC2 API for "dead" stacks
-            continue
+    for _ in watching(watch):
+        rows = []
+        for stack in get_stacks(stack_refs, region):
+            if stack.stack_status == 'ROLLBACK_COMPLETE':
+                # performance optimization: do not call EC2 API for "dead" stacks
+                continue
 
-        instance_health = {}
-        try:
-            instance_states = elb.describe_instance_health(stack.stack_name)
-            for istate in instance_states:
-                instance_health[istate.instance_id] = camel_case_to_underscore(istate.state).upper()
-        except boto.exception.BotoServerError as e:
-            if e.code != 'LoadBalancerNotFound':
-                raise
+            instance_health = {}
+            try:
+                instance_states = elb.describe_instance_health(stack.stack_name)
+                for istate in instance_states:
+                    instance_health[istate.instance_id] = camel_case_to_underscore(istate.state).upper()
+            except boto.exception.BotoServerError as e:
+                if e.code != 'LoadBalancerNotFound':
+                    raise
 
-        for instance in conn.get_only_instances(filters={'tag:aws:cloudformation:stack-id': stack.stack_id}):
-            rows.append({'stack_name': stack.name,
-                         'version': stack.version,
-                         'resource_id': instance.tags.get('aws:cloudformation:logical-id'),
-                         'instance_id': instance.id,
-                         'public_ip': instance.ip_address,
-                         'private_ip': instance.private_ip_address,
-                         'state': instance.state.upper(),
-                         'lb_status': instance_health.get(instance.id),
-                         'launch_time': parse_time(instance.launch_time)})
+            for instance in conn.get_only_instances(filters={'tag:aws:cloudformation:stack-id': stack.stack_id}):
+                rows.append({'stack_name': stack.name,
+                             'version': stack.version,
+                             'resource_id': instance.tags.get('aws:cloudformation:logical-id'),
+                             'instance_id': instance.id,
+                             'public_ip': instance.ip_address,
+                             'private_ip': instance.private_ip_address,
+                             'state': instance.state.upper(),
+                             'lb_status': instance_health.get(instance.id),
+                             'launch_time': parse_time(instance.launch_time)})
 
-    with OutputFormat(output):
-        print_table(('stack_name version resource_id instance_id public_ip ' +
-                     'private_ip state lb_status launch_time').split(), rows, styles=STYLES, titles=TITLES)
+        with OutputFormat(output):
+            print_table(('stack_name version resource_id instance_id public_ip ' +
+                         'private_ip state lb_status launch_time').split(), rows, styles=STYLES, titles=TITLES)
 
 
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
 @region_option
 @output_option
-def status(stack_ref, region, output):
+@watch_option
+def status(stack_ref, region, output, watch):
     '''Show stack status information'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
@@ -563,57 +571,59 @@ def status(stack_ref, region, output):
     elb = boto.ec2.elb.connect_to_region(region)
     cf = boto.cloudformation.connect_to_region(region)
 
-    rows = []
-    for stack in sorted(get_stacks(stack_refs, region)):
-        instance_health = {}
-        try:
-            instance_states = elb.describe_instance_health(stack.stack_name)
-            for istate in instance_states:
-                instance_health[istate.instance_id] = camel_case_to_underscore(istate.state).upper()
-        except boto.exception.BotoServerError as e:
-            if e.code != 'LoadBalancerNotFound':
-                raise
+    for _ in watching(watch):
+        rows = []
+        for stack in sorted(get_stacks(stack_refs, region)):
+            instance_health = {}
+            try:
+                instance_states = elb.describe_instance_health(stack.stack_name)
+                for istate in instance_states:
+                    instance_health[istate.instance_id] = camel_case_to_underscore(istate.state).upper()
+            except boto.exception.BotoServerError as e:
+                if e.code != 'LoadBalancerNotFound':
+                    raise
 
-        main_dns_resolves = False
-        http_status = None
-        resources = cf.describe_stack_resources(stack.stack_id)
-        for res in resources:
-            if res.resource_type == 'AWS::Route53::RecordSet':
-                name = res.physical_resource_id
-                if 'version' in res.logical_resource_id.lower():
-                    try:
-                        requests.get('https://{}/'.format(name), timeout=2)
-                        http_status = 'OK'
-                    except:
-                        http_status = 'ERROR'
-                else:
-                    answers = dns.resolver.query(name, 'CNAME')
-                    for answer in answers:
-                        if answer.target.to_text().startswith('{}-'.format(stack.stack_name)):
-                            main_dns_resolves = True
+            main_dns_resolves = False
+            http_status = None
+            resources = cf.describe_stack_resources(stack.stack_id)
+            for res in resources:
+                if res.resource_type == 'AWS::Route53::RecordSet':
+                    name = res.physical_resource_id
+                    if 'version' in res.logical_resource_id.lower():
+                        try:
+                            requests.get('https://{}/'.format(name), timeout=2)
+                            http_status = 'OK'
+                        except:
+                            http_status = 'ERROR'
+                    else:
+                        answers = dns.resolver.query(name, 'CNAME')
+                        for answer in answers:
+                            if answer.target.to_text().startswith('{}-'.format(stack.stack_name)):
+                                main_dns_resolves = True
 
-        instances = conn.get_only_instances(filters={'tag:aws:cloudformation:stack-id': stack.stack_id})
-        rows.append({'stack_name': stack.name,
-                     'version': stack.version,
-                     'status': stack.stack_status,
-                     'total_instances': len(instances),
-                     'running_instances': len([i for i in instances if i.state == 'running']),
-                     'healthy_instances': len([i for i in instance_health.values() if i == 'IN_SERVICE']),
-                     'lb_status': ','.join(set(instance_health.values())),
-                     'main_dns': main_dns_resolves,
-                     'http_status': http_status
-                     })
+            instances = conn.get_only_instances(filters={'tag:aws:cloudformation:stack-id': stack.stack_id})
+            rows.append({'stack_name': stack.name,
+                         'version': stack.version,
+                         'status': stack.stack_status,
+                         'total_instances': len(instances),
+                         'running_instances': len([i for i in instances if i.state == 'running']),
+                         'healthy_instances': len([i for i in instance_health.values() if i == 'IN_SERVICE']),
+                         'lb_status': ','.join(set(instance_health.values())),
+                         'main_dns': main_dns_resolves,
+                         'http_status': http_status
+                         })
 
-    with OutputFormat(output):
-        print_table(('stack_name version status total_instances running_instances healthy_instances ' +
-                     'lb_status http_status main_dns').split(), rows, styles=STYLES, titles=TITLES)
+        with OutputFormat(output):
+            print_table(('stack_name version status total_instances running_instances healthy_instances ' +
+                         'lb_status http_status main_dns').split(), rows, styles=STYLES, titles=TITLES)
 
 
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
 @region_option
 @output_option
-def domains(stack_ref, region, output):
+@watch_option
+def domains(stack_ref, region, output, watch):
     '''List the stack's Route53 domains'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
@@ -623,34 +633,35 @@ def domains(stack_ref, region, output):
 
     records_by_name = {}
 
-    rows = []
-    for stack in get_stacks(stack_refs, region):
-        if stack.stack_status == 'ROLLBACK_COMPLETE':
-            # performance optimization: do not call EC2 API for "dead" stacks
-            continue
+    for _ in watching(watch):
+        rows = []
+        for stack in get_stacks(stack_refs, region):
+            if stack.stack_status == 'ROLLBACK_COMPLETE':
+                # performance optimization: do not call EC2 API for "dead" stacks
+                continue
 
-        resources = cf.describe_stack_resources(stack.stack_id)
-        for res in resources:
-            if res.resource_type == 'AWS::Route53::RecordSet':
-                name = res.physical_resource_id
-                if name not in records_by_name:
-                    zone_name = name.split('.', 1)[1]
-                    zone = route53.get_zone(zone_name)
-                    for rec in zone.get_records():
-                        records_by_name[(rec.name.rstrip('.'), rec.identifier)] = rec
-                record = records_by_name.get((name, stack.stack_name)) or records_by_name.get((name, None))
-                rows.append({'stack_name': stack.name,
-                             'version': stack.version,
-                             'resource_id': res.logical_resource_id,
-                             'domain': res.physical_resource_id,
-                             'weight': record.weight if record else None,
-                             'type': record.type if record else None,
-                             'value': ','.join(record.resource_records) if record else None,
-                             'create_time': calendar.timegm(res.timestamp.timetuple())})
+            resources = cf.describe_stack_resources(stack.stack_id)
+            for res in resources:
+                if res.resource_type == 'AWS::Route53::RecordSet':
+                    name = res.physical_resource_id
+                    if name not in records_by_name:
+                        zone_name = name.split('.', 1)[1]
+                        zone = route53.get_zone(zone_name)
+                        for rec in zone.get_records():
+                            records_by_name[(rec.name.rstrip('.'), rec.identifier)] = rec
+                    record = records_by_name.get((name, stack.stack_name)) or records_by_name.get((name, None))
+                    rows.append({'stack_name': stack.name,
+                                 'version': stack.version,
+                                 'resource_id': res.logical_resource_id,
+                                 'domain': res.physical_resource_id,
+                                 'weight': record.weight if record else None,
+                                 'type': record.type if record else None,
+                                 'value': ','.join(record.resource_records) if record else None,
+                                 'create_time': calendar.timegm(res.timestamp.timetuple())})
 
-    with OutputFormat(output):
-        print_table('stack_name version resource_id domain weight type value create_time'.split(),
-                    rows, styles=STYLES, titles=TITLES)
+        with OutputFormat(output):
+            print_table('stack_name version resource_id domain weight type value create_time'.split(),
+                        rows, styles=STYLES, titles=TITLES)
 
 
 @cli.command()

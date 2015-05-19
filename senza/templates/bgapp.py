@@ -38,7 +38,7 @@ SenzaComponents:
 
 def gather_user_variables(variables, region):
     prompt(variables, 'application_id', 'Application ID', default='hello-world')
-    prompt(variables, 'docker_image', 'Docker image', default='stups/hello-world')
+    prompt(variables, 'docker_image', 'Docker image without tag/version (e.g. "pierone.example.org/myteam/myapp")', default='stups/hello-world')
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
     prompt(variables, 'mint_bucket', 'Mint S3 bucket name', default=lambda: get_mint_bucket_name(region))
 

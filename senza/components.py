@@ -21,7 +21,7 @@ def evaluate_template(template, info, components, args):
     return result
 
 
-def component_basic_configuration(definition, configuration, args, info):
+def component_basic_configuration(definition, configuration, args, info, force):
     # add info as mappings
     # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html
     definition = ensure_keys(definition, "Mappings", "Senza", "Info")
@@ -86,7 +86,7 @@ def find_taupage_image(region: str):
     return most_recent_image
 
 
-def component_stups_auto_configuration(definition, configuration, args, info):
+def component_stups_auto_configuration(definition, configuration, args, info, force):
     vpc_conn = boto.vpc.connect_to_region(args.region)
     server_subnets = []
     lb_subnets = []
@@ -111,12 +111,12 @@ def component_stups_auto_configuration(definition, configuration, args, info):
     configuration = ensure_keys(configuration, "Images", 'LatestTaupageImage', args.region)
     configuration["Images"]['LatestTaupageImage'][args.region] = most_recent_image.id
 
-    component_basic_configuration(definition, configuration, args, info)
+    component_basic_configuration(definition, configuration, args, info, force)
 
     return definition
 
 
-def component_auto_scaling_group_metric_cpu(asg_name, definition, configuration, args, info):
+def component_auto_scaling_group_metric_cpu(asg_name, definition, configuration, args, info, force):
     if "ScaleUpThreshold" in configuration:
         definition["Resources"][asg_name + "CPUAlarmHigh"] = {
             "Type": "AWS::CloudWatch::Alarm",
@@ -182,7 +182,7 @@ def get_merged_policies(roles: list, region: str):
     return policies
 
 
-def component_auto_scaling_group(definition, configuration, args, info):
+def component_auto_scaling_group(definition, configuration, args, info, force):
     definition = ensure_keys(definition, "Resources")
 
     # launch configuration
@@ -338,7 +338,7 @@ def component_auto_scaling_group(definition, configuration, args, info):
         }
 
         metricfn = ASG_METRICS[configuration["AutoScaling"]["MetricType"]]
-        definition = metricfn(asg_name, definition, configuration["AutoScaling"], args, info)
+        definition = metricfn(asg_name, definition, configuration["AutoScaling"], args, info, force)
     else:
         definition["Resources"][asg_name]["Properties"]["MaxSize"] = 1
         definition["Resources"][asg_name]["Properties"]["MinSize"] = 1
@@ -346,11 +346,11 @@ def component_auto_scaling_group(definition, configuration, args, info):
     return definition
 
 
-def component_taupage_auto_scaling_group(definition, configuration, args, info):
+def component_taupage_auto_scaling_group(definition, configuration, args, info, force):
     # inherit from the normal auto scaling group but discourage user info and replace with a Taupage config
     if 'Image' not in configuration:
         configuration['Image'] = 'LatestTaupageImage'
-    definition = component_auto_scaling_group(definition, configuration, args, info)
+    definition = component_auto_scaling_group(definition, configuration, args, info, force)
 
     taupage_config = configuration['TaupageConfig']
 
@@ -376,7 +376,7 @@ def component_taupage_auto_scaling_group(definition, configuration, args, info):
 
     registry = extract_registry(source)
 
-    if registry and not docker_image_exists(source):
+    if not force and registry and not docker_image_exists(source):
         raise click.UsageError('Docker image "{}" does not exist'.format(source))
 
     userdata = "#taupage-ami-config\n" + yaml.dump(taupage_config, default_flow_style=False)
@@ -388,7 +388,7 @@ def component_taupage_auto_scaling_group(definition, configuration, args, info):
     return definition
 
 
-def component_load_balancer(definition, configuration, args, info):
+def component_load_balancer(definition, configuration, args, info, force):
     lb_name = configuration["Name"]
 
     # domains pointing to the load balancer
@@ -490,7 +490,7 @@ def get_default_zone(region):
     return domains[0]
 
 
-def component_weighted_dns_load_balancer(definition, configuration, args, info):
+def component_weighted_dns_load_balancer(definition, configuration, args, info, force):
     if 'Domains' not in configuration:
 
         if 'MainDomain' in configuration:
@@ -513,7 +513,7 @@ def component_weighted_dns_load_balancer(definition, configuration, args, info):
                                     'VersionDomain': {'Type': 'standalone',
                                                       'Zone': version_zone,
                                                       'Subdomain': version_subdomain}}
-    return component_load_balancer(definition, configuration, args, info)
+    return component_load_balancer(definition, configuration, args, info, force)
 
 
 def get_default_description(info, args):

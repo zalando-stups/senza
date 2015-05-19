@@ -169,7 +169,7 @@ def print_version(ctx, param, value):
     ctx.exit()
 
 
-def evaluate(definition, args):
+def evaluate(definition, args, force: bool):
     # extract Senza* meta information
     info = definition.pop("SenzaInfo")
     info["StackVersion"] = args.version
@@ -188,7 +188,7 @@ def evaluate(definition, args):
         componenttype = configuration["Type"]
         componentfn = COMPONENTS[componenttype]
 
-        definition = componentfn(definition, configuration, args, info)
+        definition = componentfn(definition, configuration, args, info, force)
 
     # throw executed template to templating engine and provide all information for substitutions
     template = yaml.dump(definition, default_flow_style=False)
@@ -315,7 +315,8 @@ def list_stacks(region, stack_ref, all, output, watch):
 @region_option
 @click.option('--disable-rollback', is_flag=True, help='Disable Cloud Formation rollback on failure')
 @click.option('--dry-run', is_flag=True, help='No-op mode: show what would be created')
-def create(definition, region, version, parameter, disable_rollback, dry_run):
+@click.option('-f', '--force', is_flag=True, help='Ignore failing validation checks')
+def create(definition, region, version, parameter, disable_rollback, dry_run, force):
     '''Create a new Cloud Formation stack from the given Senza definition file'''
 
     input = definition
@@ -324,7 +325,7 @@ def create(definition, region, version, parameter, disable_rollback, dry_run):
     args = parse_args(input, region, version, parameter)
 
     with Action('Generating Cloud Formation template..'):
-        data = evaluate(input.copy(), args)
+        data = evaluate(input.copy(), args, force)
         cfjson = json.dumps(data, sort_keys=True, indent=4)
 
     stack_name = "{0}-{1}".format(input["SenzaInfo"]["StackName"], version)
@@ -371,12 +372,13 @@ def create(definition, region, version, parameter, disable_rollback, dry_run):
 @click.argument('version', callback=validate_version)
 @click.argument('parameter', nargs=-1)
 @region_option
-def print_cfjson(definition, region, version, parameter):
+@click.option('-f', '--force', is_flag=True, help='Ignore failing validation checks')
+def print_cfjson(definition, region, version, parameter, force):
     '''Print the generated Cloud Formation template'''
     input = definition
     region = get_region(region)
     args = parse_args(input, region, version, parameter)
-    data = evaluate(input.copy(), args)
+    data = evaluate(input.copy(), args, force)
     cfjson = json.dumps(data, sort_keys=True, indent=4)
 
     click.secho(cfjson)

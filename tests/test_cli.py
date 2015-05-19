@@ -93,7 +93,11 @@ def test_print_auto(monkeypatch):
                                                'TaupageConfig': {'runtime': 'Docker',
                                                                  'source': 'foo/bar:{{Arguments.ImageVersion}}'},
                                                'IamRoles': ['app-myrole'],
-                                               'SecurityGroups': ['app-sg', 'sg-123']}},
+                                               'SecurityGroups': ['app-sg', 'sg-123'],
+                                               'AutoScaling':
+                                                   {'Minimum': 1,
+                                                    'Maximum': 10,
+                                                    'MetricType': 'CPU'}}},
                                 {'AppLoadBalancer': {'Type': 'Senza::WeightedDnsElasticLoadBalancer',
                                                      'HTTPPort': 8080,
                                                      'SecurityGroups': ['app-sg']}}]}
@@ -272,7 +276,6 @@ def test_create(monkeypatch):
 
 
 def test_traffic(monkeypatch):
-
     r53conn = Mock(name='r53conn')
 
     monkeypatch.setattr('boto.ec2.connect_to_region', MagicMock())
@@ -302,9 +305,9 @@ def test_traffic(monkeypatch):
     records = collections.OrderedDict()
 
     for ver, percentage in [('v1', 60),
-                        ('v2', 30),
-                        ('v3', 10),
-                        ('v4', 0)]:
+                            ('v2', 30),
+                            ('v3', 10),
+                            ('v4', 0)]:
         dns_identifier = 'myapp-{}'.format(ver)
         records[dns_identifier] = record(dns_identifier, percentage * PERCENT_RESOLUTION)
 

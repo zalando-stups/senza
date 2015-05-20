@@ -514,6 +514,20 @@ def init(definition_file, region, template, user_variable):
         definition_file.write(definition)
 
 
+def get_instance_health(elb, stack_name: str) -> dict:
+    instance_health = {}
+    try:
+        instance_states = elb.describe_instance_health(stack_name)
+        for istate in instance_states:
+            instance_health[istate.instance_id] = camel_case_to_underscore(istate.state).upper()
+    except boto.exception.BotoServerError as e:
+        # ignore non existing ELBs
+        # ignore ValidationError "LoadBalancer name cannot be longer than 32 characters"
+        if e.code not in ('LoadBalancerNotFound', 'ValidationError'):
+            raise
+    return instance_health
+
+
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
 @region_option
@@ -534,14 +548,7 @@ def instances(stack_ref, region, output, watch):
                 # performance optimization: do not call EC2 API for "dead" stacks
                 continue
 
-            instance_health = {}
-            try:
-                instance_states = elb.describe_instance_health(stack.stack_name)
-                for istate in instance_states:
-                    instance_health[istate.instance_id] = camel_case_to_underscore(istate.state).upper()
-            except boto.exception.BotoServerError as e:
-                if e.code != 'LoadBalancerNotFound':
-                    raise
+            instance_health = get_instance_health(elb, stack.stack_name)
 
             for instance in conn.get_only_instances(filters={'tag:aws:cloudformation:stack-id': stack.stack_id}):
                 rows.append({'stack_name': stack.name,
@@ -576,14 +583,7 @@ def status(stack_ref, region, output, watch):
     for _ in watching(watch):
         rows = []
         for stack in sorted(get_stacks(stack_refs, region)):
-            instance_health = {}
-            try:
-                instance_states = elb.describe_instance_health(stack.stack_name)
-                for istate in instance_states:
-                    instance_health[istate.instance_id] = camel_case_to_underscore(istate.state).upper()
-            except boto.exception.BotoServerError as e:
-                if e.code != 'LoadBalancerNotFound':
-                    raise
+            instance_health = get_instance_health(elb, stack.stack_name)
 
             main_dns_resolves = False
             http_status = None
@@ -601,7 +601,10 @@ def status(stack_ref, region, output, watch):
                         except:
                             http_status = 'ERROR'
                     else:
-                        answers = dns.resolver.query(name, 'CNAME')
+                        try:
+                            answers = dns.resolver.query(name, 'CNAME')
+                        except:
+                            answers = []
                         for answer in answers:
                             if answer.target.to_text().startswith('{}-'.format(stack.stack_name)):
                                 main_dns_resolves = True

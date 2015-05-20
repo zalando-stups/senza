@@ -138,10 +138,12 @@ def test_init(monkeypatch):
 
 
 def test_instances(monkeypatch):
-    stack = MagicMock()
+    stack = MagicMock(stack_name='test-1')
     inst = MagicMock()
     monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: MagicMock(get_only_instances=lambda filters: [inst]))
-    monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock(describe_stacks=lambda x: [stack]))
+    monkeypatch.setattr('boto.cloudformation.connect_to_region',
+                        lambda x: MagicMock(list_stacks=lambda stack_status_filters: [stack]))
+    monkeypatch.setattr('boto.ec2.elb.connect_to_region', lambda x: MagicMock(describe_instance_health=lambda stack: []))
 
     runner = CliRunner()
 
@@ -154,6 +156,27 @@ def test_instances(monkeypatch):
                                catch_exceptions=False)
 
     assert 'Launched' in result.output
+
+
+def test_status(monkeypatch):
+    stack = MagicMock(stack_name='test-1')
+    inst = MagicMock()
+    monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: MagicMock(get_only_instances=lambda filters: [inst]))
+    monkeypatch.setattr('boto.cloudformation.connect_to_region',
+                        lambda x: MagicMock(list_stacks=lambda stack_status_filters: [stack]))
+    monkeypatch.setattr('boto.ec2.elb.connect_to_region', lambda x: MagicMock(describe_instance_health=lambda stack: []))
+
+    runner = CliRunner()
+
+    data = {'SenzaInfo': {'StackName': 'test'}}
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+        result = runner.invoke(cli, ['status', 'myapp.yaml', '--region=myregion', '1'],
+                               catch_exceptions=False)
+
+    assert 'Running' in result.output
 
 
 def test_resources(monkeypatch):
@@ -174,6 +197,31 @@ def test_resources(monkeypatch):
                                catch_exceptions=False)
 
     assert 'MyTestResource' in result.output
+
+
+def test_domains(monkeypatch):
+    stack = MagicMock(stack_name='test-1', creation_time=datetime.datetime.now())
+    res = MagicMock(timestamp=datetime.datetime.now(), logical_resource_id='MyTestResource',
+                    physical_resource_id='mydomain.example.org',
+                    resource_type='AWS::Route53::RecordSet')
+    route53 = MagicMock()
+    route53.get_zone.return_value.get_records.return_value = [MagicMock()]
+    monkeypatch.setattr('boto.cloudformation.connect_to_region',
+                        lambda x: MagicMock(describe_stack_resources=lambda x: [res],
+                                            list_stacks=lambda stack_status_filters: [stack]))
+    monkeypatch.setattr('boto.route53.connect_to_region', lambda x: route53)
+
+    runner = CliRunner()
+
+    data = {'SenzaInfo': {'StackName': 'test'}}
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+        result = runner.invoke(cli, ['domains', 'myapp.yaml', '--region=myregion', '1'],
+                               catch_exceptions=False)
+
+    assert 'mydomain.example.org' in result.output
 
 
 def test_events(monkeypatch):

@@ -3,3 +3,4 @@ pystache
 boto>=2.37.0
 PyYAML
 dnspython3
+stups-pierone>=0.6

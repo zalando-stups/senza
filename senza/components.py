@@ -1,15 +1,17 @@
 import json
+import textwrap
 import urllib
 import boto.ec2
 import boto.iam
 import boto.route53
 import boto.vpc
 import click
+import pierone.api
 import pystache
 import yaml
 
 from .aws import get_security_group, find_ssl_certificate_arn, resolve_topic_arn
-from .docker import docker_image_exists, extract_registry
+from .docker import docker_image_exists
 from .utils import named_value, ensure_keys
 
 
@@ -346,6 +348,24 @@ def component_auto_scaling_group(definition, configuration, args, info, force):
     return definition
 
 
+def check_docker_image_exists(docker_image: pierone.api.DockerImage):
+    if 'pierone' in docker_image.registry:
+        try:
+            exists = pierone.api.image_exists('pierone', docker_image)
+        except pierone.api.Unauthorized:
+            msg = textwrap.dedent('''
+            Unauthorized: Cannot check whether Docker image "{}" exists in Pier One Docker registry.
+            Please generate a "pierone" OAuth access token using "pierone login".
+            Alternatively you can skip this check using the "--force" option.
+            '''.format(docker_image)).strip()
+            raise click.UsageError(msg)
+
+    else:
+        exists = docker_image_exists(str(docker_image))
+    if not exists:
+        raise click.UsageError('Docker image "{}" does not exist'.format(docker_image))
+
+
 def component_taupage_auto_scaling_group(definition, configuration, args, info, force):
     # inherit from the normal auto scaling group but discourage user info and replace with a Taupage config
     if 'Image' not in configuration:
@@ -374,10 +394,10 @@ def component_taupage_auto_scaling_group(definition, configuration, args, info, 
 
     source = evaluate_template(source, info, [], args)
 
-    registry = extract_registry(source)
+    docker_image = pierone.api.DockerImage.parse(source)
 
-    if not force and registry and not docker_image_exists(source):
-        raise click.UsageError('Docker image "{}" does not exist'.format(source))
+    if not force and docker_image.registry:
+        check_docker_image_exists(docker_image)
 
     userdata = "#taupage-ami-config\n" + yaml.dump(taupage_config, default_flow_style=False)
 

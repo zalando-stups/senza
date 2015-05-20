@@ -51,7 +51,8 @@ SenzaComponents:
 
 def gather_user_variables(variables, region):
     prompt(variables, 'application_id', 'Application ID', default='hello-world')
-    prompt(variables, 'docker_image', 'Docker image without tag/version (e.g. "pierone.example.org/myteam/myapp")', default='stups/hello-world')
+    prompt(variables, 'docker_image', 'Docker image without tag/version (e.g. "pierone.example.org/myteam/myapp")',
+           default='stups/hello-world')
     prompt(variables, 'http_port', 'HTTP port', default=8080, type=int)
     prompt(variables, 'http_health_check_path', 'HTTP health check path', default='/')
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')

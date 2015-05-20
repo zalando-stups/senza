@@ -591,6 +591,9 @@ def status(stack_ref, region, output, watch):
             for res in resources:
                 if res.resource_type == 'AWS::Route53::RecordSet':
                     name = res.physical_resource_id
+                    if not name:
+                        # physical resource ID will be empty during stack creation
+                        continue
                     if 'version' in res.logical_resource_id.lower():
                         try:
                             requests.get('https://{}/'.format(name), timeout=2)

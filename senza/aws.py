@@ -23,7 +23,8 @@ def find_ssl_certificate_arn(region, pattern):
     certs = response['list_server_certificates_result']['server_certificate_metadata_list']
     candidates = set()
     for cert in certs:
-        if pattern in cert['server_certificate_name']:
+        # only consider matching SSL certs or use the only one available
+        if pattern in cert['server_certificate_name'] or len(certs) == 1:
             candidates.add(cert['arn'])
     if candidates:
         # return first match (alphabetically sorted

@@ -26,7 +26,7 @@ import boto.route53
 from .aws import parse_time, get_required_capabilities, resolve_topic_arn, get_stacks, StackReference
 from .components import component_basic_configuration, component_stups_auto_configuration, \
     component_auto_scaling_group, component_taupage_auto_scaling_group, \
-    component_load_balancer, component_weighted_dns_load_balancer, evaluate_template
+    component_load_balancer, component_weighted_dns_load_balancer, component_iam_role, evaluate_template
 import senza
 from .traffic import change_version_traffic, print_version_traffic
 from .utils import named_value, camel_case_to_underscore
@@ -155,6 +155,7 @@ COMPONENTS = {
     "Senza::TaupageAutoScalingGroup": component_taupage_auto_scaling_group,
     "Senza::ElasticLoadBalancer": component_load_balancer,
     "Senza::WeightedDnsElasticLoadBalancer": component_weighted_dns_load_balancer,
+    "Senza::IamRole": component_iam_role
 }
 
 BASE_TEMPLATE = {

@@ -23,6 +23,32 @@ def evaluate_template(template, info, components, args):
     return result
 
 
+def component_iam_role(definition, configuration, args, info, force):
+    definition = ensure_keys(definition, "Resources")
+    role_name = configuration['Name']
+    definition['Resources'][role_name] = {
+        'Type': 'AWS::IAM::Role',
+        'Properties': {
+            "AssumeRolePolicyDocument": configuration.get('AssumeRolePolicyDocument', {
+                "Version": "2012-10-17",
+                "Statement": [
+                    {
+                        "Effect": "Allow",
+                        "Principal": {
+                            "Service": ["ec2.amazonaws.com"]
+                        },
+                        "Action": ["sts:AssumeRole"]
+                    }
+                ]
+            }),
+            'Path': configuration.get('Path', '/'),
+            'Policies': configuration.get('Policies', []) + get_merged_policies(
+                configuration.get('MergePoliciesFromIamRoles', []), args.region)
+        }
+    }
+    return definition
+
+
 def component_basic_configuration(definition, configuration, args, info, force):
     # add info as mappings
     # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html
@@ -205,6 +231,10 @@ def component_auto_scaling_group(definition, configuration, args, info, force):
         logical_id = configuration['Name'] + 'InstanceProfile'
         roles = configuration['IamRoles']
         if len(roles) > 1:
+            for role in roles:
+                if isinstance(role, dict):
+                    raise click.UsageError('Cannot merge policies of Cloud Formation references ({"Ref": ".."}): ' +
+                                           'You can use at most one IAM role with "Ref".')
             logical_role_id = configuration['Name'] + 'Role'
             definition['Resources'][logical_role_id] = {
                 'Type': 'AWS::IAM::Role',

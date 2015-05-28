@@ -7,7 +7,7 @@ from senza.aws import get_security_group
 from senza.components import get_default_zone
 import pystache
 
-from ._helper import prompt, check_security_group, check_s3_bucket
+from ._helper import prompt, check_security_group, check_s3_bucket, get_mint_bucket_name
 
 POSTGRES_PORT = 5432
 HEALTHCHECK_PORT = 8008
@@ -64,6 +64,7 @@ SenzaComponents:
             partition: /dev/xvdk
             filesystem: ext4
             erase_on_boot: true
+        mint_bucket: {{mint_bucket}}
 Resources:
   PostgresRoute53Record:
     Type: AWS::Route53::RecordSet
@@ -83,7 +84,7 @@ Resources:
       HealthCheck:
         HealthyThreshold: 2
         Interval: 5
-        Target: HTTP:{{healthcheck_port}}/pg_master
+        Target: HTTP:{{healthcheck_port}}/master
         Timeout: 3
         UnhealthyThreshold: 2
       Listeners:
@@ -130,6 +131,7 @@ def gather_user_variables(variables, region):
     prompt(variables, 'discovery_url', 'ETCD Discovery URL', default='postgres.'+variables['hosted_zone'][:-1])
     prompt(variables, 'volume_size', 'Database volume size (GB)', default=10)
     prompt(variables, 'volume_type', 'Database volume type (gp2, op1 or standard)', default='gp2')
+    prompt(variables, 'mint_bucket', 'Mint S3 bucket name', default=lambda: get_mint_bucket_name(region))
 
     variables['postgres_port'] = POSTGRES_PORT
     variables['healthcheck_port'] = HEALTHCHECK_PORT

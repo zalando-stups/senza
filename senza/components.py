@@ -224,6 +224,9 @@ def component_auto_scaling_group(definition, configuration, args, info, force):
         }
     }
 
+    if 'BlockDeviceMappings' in configuration:
+        definition['Resources'][config_name]['Properties']['BlockDeviceMappings'] = configuration['BlockDeviceMappings']
+
     if "IamInstanceProfile" in configuration:
         definition["Resources"][config_name]["Properties"]["IamInstanceProfile"] = configuration["IamInstanceProfile"]
 

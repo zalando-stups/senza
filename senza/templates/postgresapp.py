@@ -35,6 +35,11 @@ SenzaComponents:
         Maximum: 3
         MetricType: CPU
       InstanceType: {{instance_type}}
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvdk
+          Ebs:
+            VolumeSize: {{volume_size}}
+            VolumeType: {{volume_type}}
       ElasticLoadBalancer: PostgresLoadBalancer
       HealthCheckType: EC2
       LoadBalancerNames:
@@ -54,6 +59,11 @@ SenzaComponents:
           ETCD_DISCOVERY_URL: "{{discovery_url}}"
           WAL_S3_BUCKET: "{{wal_s3_bucket}}"
         root: True
+        mounts:
+          /home/postgres/pgdata:
+            partition: /dev/xvdk
+            filesystem: ext4
+            erase_on_boot: true
 Resources:
   PostgresRoute53Record:
     Type: AWS::Route53::RecordSet
@@ -118,6 +128,8 @@ def gather_user_variables(variables, region):
     if (variables['hosted_zone'][-1:] != '.'):
         variables['hosted_zone'] += '.'
     prompt(variables, 'discovery_url', 'ETCD Discovery URL', default='postgres.'+variables['hosted_zone'][:-1])
+    prompt(variables, 'volume_size', 'Database volume size (GB)', default=10)
+    prompt(variables, 'volume_type', 'Database volume type (gp2, op1 or standard)', default='gp2')
 
     variables['postgres_port'] = POSTGRES_PORT
     variables['healthcheck_port'] = HEALTHCHECK_PORT

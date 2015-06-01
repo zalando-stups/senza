@@ -30,6 +30,7 @@ SenzaComponents:
       IamRoles:
         - app-{{application_id}}
       TaupageConfig:
+        application_version: "{{Arguments.ImageVersion}}"
         runtime: Docker
         source: "{{ docker_image }}:{{=<% %>=}}{{Arguments.ImageVersion}}<%={{ }}=%>"
         mint_bucket: "{{ mint_bucket }}"

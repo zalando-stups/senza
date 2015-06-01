@@ -415,7 +415,7 @@ def component_taupage_auto_scaling_group(definition, configuration, args, info, 
         taupage_config['application_id'] = info['StackName']
 
     if 'application_version' not in taupage_config:
-        taupage_config['application_version'] = info['StackVersion']
+        taupage_config['application_version'] = info['ImageVersion']
 
     runtime = taupage_config.get('runtime')
     if runtime != 'Docker':

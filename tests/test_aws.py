@@ -1,4 +1,4 @@
-from mock import MagicMock
+from unittest.mock import MagicMock
 from senza.aws import resolve_topic_arn
 
 

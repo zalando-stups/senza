@@ -1,4 +1,4 @@
-from mock import MagicMock
+from unittest.mock import MagicMock
 from senza.aws import SenzaStackSummary
 from senza.traffic import get_stack_versions, StackVersion
 

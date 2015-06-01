@@ -1,5 +1,5 @@
 import json
-from mock import MagicMock
+from unittest.mock import MagicMock
 from senza.templates._helper import get_iam_role_policy, get_mint_bucket_name
 
 

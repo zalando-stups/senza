@@ -210,7 +210,7 @@ def setup_package():
         test_suite='tests',
         packages=setuptools.find_packages(exclude=['tests', 'tests.*']),
         install_requires=install_reqs,
-        setup_requires=['six', 'flake8'],
+        setup_requires=['flake8'],
         cmdclass=cmdclass,
         tests_require=['pytest-cov', 'pytest'],
         command_options=command_options,

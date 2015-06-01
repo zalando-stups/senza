@@ -2,7 +2,7 @@ import datetime
 import os
 from click.testing import CliRunner
 import collections
-from mock import MagicMock, Mock
+from unittest.mock import MagicMock, Mock
 import yaml
 from senza.cli import cli
 import boto.exception

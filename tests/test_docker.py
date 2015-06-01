@@ -1,4 +1,4 @@
-from mock import MagicMock
+from unittest.mock import MagicMock
 from senza.docker import docker_image_exists
 
 

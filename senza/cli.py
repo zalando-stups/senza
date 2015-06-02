@@ -328,6 +328,7 @@ def last_stack(region, stack_ref, version, output):
 
     print(rows[-1])
 
+
 @cli.command()
 @click.argument('definition', type=DEFINITION)
 @click.argument('version', callback=validate_version)

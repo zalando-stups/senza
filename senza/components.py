@@ -220,7 +220,8 @@ def component_auto_scaling_group(definition, configuration, args, info, force):
         "Properties": {
             "InstanceType": configuration["InstanceType"],
             "ImageId": {"Fn::FindInMap": ["Images", {"Ref": "AWS::Region"}, configuration["Image"]]},
-            "AssociatePublicIpAddress": configuration.get('AssociatePublicIpAddress', False)
+            "AssociatePublicIpAddress": configuration.get('AssociatePublicIpAddress', False),
+            "EbsOptimized": configuration.get('EbsOptimized', False)
         }
     }
 

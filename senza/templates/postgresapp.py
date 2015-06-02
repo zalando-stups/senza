@@ -35,6 +35,7 @@ SenzaComponents:
         Maximum: 3
         MetricType: CPU
       InstanceType: {{instance_type}}
+      EbsOptimized: True
       BlockDeviceMappings:
         - DeviceName: /dev/xvdk
           Ebs:

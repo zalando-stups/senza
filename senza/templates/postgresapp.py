@@ -12,7 +12,8 @@ from ._helper import prompt, check_security_group, check_s3_bucket, get_mint_buc
 POSTGRES_PORT = 5432
 HEALTHCHECK_PORT = 8008
 
-TEMPLATE = '''
+BLOCK_DEVICE_COMPONENT=1
+COMPONENTS = ['''
 # basic information for generating and executing this definition
 SenzaInfo:
   StackName: spilo
@@ -34,12 +35,12 @@ SenzaComponents:
         Minimum: 3
         Maximum: 3
         MetricType: CPU
-      InstanceType: {{instance_type}}
+      InstanceType: {{instance_type}}''','''
       BlockDeviceMappings:
         - DeviceName: /dev/xvdk
           Ebs:
             VolumeSize: {{volume_size}}
-            VolumeType: {{volume_type}}
+            VolumeType: {{volume_type}}''','''
       ElasticLoadBalancer: PostgresLoadBalancer
       HealthCheckType: EC2
       LoadBalancerNames:
@@ -62,8 +63,9 @@ SenzaComponents:
         mounts:
           /home/postgres/pgdata:
             partition: /dev/xvdk
-            filesystem: ext4
+            filesystem: {{fstype}}
             erase_on_boot: true
+            options: {{fsoptions}}
         mint_bucket: {{mint_bucket}}
 Resources:
   PostgresRoute53Record:
@@ -119,7 +121,7 @@ Resources:
           - Effect: Allow
             Action: "s3:*"
             Resource: "*"
-'''
+''']
 
 
 def gather_user_variables(variables, region):
@@ -129,8 +131,19 @@ def gather_user_variables(variables, region):
     if (variables['hosted_zone'][-1:] != '.'):
         variables['hosted_zone'] += '.'
     prompt(variables, 'discovery_url', 'ETCD Discovery URL', default='postgres.'+variables['hosted_zone'][:-1])
-    prompt(variables, 'volume_size', 'Database volume size (GB)', default=10)
-    prompt(variables, 'volume_type', 'Database volume type (gp2, op1 or standard)', default='gp2')
+    prompt(variables, 'volume_size', 'Database volume size (GB, 10 or more)', default=10)
+    prompt(variables, 'volume_type', 'Database volume type (gp2, io1 or standard)', default='gp2')
+    if variables['volume_type'] == 'io1':
+      pio_max = variables['volume_size'] * 30
+      prompt(variables, "volume_iops", 'Provisioned I/O operations per second (100 - {0})'.format(pio_max), default=str(int(pio_max/2)))
+      COMPONENTS[BLOCK_DEVICE_COMPONENT] += '''
+            Iops: {{volume_iops}}'''
+    prompt(variables, "snapshot_id", "ID of the snapshot to populate EBS volume from", default="")
+    if variables['snapshot_id']:
+      COMPONENTS[BLOCK_DEVICE_COMPONENT] += '''
+            SnapshotId: {{snapshot_id}}'''
+    prompt(variables, "fstype", "Filesystem for the data partition", default="ext4")
+    prompt(variables, "fsoptions", "Filesystem mount options (comma-separated)", default="noatime,nodiratime,nobarrier")
     prompt(variables, 'mint_bucket', 'Mint S3 bucket name', default=lambda: get_mint_bucket_name(region))
 
     variables['postgres_port'] = POSTGRES_PORT
@@ -161,5 +174,6 @@ def gather_user_variables(variables, region):
 
 
 def generate_definition(variables):
+    TEMPLATE = ''.join(COMPONENTS)
     definition_yaml = pystache.render(TEMPLATE, variables)
     return definition_yaml

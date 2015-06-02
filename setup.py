@@ -171,7 +171,7 @@ def setup_package():
 
     docs_path = os.path.join(__location__, 'docs')
     docs_build_path = os.path.join(docs_path, '_build')
-    install_reqs = get_install_requirements('requirements.txt')
+    install_reqs = get_install_requirements('runtime_requirements.txt')
 
     command_options = {'docs': {
         'project': ('setup.py', MAIN_PACKAGE),

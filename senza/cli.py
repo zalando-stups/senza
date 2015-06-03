@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import calendar
 import configparser
+import functools
 import importlib
 import os
 import re
@@ -199,6 +200,27 @@ def evaluate(definition, args, force: bool):
     definition = yaml.load(definition)
 
     return definition
+
+
+def handle_exceptions(func):
+    @functools.wraps(func)
+    def wrapper():
+        try:
+            func()
+        except boto.exception.NoAuthHandlerFound as e:
+            sys.stderr.write('No AWS credentials found. ' +
+                             'Use the "mai" command line tool to get a temporary access key\n')
+            sys.stderr.write('or manually configure either ~/.aws/credentials ' +
+                             'or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY.\n')
+            sys.exit(1)
+        except BotoServerError as e:
+            if is_credentials_expired_error(e):
+                sys.stderr.write('AWS credentials have expired. ' +
+                                 'Use the "mai" command line tool to get a new temporary access key.\n')
+                sys.exit(1)
+            else:
+                raise
+    return wrapper
 
 
 @click.group(cls=AliasedGroup, context_settings=CONTEXT_SETTINGS)
@@ -695,15 +717,7 @@ def traffic(stack_name, stack_version, percentage, region, output):
 
 
 def main():
-    try:
-        cli()
-    except BotoServerError as e:
-        if is_credentials_expired_error(e):
-            sys.stderr.write('AWS credentials have expired. ' +
-                             'Use the "mai" command line tool to get a new temporary access key.\n')
-            sys.exit(1)
-        else:
-            raise
+    handle_exceptions(cli)()
 
 
 if __name__ == "__main__":

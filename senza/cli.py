@@ -333,6 +333,24 @@ def list_stacks(region, stack_ref, all, output, watch):
                         styles=STYLES, titles=TITLES)
 
 
+@cli.command('last')
+@region_option
+@output_option
+@click.option('--version', is_flag=True, help='Show just the stack version')
+@click.argument('stack_ref')
+def last_stack(region, stack_ref, version, output):
+    '''Prints the last stack version'''
+    region = get_region(region)
+    stack_refs = get_stack_refs([stack_ref])
+    rows = []
+    for stack in get_stacks(stack_refs, region):
+        rows.append(stack.version)
+
+    rows.sort()
+
+    print(rows[-1])
+
+
 @cli.command()
 @click.argument('definition', type=DEFINITION)
 @click.argument('version', callback=validate_version)

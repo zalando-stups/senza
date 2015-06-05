@@ -7,8 +7,7 @@ from senza.aws import get_security_group
 from senza.components import get_default_zone
 import pystache
 
-from ._helper import prompt, check_security_group, check_s3_bucket,\
-                     get_mint_bucket_name, get_account_id
+from ._helper import prompt, check_security_group, check_s3_bucket, get_mint_bucket_name
 
 POSTGRES_PORT = 5432
 HEALTHCHECK_PORT = 8008

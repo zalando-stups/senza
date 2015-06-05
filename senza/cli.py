@@ -271,6 +271,11 @@ def get_region(region):
     return region
 
 
+def check_credentials(region):
+    iam = boto.iam.connect_to_region(region)
+    return iam.get_account_alias()
+
+
 def get_stack_refs(refs: list):
     '''
     >>> get_stack_refs(['foobar-stack'])
@@ -519,6 +524,7 @@ def get_template_description(template: str):
 def init(definition_file, region, template, user_variable):
     '''Initialize a new Senza definition'''
     region = get_region(region)
+    check_credentials(region)
 
     templates = []
     for mod in os.listdir(os.path.join(os.path.dirname(__file__), 'templates')):

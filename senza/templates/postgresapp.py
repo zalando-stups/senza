@@ -56,7 +56,7 @@ SenzaComponents:
       SecurityGroups:
         - app-spilo
       IamRoles:
-        - Ref: PostgresS3AccessRole
+        - Ref: PostgresAccessRole
       TaupageConfig:
         runtime: Docker
         source: "{{=<% %>=}}{{Arguments.ImageVersion}}<%={{ }}=%>"
@@ -113,7 +113,7 @@ Resources:
           - LoadBalancerSubnets
           - Ref: AWS::Region
           - Subnets
-  PostgresS3AccessRole:
+  PostgresAccessRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
@@ -125,12 +125,25 @@ Resources:
           Action: sts:AssumeRole
       Path: /
       Policies:
-      - PolicyName: AmazonEC2ReadOnlyAccess
+      - PolicyName: SpiloEC2S3Access
         PolicyDocument:
           Version: "2012-10-17"
           Statement:
           - Effect: Allow
-            Action: "s3:*"
+            Action: s3:*
+            Resource:
+              - arn:aws:s3:::{{wal_s3_bucket}}/spilo/*
+              - arn:aws:s3:::{{wal_s3_bucket}}
+          - Effect: Allow
+            Action: s3:GetObject
+            Resource:
+              - arn:aws:s3:::{{mint_bucket}}/spilo/*
+              - arn:aws:s3:::{{mint_bucket}}
+          - Effect: Allow
+            Action: ec2:CreateTags
+            Resource: "*"
+          - Effect: Allow
+            Action: ec2:Describe*
             Resource: "*"
 '''
 

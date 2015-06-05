@@ -35,7 +35,9 @@ SenzaComponents:
         Maximum: 3
         MetricType: CPU
       InstanceType: {{instance_type}}
+      {{#ebs_optimized}}
       EbsOptimized: True
+      {{/ebs_optimized}}
       BlockDeviceMappings:
         - DeviceName: /dev/xvdk
           Ebs:
@@ -133,9 +135,22 @@ Resources:
 '''
 
 
+def ebs_optimized_supported(instance_type):
+    # per http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EBSOptimized.html
+    return instance_type in ('c1.large', 'c3.xlarge', 'c3.2xlarge', 'c3.4xlarge',
+                             'c4.large', 'c4.xlarge', 'c4.2xlarge', 'c4.4xlarge', 'c4.8xlarge',
+                             'd2.xlarge', 'd2.2xlarge', 'd2.4xlarge', 'd2.8xlarge',
+                             'g2.2xlarge', 'i2.xlarge', 'i2.2xlarge', 'i2.4xlarge',
+                             'm1.large', 'm1.xlarge', 'm2.2xlarge', 'm2.4xlarge',
+                             'm3.xlarge', 'm3.2xlarge', 'r3.xlarge', 'r3.2xlarge',
+                             'r3.4xlarge')
+
+
 def gather_user_variables(variables, region):
     prompt(variables, 'wal_s3_bucket', 'Postgres WAL S3 bucket to use', default='zalando-spilo-app')
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
+    if ebs_optimized_supported(variables['instance_type']):
+        variables['ebs_optimized'] = True
     prompt(variables, 'hosted_zone', 'Hosted Zone', default=get_default_zone(region) or 'example.com')
     if (variables['hosted_zone'][-1:] != '.'):
         variables['hosted_zone'] += '.'

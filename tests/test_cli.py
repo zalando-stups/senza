@@ -161,6 +161,7 @@ def test_init(monkeypatch):
 
     assert 'Generating Senza definition file myapp.yaml.. OK' in result.output
     assert generated_definition['SenzaInfo']['StackName'] == 'sdf'
+    assert generated_definition['SenzaComponents'][1]['AppServer']['TaupageConfig']['application_version'] == '{{Arguments.ImageVersion}}'
 
 
 def test_instances(monkeypatch):

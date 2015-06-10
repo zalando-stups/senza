@@ -29,6 +29,7 @@ SenzaComponents:
         - app-{{application_id}}
       IamRoles:
         - app-{{application_id}}
+      AssociatePublicIpAddress: false # change for standalone deployment in default VPC
       TaupageConfig:
         application_version: "{{=<% %>=}}{{Arguments.ImageVersion}}<%={{ }}=%>"
         runtime: Docker

@@ -57,6 +57,7 @@ SenzaComponents:
         - app-spilo
       IamRoles:
         - Ref: PostgresAccessRole
+      AssociatePublicIpAddress: false # change for standalone deployment in default VPC
       TaupageConfig:
         runtime: Docker
         source: "{{=<% %>=}}{{Arguments.ImageVersion}}<%={{ }}=%>"

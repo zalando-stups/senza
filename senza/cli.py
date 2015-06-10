@@ -178,6 +178,10 @@ def evaluate(definition, args, force: bool):
     info = definition.pop("SenzaInfo")
     info["StackVersion"] = args.version
 
+    template = yaml.dump(definition, default_flow_style=False)
+    definition = evaluate_template(template, info, [], args)
+    definition = yaml.load(definition)
+
     components = definition.pop("SenzaComponents", [])
 
     # merge base template with definition

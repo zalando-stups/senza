@@ -82,6 +82,42 @@ def test_print_basic(monkeypatch):
     assert 'subnet-123' in result.output
 
 
+def test_print_replace_mustache(monkeypatch):
+    sg = MagicMock()
+    sg.name = 'app-master-mind'
+    sg.id = 'sg-007'
+
+    monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock())
+    monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: MagicMock(get_all_images=lambda filters: images,
+                                                                          get_all_security_groups=lambda: [sg]))
+    data = {'SenzaInfo': {'StackName': 'test',
+                          'Parameters': [{'ApplicationId': { 'Description': 'Application ID from kio'}}]},
+            'SenzaComponents': [{'Configuration': {'ServerSubnets': {'eu-west-1': ['subnet-123']},
+                                                   'Type': 'Senza::Configuration'}},
+                                {'AppServer': {'Image': 'AppImage',
+                                               'InstanceType': 't2.micro',
+                                               'SecurityGroups': ['app-{{Arguments.ApplicationId}}'],
+                                               'IamRoles': ['app-{{Arguments.ApplicationId}}'],
+                                               'TaupageConfig': {'runtime': 'Docker',
+                                                                 'source': 'foo/bar'},
+                                               'Type': 'Senza::TaupageAutoScalingGroup'}}]
+            }
+
+
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', 'master-mind'],
+                               catch_exceptions=False)
+    assert 'AWSTemplateFormatVersion' in result.output
+    assert 'subnet-123' in result.output
+    assert 'app-master-mind' in result.output
+    assert 'sg-007' in result.output
+
+
 def test_print_auto(monkeypatch):
     images = [MagicMock(name='Taupage-AMI-123', id='ami-123')]
 

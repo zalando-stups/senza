@@ -592,7 +592,7 @@ def instances(stack_ref, region, output, watch):
                              'instance_id': instance.id,
                              'public_ip': instance.ip_address,
                              'private_ip': instance.private_ip_address,
-                             'state': instance.state.upper(),
+                             'state': instance.state.upper().replace('-', '_'),
                              'lb_status': instance_health.get(instance.id),
                              'launch_time': parse_time(instance.launch_time)})
 

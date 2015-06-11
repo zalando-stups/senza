@@ -64,9 +64,10 @@ SenzaComponents:
         ports:
           {{postgres_port}}: {{postgres_port}}
           {{healthcheck_port}}: {{healthcheck_port}}
+        etcd_discovery_domain: "{{discovery_domain}}"
         environment:
           SCOPE: "{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>"
-          ETCD_DISCOVERY_URL: "{{discovery_url}}"
+          ETCD_DISCOVERY_DOMAIN: "{{discovery_domain}}"
           WAL_S3_BUCKET: "{{wal_s3_bucket}}"
         root: True
         mounts:
@@ -168,7 +169,7 @@ def gather_user_variables(variables, region):
     prompt(variables, 'hosted_zone', 'Hosted Zone', default=get_default_zone(region) or 'example.com')
     if (variables['hosted_zone'][-1:] != '.'):
         variables['hosted_zone'] += '.'
-    prompt(variables, 'discovery_url', 'ETCD Discovery URL',
+    prompt(variables, 'discovery_domain', 'ETCD Discovery Domain',
            default='postgres.'+variables['hosted_zone'][:-1])
     prompt(variables, 'volume_size', 'Database volume size (GB, 10 or more)', default=10)
     prompt(variables, 'volume_type', 'Database volume type (gp2, io1 or standard)', default='gp2')

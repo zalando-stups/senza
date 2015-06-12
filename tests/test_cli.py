@@ -327,9 +327,24 @@ def test_list(monkeypatch):
 
 def test_images(monkeypatch):
     image = MagicMock()
+    image.id = 'ami-123'
+    image.name = 'BrandNewImage'
+    image.creationDate = datetime.datetime.utcnow().isoformat('T') + 'Z'
+
+    old_image_still_used = MagicMock()
+    old_image_still_used.id = 'ami-456'
+    old_image_still_used.name = 'OldImage'
+    old_image_still_used.creationDate = (datetime.datetime.utcnow() - datetime.timedelta(days=30)).isoformat('T') + 'Z'
+
+    instance = MagicMock()
+    instance.id = 'i-777'
+    instance.image_id = 'ami-456'
+    instance.tags = {'aws:cloudformation:stack-name': 'mystack'}
 
     ec2 = MagicMock()
-    ec2.get_all_images.return_value = [image]
+    ec2.get_all_images.return_value = [image, old_image_still_used]
+    ec2.get_only_instances.return_value = [instance]
+    monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock())
     monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: ec2)
 
     runner = CliRunner()
@@ -338,6 +353,8 @@ def test_images(monkeypatch):
         result = runner.invoke(cli, ['images', '--region=myregion'], catch_exceptions=False)
 
     assert 'ami-123' in result.output
+    assert 'ami-456' in result.output
+    assert 'mystack' in result.output
 
 
 def test_delete(monkeypatch):

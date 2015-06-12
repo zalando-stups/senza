@@ -734,12 +734,13 @@ def traffic(stack_name, stack_version, percentage, region, output):
 
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
-@click.option('--hide-images-older-than', help='Hide images older than X days (default: 21)',
+@click.option('--hide-older-than', help='Hide images older than X days (default: 21)',
               type=int, default=21, metavar='DAYS')
 @click.option('--show-instances', is_flag=True, help='Show EC2 instance IDs')
 @region_option
 @output_option
-def images(stack_ref, region, output, hide_images_older_than, show_instances):
+def images(stack_ref, region, output, hide_older_than, show_instances):
+    '''Show all used AMIs and available Taupage AMIs'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
 
@@ -748,6 +749,7 @@ def images(stack_ref, region, output, hide_images_older_than, show_instances):
     instances_by_image = collections.defaultdict(list)
     for inst in conn.get_only_instances():
         if inst.state == 'terminated':
+            # do not count TERMINATED EC2 instances
             continue
         stack_name = inst.tags.get('aws:cloudformation:stack-name')
         if not stack_refs or matches_any(stack_name, stack_refs):
@@ -762,9 +764,10 @@ def images(stack_ref, region, output, hide_images_older_than, show_instances):
         for image in conn.get_all_images(filters=filters):
             images[image.id] = image
     rows = []
-    cutoff = datetime.datetime.now() - datetime.timedelta(days=hide_images_older_than)
+    cutoff = datetime.datetime.now() - datetime.timedelta(days=hide_older_than)
     for image in images.values():
         row = image.__dict__
+        # TODO: fix UTC/local time offset
         creation_time = datetime.datetime.strptime(image.creationDate, '%Y-%m-%dT%H:%M:%S.%fZ')
         row['creation_time'] = creation_time.timestamp()
         row['instances'] = ', '.join(sorted(i.id for i in instances_by_image[image.id]))

@@ -325,6 +325,21 @@ def test_list(monkeypatch):
     assert 'test-stack' in result.output
 
 
+def test_images(monkeypatch):
+    image = MagicMock()
+
+    ec2 = MagicMock()
+    ec2.get_all_images.return_value = [image]
+    monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: ec2)
+
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli, ['images', '--region=myregion'], catch_exceptions=False)
+
+    assert 'ami-123' in result.output
+
+
 def test_delete(monkeypatch):
     cf = MagicMock()
     stack = MagicMock(stack_name='test-1')

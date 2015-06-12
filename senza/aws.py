@@ -122,6 +122,9 @@ def get_stacks(stack_refs: list, region, all=False):
 
 def matches_any(cf_stack_name: str, stack_refs: list):
     '''
+    >>> matches_any(None, [StackReference(name='foobar', version=None)])
+    False
+
     >>> matches_any('foobar-1', [])
     False
 
@@ -137,7 +140,7 @@ def matches_any(cf_stack_name: str, stack_refs: list):
     for ref in stack_refs:
         if ref.version and cf_stack_name == ref.cf_stack_name():
             return True
-        elif not ref.version and cf_stack_name.rsplit('-', 1)[0] == ref.name:
+        elif not ref.version and (cf_stack_name or '').rsplit('-', 1)[0] == ref.name:
             return True
     return False
 

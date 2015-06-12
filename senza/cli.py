@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 import calendar
+import collections
 import configparser
+import datetime
 import functools
 import importlib
 import os
@@ -24,7 +26,7 @@ import boto.iam
 import boto.sns
 import boto.route53
 
-from .aws import parse_time, get_required_capabilities, resolve_topic_arn, get_stacks, StackReference
+from .aws import parse_time, get_required_capabilities, resolve_topic_arn, get_stacks, StackReference, matches_any
 from .components import component_basic_configuration, component_stups_auto_configuration, \
     component_auto_scaling_group, component_taupage_auto_scaling_group, \
     component_load_balancer, component_weighted_dns_load_balancer, component_iam_role, evaluate_template
@@ -70,10 +72,14 @@ TITLES = {
     'running_instances': 'Running',
     'healthy_instances': 'Healthy',
     'http_status': 'HTTP',
-    'main_dns': 'Main DNS'
+    'main_dns': 'Main DNS',
+    'id': 'ID',
+    'owner_id': 'Owner'
 }
 
 MAX_COLUMN_WIDTHS = {
+    'description': 50,
+    'stacks': 20,
     'resource_status_reason': 50
 }
 
@@ -724,6 +730,63 @@ def traffic(stack_name, stack_version, percentage, region, output):
                 print_version_traffic(ref, region)
             else:
                 change_version_traffic(ref, percentage, region)
+
+
+@cli.command()
+@click.argument('stack_ref', nargs=-1)
+@click.option('--hide-images-older-than', help='Hide images older than X days (default: 21)',
+              type=int, default=21, metavar='DAYS')
+@click.option('--show-instances', is_flag=True, help='Show EC2 instance IDs')
+@region_option
+@output_option
+def images(stack_ref, region, output, hide_images_older_than, show_instances):
+    stack_refs = get_stack_refs(stack_ref)
+    region = get_region(region)
+
+    conn = boto.ec2.connect_to_region(region)
+
+    instances_by_image = collections.defaultdict(list)
+    for inst in conn.get_only_instances():
+        if inst.state == 'terminated':
+            continue
+        stack_name = inst.tags.get('aws:cloudformation:stack-name')
+        if not stack_refs or matches_any(stack_name, stack_refs):
+            instances_by_image[inst.image_id].append(inst)
+
+    images = {}
+    for image in conn.get_all_images(filters={'image-id': list(instances_by_image.keys())}):
+        images[image.id] = image
+    if not stack_refs:
+        filters = {'name': '*Taupage-*',
+                   'state': 'available'}
+        for image in conn.get_all_images(filters=filters):
+            images[image.id] = image
+    rows = []
+    cutoff = datetime.datetime.now() - datetime.timedelta(days=hide_images_older_than)
+    for image in images.values():
+        row = image.__dict__
+        creation_time = datetime.datetime.strptime(image.creationDate, '%Y-%m-%dT%H:%M:%S.%fZ')
+        row['creation_time'] = creation_time.timestamp()
+        row['instances'] = ', '.join(sorted(i.id for i in instances_by_image[image.id]))
+        row['total_instances'] = len(instances_by_image[image.id])
+        stacks = set()
+        for instance in instances_by_image[image.id]:
+            stack_name = instance.tags.get('aws:cloudformation:stack-name')
+            # EC2 instance might not be part of a CF stack
+            if stack_name:
+                stacks.add(stack_name)
+        row['stacks'] = ', '.join(sorted(stacks))
+
+        #
+        if creation_time > cutoff or row['total_instances']:
+            rows.append(row)
+
+    rows.sort(key=lambda x: x.get('name'))
+    with OutputFormat(output):
+        cols = 'id name owner_id description stacks total_instances creation_time'
+        if show_instances:
+            cols = cols.replace('total_instances', 'instances')
+        print_table(cols.split(), rows, titles=TITLES, max_column_widths=MAX_COLUMN_WIDTHS)
 
 
 def main():

@@ -767,9 +767,8 @@ def images(stack_ref, region, output, hide_older_than, show_instances):
     cutoff = datetime.datetime.now() - datetime.timedelta(days=hide_older_than)
     for image in images.values():
         row = image.__dict__
-        # TODO: fix UTC/local time offset
-        creation_time = datetime.datetime.strptime(image.creationDate, '%Y-%m-%dT%H:%M:%S.%fZ')
-        row['creation_time'] = creation_time.timestamp()
+        creation_time = parse_time(image.creationDate)
+        row['creation_time'] = creation_time
         row['instances'] = ', '.join(sorted(i.id for i in instances_by_image[image.id]))
         row['total_instances'] = len(instances_by_image[image.id])
         stacks = set()
@@ -781,7 +780,7 @@ def images(stack_ref, region, output, hide_older_than, show_instances):
         row['stacks'] = ', '.join(sorted(stacks))
 
         #
-        if creation_time > cutoff or row['total_instances']:
+        if creation_time > cutoff.timestamp() or row['total_instances']:
             rows.append(row)
 
     rows.sort(key=lambda x: x.get('name'))

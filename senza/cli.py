@@ -584,16 +584,17 @@ def instances(stack_ref, region, output, watch):
 
     for _ in watching(watch):
         rows = []
-        for stack in get_stacks(stack_refs, region):
-            if stack.stack_status == 'ROLLBACK_COMPLETE':
-                # performance optimization: do not call EC2 API for "dead" stacks
-                continue
 
-            instance_health = get_instance_health(elb, stack.stack_name)
+        # filter out instances not part of any stack
+        for instance in conn.get_only_instances(filters={'tag-key': 'aws:cloudformation:stack-name'}):
+            cf_stack_name = instance.tags.get('aws:cloudformation:stack-name')
+            stack_name = instance.tags.get('StackName')
+            stack_version = instance.tags.get('StackVersion')
+            if not stack_refs or matches_any(cf_stack_name, stack_refs):
+                instance_health = get_instance_health(elb, cf_stack_name)
 
-            for instance in conn.get_only_instances(filters={'tag:aws:cloudformation:stack-id': stack.stack_id}):
-                rows.append({'stack_name': stack.name,
-                             'version': stack.version,
+                rows.append({'stack_name': stack_name,
+                             'version': stack_version,
                              'resource_id': instance.tags.get('aws:cloudformation:logical-id'),
                              'instance_id': instance.id,
                              'public_ip': instance.ip_address,
@@ -601,6 +602,8 @@ def instances(stack_ref, region, output, watch):
                              'state': instance.state.upper().replace('-', '_'),
                              'lb_status': instance_health.get(instance.id),
                              'launch_time': parse_time(instance.launch_time)})
+
+        rows.sort(key=lambda r: (r['stack_name'], r['version'], r['instance_id']))
 
         with OutputFormat(output):
             print_table(('stack_name version resource_id instance_id public_ip ' +

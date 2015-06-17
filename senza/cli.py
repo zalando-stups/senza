@@ -794,6 +794,29 @@ def images(stack_ref, region, output, hide_older_than, show_instances):
         print_table(cols.split(), rows, titles=TITLES, max_column_widths=MAX_COLUMN_WIDTHS)
 
 
+@cli.command()
+@click.argument('stack_ref', nargs=-1)
+@region_option
+@output_option
+@watch_option
+def console(stack_ref, region, watch):
+    '''Print EC2 instance console output'''
+    stack_refs = get_stack_refs(stack_ref)
+    region = get_region(region)
+
+    conn = boto.ec2.connect_to_region(region)
+
+    for _ in watching(watch):
+
+        # filter out instances not part of any stack
+        for instance in conn.get_only_instances(filters={'tag-key': 'aws:cloudformation:stack-name'}):
+            cf_stack_name = instance.tags.get('aws:cloudformation:stack-name')
+            if not stack_refs or matches_any(cf_stack_name, stack_refs):
+                output = conn.get_console_output(instance.id)
+                for line in output.output.decode('utf-8', errors='replace').split('\n'):
+                    print(line)
+
+
 def main():
     handle_exceptions(cli)()
 

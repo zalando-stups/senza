@@ -221,6 +221,42 @@ def test_instances(monkeypatch):
     assert 'Launched' in result.output
 
 
+def test_console(monkeypatch):
+    stack = MagicMock(stack_name='test-1')
+    inst = MagicMock()
+    inst.tags = {'aws:cloudformation:stack-name': 'test-1'}
+    ec2 = MagicMock()
+    ec2.get_only_instances.return_value = [inst]
+    ec2.get_console_output.return_value.output = b'**MAGIC-CONSOLE-OUTPUT**'
+    monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: ec2)
+    monkeypatch.setattr('boto.cloudformation.connect_to_region',
+                        lambda x: MagicMock(list_stacks=lambda stack_status_filters: [stack]))
+
+    runner = CliRunner()
+
+    data = {'SenzaInfo': {'StackName': 'test'}}
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+        result = runner.invoke(cli, ['console', 'myapp.yaml', '--region=myregion', '1'],
+                               catch_exceptions=False)
+
+        assert '**MAGIC-CONSOLE-OUTPUT**' in result.output
+
+        result = runner.invoke(cli, ['console', 'foobar', '--region=myregion'],
+                               catch_exceptions=False)
+        assert '' == result.output
+
+        result = runner.invoke(cli, ['console', '172.31.1.2', '--region=myregion'],
+                               catch_exceptions=False)
+        assert '**MAGIC-CONSOLE-OUTPUT**' in result.output
+
+        result = runner.invoke(cli, ['console', 'i-123', '--region=myregion'],
+                               catch_exceptions=False)
+        assert '**MAGIC-CONSOLE-OUTPUT**' in result.output
+
+
 def test_status(monkeypatch):
     stack = MagicMock(stack_name='test-1')
     inst = MagicMock()

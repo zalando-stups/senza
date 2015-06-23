@@ -5,6 +5,7 @@ import configparser
 import datetime
 import functools
 import importlib
+import ipaddress
 import os
 import re
 import sys
@@ -792,6 +793,58 @@ def images(stack_ref, region, output, hide_older_than, show_instances):
         if show_instances:
             cols = cols.replace('total_instances', 'instances')
         print_table(cols.split(), rows, titles=TITLES, max_column_widths=MAX_COLUMN_WIDTHS)
+
+
+def is_ip_address(x: str):
+    '''
+    >>> is_ip_address(None)
+    False
+
+    >>> is_ip_address('127.0.0.1')
+    True
+    '''
+    try:
+        ipaddress.ip_address(x)
+        return True
+    except:
+        return False
+
+
+@cli.command()
+@click.argument('instance_or_stack_ref', nargs=-1)
+@click.option('-l', '--limit', help='Show last N lines of console output (default: 25)',
+              type=int, default=25, metavar='N')
+@region_option
+@watch_option
+def console(instance_or_stack_ref, limit, region, watch):
+    '''Print EC2 instance console output.
+
+    INSTANCE_OR_STACK_REF can be an instance ID, private IP address or stack name/version.'''
+
+    if all(x.startswith('i-') for x in instance_or_stack_ref):
+        stack_refs = None
+        filters = {'instance-id': list(instance_or_stack_ref)}
+    elif all(is_ip_address(x) for x in instance_or_stack_ref):
+        stack_refs = None
+        filters = {'private-ip-address': list(instance_or_stack_ref)}
+    else:
+        stack_refs = get_stack_refs(instance_or_stack_ref)
+        # filter out instances not part of any stack
+        filters = {'tag-key': 'aws:cloudformation:stack-name'}
+
+    region = get_region(region)
+
+    conn = boto.ec2.connect_to_region(region)
+
+    for _ in watching(watch):
+
+        for instance in conn.get_only_instances(filters=filters):
+            cf_stack_name = instance.tags.get('aws:cloudformation:stack-name')
+            if not stack_refs or matches_any(cf_stack_name, stack_refs):
+                output = conn.get_console_output(instance.id)
+                click.secho('Showing last {} lines of {}..'.format(limit, instance.private_ip_address), bold=True)
+                for line in output.output.decode('utf-8', errors='replace').split('\n')[-limit:]:
+                    print(line)
 
 
 def main():

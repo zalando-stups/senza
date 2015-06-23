@@ -843,8 +843,9 @@ def console(instance_or_stack_ref, limit, region, watch):
             if not stack_refs or matches_any(cf_stack_name, stack_refs):
                 output = conn.get_console_output(instance.id)
                 click.secho('Showing last {} lines of {}..'.format(limit, instance.private_ip_address), bold=True)
-                for line in output.output.decode('utf-8', errors='replace').split('\n')[-limit:]:
-                    print(line)
+                if output.output:
+                    for line in output.output.decode('utf-8', errors='replace').split('\n')[-limit:]:
+                        print(line)
 
 
 def main():

@@ -572,10 +572,11 @@ def get_instance_health(elb, stack_name: str) -> dict:
 
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
+@click.option('--all', is_flag=True, help='Show all instances, including instances not part of any stack')
 @region_option
 @output_option
 @watch_option
-def instances(stack_ref, region, output, watch):
+def instances(stack_ref, all, region, output, watch):
     '''List the stack's EC2 instances'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
@@ -583,19 +584,24 @@ def instances(stack_ref, region, output, watch):
     conn = boto.ec2.connect_to_region(region)
     elb = boto.ec2.elb.connect_to_region(region)
 
+    if all:
+        filters = None
+    else:
+        # filter out instances not part of any stack
+        filters = {'tag-key': 'aws:cloudformation:stack-name'}
+
     for _ in watching(watch):
         rows = []
 
-        # filter out instances not part of any stack
-        for instance in conn.get_only_instances(filters={'tag-key': 'aws:cloudformation:stack-name'}):
+        for instance in conn.get_only_instances(filters=filters):
             cf_stack_name = instance.tags.get('aws:cloudformation:stack-name')
             stack_name = instance.tags.get('StackName')
             stack_version = instance.tags.get('StackVersion')
             if not stack_refs or matches_any(cf_stack_name, stack_refs):
                 instance_health = get_instance_health(elb, cf_stack_name)
 
-                rows.append({'stack_name': stack_name,
-                             'version': stack_version,
+                rows.append({'stack_name': stack_name or '',
+                             'version': stack_version or '',
                              'resource_id': instance.tags.get('aws:cloudformation:logical-id'),
                              'instance_id': instance.id,
                              'public_ip': instance.ip_address,

@@ -816,6 +816,36 @@ def is_ip_address(x: str):
         return False
 
 
+def get_console_line_style(line: str):
+    '''
+    >>> get_console_line_style('foo')
+    {}
+
+    >>> get_console_line_style('ERROR:')['fg']
+    'red'
+
+    >>> get_console_line_style('WARNING:')['fg']
+    'yellow'
+
+    >>> get_console_line_style('INFO:')['bold']
+    True
+    '''
+
+    if 'ERROR:' in line:
+        return {'fg': 'red', 'bold': True}
+    elif 'WARNING:' in line:
+        return {'fg': 'yellow', 'bold': True}
+    elif 'INFO:' in line:
+        return {'bold': True}
+    else:
+        return {}
+
+
+def print_console(line: str):
+    style = get_console_line_style(line)
+    click.secho(line, **style)
+
+
 @cli.command()
 @click.argument('instance_or_stack_ref', nargs=-1)
 @click.option('-l', '--limit', help='Show last N lines of console output (default: 25)',
@@ -851,7 +881,7 @@ def console(instance_or_stack_ref, limit, region, watch):
                 click.secho('Showing last {} lines of {}..'.format(limit, instance.private_ip_address), bold=True)
                 if output.output:
                     for line in output.output.decode('utf-8', errors='replace').split('\n')[-limit:]:
-                        print(line)
+                        print_console(line)
 
 
 def main():

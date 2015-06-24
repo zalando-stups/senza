@@ -485,6 +485,20 @@ def component_load_balancer(definition, configuration, args, info, force):
         if not ssl_cert:
             raise click.UsageError('Could not find any matching SSL certificate for "{}"'.format(pattern))
 
+    health_check_protocol = "HTTP"
+    allowed_health_check_protocols = ("HTTP", "TCP", "UDP", "SSL")
+    if "HealthCheckProtocol" in configuration:
+        health_check_protocol = configuration["HealthCheckProtocol"]
+
+    if health_check_protocol not in allowed_health_check_protocols:
+        raise click.UsageError('Protocol "{}" is not supported for LoadBalancer'.format(health_check_protocol))
+
+    health_check_path = "/ui/"
+    if "HealthCheckPath" in configuration:
+        health_check_path = configuration["HealthCheckPath"]
+
+    health_check_target = "{0}:{1}{2}".format(health_check_protocol, configuration["HTTPPort"], health_check_path)
+
     # load balancer
     definition["Resources"][lb_name] = {
         "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
@@ -496,9 +510,7 @@ def component_load_balancer(definition, configuration, args, info, force):
                 "UnhealthyThreshold": "2",
                 "Interval": "10",
                 "Timeout": "5",
-                "Target": "HTTP:{0}{1}".format(configuration["HTTPPort"],
-                                               "/ui/" if "HealthCheckPath" not in configuration else configuration[
-                                                   "HealthCheckPath"])
+                "Target": health_check_target
             },
             "Listeners": [
                 {

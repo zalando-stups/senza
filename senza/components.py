@@ -497,7 +497,7 @@ def component_load_balancer(definition, configuration, args, info, force):
     if "HealthCheckPath" in configuration:
         health_check_path = configuration["HealthCheckPath"]
 
-    health_check_target = "{0}:{1}{2}".format(health_check_protocol, configuration["HTTPPort"], health_check_path);
+    health_check_target = "{0}:{1}{2}".format(health_check_protocol, configuration["HTTPPort"], health_check_path)
 
     # load balancer
     definition["Resources"][lb_name] = {

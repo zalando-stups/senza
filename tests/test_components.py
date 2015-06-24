@@ -1,4 +1,3 @@
-import json
 import click
 from unittest.mock import MagicMock
 from senza.components import component_load_balancer
@@ -11,17 +10,17 @@ def test_component_load_balancer_healthcheck(monkeypatch):
         "HTTPPort": "9999",
         "HealthCheckPath": "/healthcheck"
     }
-    
-    definition = { "Resources": {}}
+
+    definition = {"Resources": {}}
 
     args = MagicMock()
     args.region = "foo"
-    
+
     mock_string_result = MagicMock()
     mock_string_result.return_value = "foo"
     monkeypatch.setattr('senza.components.find_ssl_certificate_arn', mock_string_result)
     monkeypatch.setattr('senza.components.resolve_security_groups', mock_string_result)
-    
+
     result = component_load_balancer(definition, configuration, args, MagicMock(), False)
     # Defaults to HTTP
     assert "HTTP:9999/healthcheck" == result["Resources"]["test_lb"]["Properties"]["HealthCheck"]["Target"]
@@ -39,4 +38,3 @@ def test_component_load_balancer_healthcheck(monkeypatch):
         pass
     except:
         assert False, "check for supported protocols failed"
-

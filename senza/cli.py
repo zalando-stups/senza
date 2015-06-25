@@ -85,6 +85,14 @@ MAX_COLUMN_WIDTHS = {
 }
 
 
+def print_json(data, output=None):
+    if output == 'yaml':
+        parsed_data = yaml.safe_load(data)
+        print(yaml.safe_dump(parsed_data, indent=4, default_flow_style=False))
+    else:
+        print(data)
+
+
 class DefinitionParamType(click.ParamType):
     name = 'definition'
 
@@ -126,6 +134,8 @@ region_option = click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='A
                              help='AWS region ID (e.g. eu-west-1)')
 output_option = click.option('-o', '--output', type=click.Choice(['text', 'json', 'tsv']), default='text',
                              help='Use alternative output format')
+json_output_option = click.option('-o', '--output', type=click.Choice(['json', 'yaml']), default='json',
+                                  help='Use alternative output format')
 watch_option = click.option('-w', '--watch', type=click.IntRange(1, 300), metavar='SECS',
                             help='Auto update the screen every X seconds')
 
@@ -413,16 +423,16 @@ def create(definition, region, version, parameter, disable_rollback, dry_run, fo
 @click.argument('version', callback=validate_version)
 @click.argument('parameter', nargs=-1)
 @region_option
+@json_output_option
 @click.option('-f', '--force', is_flag=True, help='Ignore failing validation checks')
-def print_cfjson(definition, region, version, parameter, force):
+def print_cfjson(definition, region, version, parameter, output, force):
     '''Print the generated Cloud Formation template'''
     input = definition
     region = get_region(region)
     args = parse_args(input, region, version, parameter)
     data = evaluate(input.copy(), args, force)
     cfjson = json.dumps(data, sort_keys=True, indent=4)
-
-    click.secho(cfjson)
+    print_json(cfjson, output)
 
 
 @cli.command()
@@ -827,6 +837,9 @@ def get_console_line_style(line: str):
     >>> get_console_line_style('WARNING:')['fg']
     'yellow'
 
+    >>> get_console_line_style('SUCCESS:')['fg']
+    'green'
+
     >>> get_console_line_style('INFO:')['bold']
     True
     '''
@@ -835,6 +848,8 @@ def get_console_line_style(line: str):
         return {'fg': 'red', 'bold': True}
     elif 'WARNING:' in line:
         return {'fg': 'yellow', 'bold': True}
+    elif 'SUCCESS:' in line:
+        return {'fg': 'green', 'bold': True}
     elif 'INFO:' in line:
         return {'bold': True}
     else:
@@ -883,6 +898,23 @@ def console(instance_or_stack_ref, limit, region, watch):
                 if output.output:
                     for line in output.output.decode('utf-8', errors='replace').split('\n')[-limit:]:
                         print_console(line)
+
+
+@cli.command()
+@click.argument('stack_ref', nargs=-1)
+@region_option
+@json_output_option
+def dump(stack_ref, region, output):
+    '''Dump Cloud Formation template of existing stack'''
+    stack_refs = get_stack_refs(stack_ref)
+    region = get_region(region)
+
+    conn = boto.cloudformation.connect_to_region(region)
+
+    for stack in get_stacks(stack_refs, region):
+        result = conn.get_template(stack.stack_name)
+        template = result['GetTemplateResponse']['GetTemplateResult']['TemplateBody']
+        print_json(template, output)
 
 
 def main():

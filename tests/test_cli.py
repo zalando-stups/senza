@@ -179,6 +179,27 @@ def test_print_auto(monkeypatch):
     assert '"HealthCheckType": "ELB"' in result.output
 
 
+def test_dump(monkeypatch):
+    stack = MagicMock(stack_name='mystack-1')
+    cf = MagicMock()
+    cf.list_stacks.return_value = [stack]
+    cf.get_template.return_value = {'GetTemplateResponse': {'GetTemplateResult': {'TemplateBody': '{"foo": "bar"}'}}}
+    monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: cf)
+
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli, ['dump', 'mystack', '--region=myregion'],
+                               catch_exceptions=False)
+
+        assert '{"foo": "bar"}' == result.output.rstrip()
+
+        result = runner.invoke(cli, ['dump', 'mystack', '--region=myregion', '-o', 'yaml'],
+                               catch_exceptions=False)
+
+        assert 'foo: bar' == result.output.rstrip()
+
+
 def test_init(monkeypatch):
     monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: MagicMock())
     monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock())

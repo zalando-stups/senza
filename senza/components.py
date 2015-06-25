@@ -73,23 +73,20 @@ def component_basic_configuration(definition, configuration, args, info, force):
         definition['Description'] = get_default_description(info, args)
 
     # ServerSubnets
-    if "ServerSubnets" in configuration:
-        for region, subnets in configuration["ServerSubnets"].items():
-            definition = ensure_keys(definition, "Mappings", "ServerSubnets", region)
-            definition["Mappings"]["ServerSubnets"][region]["Subnets"] = subnets
+    for region, subnets in configuration.get('ServerSubnets', {}).items():
+        definition = ensure_keys(definition, "Mappings", "ServerSubnets", region)
+        definition["Mappings"]["ServerSubnets"][region]["Subnets"] = subnets
 
     # LoadBalancerSubnets
-    if "LoadBalancerSubnets" in configuration:
-        for region, subnets in configuration["LoadBalancerSubnets"].items():
-            definition = ensure_keys(definition, "Mappings", "LoadBalancerSubnets", region)
-            definition["Mappings"]["LoadBalancerSubnets"][region]["Subnets"] = subnets
+    for region, subnets in configuration.get('LoadBalancerSubnets', {}).items():
+        definition = ensure_keys(definition, "Mappings", "LoadBalancerSubnets", region)
+        definition["Mappings"]["LoadBalancerSubnets"][region]["Subnets"] = subnets
 
     # Images
-    if "Images" in configuration:
-        for name, image in configuration["Images"].items():
-            for region, ami in image.items():
-                definition = ensure_keys(definition, "Mappings", "Images", region, name)
-                definition["Mappings"]["Images"][region][name] = ami
+    for name, image in configuration.get('Images', {}).items():
+        for region, ami in image.items():
+            definition = ensure_keys(definition, "Mappings", "Images", region, name)
+            definition["Mappings"]["Images"][region][name] = ami
 
     return definition
 
@@ -447,26 +444,25 @@ def component_load_balancer(definition, configuration, args, info, force):
 
     # domains pointing to the load balancer
     main_zone = None
-    if "Domains" in configuration:
-        for name, domain in configuration["Domains"].items():
-            definition["Resources"][name] = {
-                "Type": "AWS::Route53::RecordSet",
-                "Properties": {
-                    "Type": "CNAME",
-                    "TTL": 20,
-                    "ResourceRecords": [
-                        {"Fn::GetAtt": [lb_name, "DNSName"]}
-                    ],
-                    "Name": "{0}.{1}".format(domain["Subdomain"], domain["Zone"]),
-                    "HostedZoneName": "{0}.".format(domain["Zone"])
-                },
-            }
+    for name, domain in configuration.get('Domains', {}).items():
+        definition["Resources"][name] = {
+            "Type": "AWS::Route53::RecordSet",
+            "Properties": {
+                "Type": "CNAME",
+                "TTL": 20,
+                "ResourceRecords": [
+                    {"Fn::GetAtt": [lb_name, "DNSName"]}
+                ],
+                "Name": "{0}.{1}".format(domain["Subdomain"], domain["Zone"]),
+                "HostedZoneName": "{0}.".format(domain["Zone"])
+            },
+        }
 
-            if domain["Type"] == "weighted":
-                definition["Resources"][name]["Properties"]['Weight'] = 0
-                definition["Resources"][name]["Properties"]['SetIdentifier'] = "{0}-{1}".format(info["StackName"],
-                                                                                                info["StackVersion"])
-                main_zone = domain['Zone']
+        if domain["Type"] == "weighted":
+            definition["Resources"][name]["Properties"]['Weight'] = 0
+            definition["Resources"][name]["Properties"]['SetIdentifier'] = "{0}-{1}".format(info["StackName"],
+                                                                                            info["StackVersion"])
+            main_zone = domain['Zone']
 
     ssl_cert = configuration.get('SSLCertificateId')
 

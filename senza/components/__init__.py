@@ -10,9 +10,15 @@ import pierone.api
 import pystache
 import yaml
 
-from .aws import get_security_group, find_ssl_certificate_arn, resolve_topic_arn
-from .docker import docker_image_exists
-from .utils import named_value, ensure_keys
+from senza.aws import get_security_group, find_ssl_certificate_arn, resolve_topic_arn
+from senza.docker import docker_image_exists
+from senza.utils import named_value, ensure_keys, camel_case_to_underscore
+
+
+def get_component(componenttype: str):
+    prefix, componenttype = componenttype.split('::', 1)
+    function_name = 'component_{}'.format(camel_case_to_underscore(componenttype))
+    return globals().get(function_name)
 
 
 def evaluate_template(template, info, components, args):
@@ -49,7 +55,7 @@ def component_iam_role(definition, configuration, args, info, force):
     return definition
 
 
-def component_basic_configuration(definition, configuration, args, info, force):
+def component_configuration(definition, configuration, args, info, force):
     # add info as mappings
     # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html
     definition = ensure_keys(definition, "Mappings", "Senza", "Info")
@@ -136,7 +142,7 @@ def component_stups_auto_configuration(definition, configuration, args, info, fo
     configuration = ensure_keys(configuration, "Images", 'LatestTaupageImage', args.region)
     configuration["Images"]['LatestTaupageImage'][args.region] = most_recent_image.id
 
-    component_basic_configuration(definition, configuration, args, info, force)
+    component_configuration(definition, configuration, args, info, force)
 
     return definition
 
@@ -439,7 +445,7 @@ def component_taupage_auto_scaling_group(definition, configuration, args, info, 
     return definition
 
 
-def component_load_balancer(definition, configuration, args, info, force):
+def component_elastic_load_balancer(definition, configuration, args, info, force):
     lb_name = configuration["Name"]
 
     # domains pointing to the load balancer
@@ -552,7 +558,7 @@ def get_default_zone(region):
     return domains[0]
 
 
-def component_weighted_dns_load_balancer(definition, configuration, args, info, force):
+def component_weighted_dns_elastic_load_balancer(definition, configuration, args, info, force):
     if 'Domains' not in configuration:
 
         if 'MainDomain' in configuration:
@@ -575,7 +581,7 @@ def component_weighted_dns_load_balancer(definition, configuration, args, info, 
                                     'VersionDomain': {'Type': 'standalone',
                                                       'Zone': version_zone,
                                                       'Subdomain': version_subdomain}}
-    return component_load_balancer(definition, configuration, args, info, force)
+    return component_elastic_load_balancer(definition, configuration, args, info, force)
 
 
 def get_default_description(info, args):

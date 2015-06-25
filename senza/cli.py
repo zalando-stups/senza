@@ -28,9 +28,7 @@ import boto.sns
 import boto.route53
 
 from .aws import parse_time, get_required_capabilities, resolve_topic_arn, get_stacks, StackReference, matches_any
-from .components import component_basic_configuration, component_stups_auto_configuration, \
-    component_auto_scaling_group, component_taupage_auto_scaling_group, \
-    component_load_balancer, component_weighted_dns_load_balancer, component_iam_role, evaluate_template
+from .components import get_component, evaluate_template
 import senza
 from .traffic import change_version_traffic, print_version_traffic
 from .utils import named_value, camel_case_to_underscore
@@ -168,16 +166,6 @@ DEFINITION = DefinitionParamType()
 
 KEY_VAL = KeyValParamType()
 
-COMPONENTS = {
-    "Senza::Configuration": component_basic_configuration,
-    "Senza::StupsAutoConfiguration": component_stups_auto_configuration,
-    "Senza::AutoScalingGroup": component_auto_scaling_group,
-    "Senza::TaupageAutoScalingGroup": component_taupage_auto_scaling_group,
-    "Senza::ElasticLoadBalancer": component_load_balancer,
-    "Senza::WeightedDnsElasticLoadBalancer": component_weighted_dns_load_balancer,
-    "Senza::IamRole": component_iam_role
-}
-
 BASE_TEMPLATE = {
     'AWSTemplateFormatVersion': '2010-09-09'
 }
@@ -211,7 +199,10 @@ def evaluate(definition, args, force: bool):
         configuration["Name"] = componentname
 
         componenttype = configuration["Type"]
-        componentfn = COMPONENTS[componenttype]
+        componentfn = get_component(componenttype)
+
+        if not componentfn:
+            raise click.UsageError('Component "{}" does not exist'.format(componenttype))
 
         definition = componentfn(definition, configuration, args, info, force)
 

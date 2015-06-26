@@ -37,6 +37,7 @@ SenzaComponents:
         application_version: "{{=<% %>=}}{{Arguments.ImageVersion}}<%={{ }}=%>"
         runtime: Docker
         source: "{{ docker_image }}:{{=<% %>=}}{{Arguments.ImageVersion}}<%={{ }}=%>"
+        health_check_path: {{http_health_check_path}}
         ports:
           {{http_port}}: {{http_port}}
         mint_bucket: "{{ mint_bucket }}"

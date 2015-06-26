@@ -119,10 +119,16 @@ def find_taupage_image(region: str):
 
 def component_stups_auto_configuration(definition, configuration, args, info, force):
     vpc_conn = boto.vpc.connect_to_region(args.region)
+
+    availability_zones = configuration.get('AvailabilityZones')
+
     server_subnets = []
     lb_subnets = []
     for subnet in vpc_conn.get_all_subnets():
         name = subnet.tags.get('Name', '')
+        if availability_zones and subnet.availability_zone not in availability_zones:
+            # skip subnet as it's not in one of the given AZs
+            continue
         if 'dmz' in name:
             lb_subnets.append(subnet.id)
         else:
@@ -298,7 +304,6 @@ def component_auto_scaling_group(definition, configuration, args, info, force):
             # for our operator some notifications
             "LaunchConfigurationName": {"Ref": config_name},
             "VPCZoneIdentifier": {"Fn::FindInMap": ["ServerSubnets", {"Ref": "AWS::Region"}, "Subnets"]},
-            "AvailabilityZones": {"Fn::GetAZs": ""},
             "Tags": [
                 # Tag "Name"
                 {

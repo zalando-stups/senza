@@ -15,6 +15,20 @@ def get_security_group(region: str, sg_name: str):
             return _sg
 
 
+def resolve_security_groups(security_groups: list, region: str):
+    result = []
+    for id_or_name in security_groups:
+        if id_or_name.startswith('sg-'):
+            result.append(id_or_name)
+        else:
+            sg = get_security_group(region, id_or_name)
+            if not sg:
+                raise ValueError('Security Group "{}" does not exist'.format(id_or_name))
+            result.append(sg.id)
+
+    return result
+
+
 def find_ssl_certificate_arn(region, pattern):
     '''Find the a matching SSL cert and return its ARN'''
     iam_conn = boto.iam.connect_to_region(region)

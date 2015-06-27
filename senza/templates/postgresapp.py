@@ -4,7 +4,7 @@ HA Postgres app, which needs an S3 bucket to store WAL files
 
 from clickclick import warning, error
 from senza.aws import get_security_group
-from senza.components import get_default_zone
+from senza.components.weighted_dns_elastic_load_balancer import get_default_zone
 import pystache
 
 from ._helper import prompt, check_security_group, check_s3_bucket, get_mint_bucket_name

@@ -17,13 +17,15 @@ def get_security_group(region: str, sg_name: str):
 
 def resolve_security_groups(security_groups: list, region: str):
     result = []
-    for id_or_name in security_groups:
-        if id_or_name.startswith('sg-'):
-            result.append(id_or_name)
+    for security_group in security_groups:
+        if isinstance(security_group, dict):
+            result.append(security_group)
+        elif security_group.startswith('sg-'):
+            result.append(security_group)
         else:
-            sg = get_security_group(region, id_or_name)
+            sg = get_security_group(region, security_group)
             if not sg:
-                raise ValueError('Security Group "{}" does not exist'.format(id_or_name))
+                raise ValueError('Security Group "{}" does not exist'.format(security_group))
             result.append(sg.id)
 
     return result

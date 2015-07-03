@@ -58,7 +58,11 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
     if "HealthCheckPath" in configuration:
         health_check_path = configuration["HealthCheckPath"]
 
-    health_check_target = "{0}:{1}{2}".format(health_check_protocol, configuration["HTTPPort"], health_check_path)
+    health_check_port = configuration["HTTPPort"]
+    if "HealthCheckPort" in configuration:
+        health_check_port = configuration["HealthCheckPort"]
+
+    health_check_target = "{0}:{1}{2}".format(health_check_protocol, health_check_port, health_check_path)
 
     # load balancer
     definition["Resources"][lb_name] = {

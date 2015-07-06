@@ -54,6 +54,13 @@ def test_component_load_balancer_healthcheck(monkeypatch):
     # Defaults to HTTP
     assert "HTTP:9999/healthcheck" == result["Resources"]["test_lb"]["Properties"]["HealthCheck"]["Target"]
 
+    # Support own health check port
+    configuration["HealthCheckPort"] = "1234"
+    result = component_elastic_load_balancer(definition, configuration, args, MagicMock(), False)
+    assert "HTTP:1234/healthcheck" == result["Resources"]["test_lb"]["Properties"]["HealthCheck"]["Target"]
+    del(configuration["HealthCheckPort"])
+
+
     # Supports other AWS protocols
     configuration["HealthCheckProtocol"] = "TCP"
     result = component_elastic_load_balancer(definition, configuration, args, MagicMock(), False)

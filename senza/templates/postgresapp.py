@@ -188,7 +188,6 @@ def gather_user_variables(variables, region):
     variables['healthcheck_port'] = HEALTHCHECK_PORT
 
     sg_name = 'app-spilo'
-    variables['spilo_sg_id'] = get_security_group(region, sg_name).id
     rules_missing = check_security_group(sg_name,
                                          [('tcp', 22), ('tcp', POSTGRES_PORT), ('tcp', HEALTHCHECK_PORT)],
                                          region, allow_from_self=True)
@@ -206,6 +205,7 @@ def gather_user_variables(variables, region):
         error('Security group {} does not allow inbound TCP traffic on the default health check port ({})'.format(
             sg_name, HEALTHCHECK_PORT
         ))
+    variables['spilo_sg_id'] = get_security_group(region, sg_name).id
 
     check_s3_bucket(variables['wal_s3_bucket'], region)
 

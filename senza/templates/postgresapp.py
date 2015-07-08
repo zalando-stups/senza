@@ -176,7 +176,7 @@ def gather_user_variables(variables, region):
     prompt(variables, 'discovery_domain', 'ETCD Discovery Domain',
            default='postgres.'+variables['hosted_zone'][:-1])
     if variables['instance_type'].lower().split('.')[0] in ('c3', 'g2', 'hi1', 'i2', 'm3', 'r3'):
-        variables['use_ebs'] = click.confirm('Do you want database data directory on external (EBS) storage? (default=Yes)',
+        variables['use_ebs'] = click.confirm('Do you want database data directory on external (EBS) storage? [Yes]',
                                              default=True)
     else:
         variables['use_ebs'] = True
@@ -185,8 +185,8 @@ def gather_user_variables(variables, region):
         prompt(variables, 'volume_type', 'Database volume type (gp2, io1 or standard)', default='gp2')
         if variables['volume_type'] == 'io1':
             pio_max = variables['volume_size'] * 30
-            prompt(variables, "volume_iops", 'Provisioned I/O operations per second (100 - {0})'.format(pio_max),
-                   default=str(pio_max))
+            prompt(variables, "volume_iops", 'Provisioned I/O operations per second (100 - {0})'.
+                   format(pio_max), default=str(pio_max))
         prompt(variables, "snapshot_id", "ID of the snapshot to populate EBS volume from", default="")
         if ebs_optimized_supported(variables['instance_type']):
             variables['ebs_optimized'] = True
@@ -205,8 +205,8 @@ def gather_user_variables(variables, region):
                                          region, allow_from_self=True)
 
     if ('tcp', 22) in rules_missing:
-        warning('Security group {} does not allow SSH access, you will not be able to ssh into your servers'.format(
-            sg_name))
+        warning('Security group {} does not allow SSH access, you will not be able to ssh into your servers'.
+                format(sg_name))
 
     if ('tcp', POSTGRES_PORT) in rules_missing:
         error('Security group {} does not allow inbound TCP traffic on the default postgres port ({})'.format(
@@ -214,9 +214,8 @@ def gather_user_variables(variables, region):
         ))
 
     if ('tcp', HEALTHCHECK_PORT) in rules_missing:
-        error('Security group {} does not allow inbound TCP traffic on the default health check port ({})'.format(
-            sg_name, HEALTHCHECK_PORT
-        ))
+        error('Security group {} does not allow inbound TCP traffic on the default health check port ({})'.
+              format(sg_name, HEALTHCHECK_PORT))
     variables['spilo_sg_id'] = get_security_group(region, sg_name).id
 
     check_s3_bucket(variables['wal_s3_bucket'], region)

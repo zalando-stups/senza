@@ -2,6 +2,7 @@
 HA Postgres app, which needs an S3 bucket to store WAL files
 '''
 
+import click
 from clickclick import warning, error
 from senza.aws import get_security_group
 from senza.components.weighted_dns_elastic_load_balancer import get_default_zone
@@ -40,6 +41,7 @@ SenzaComponents:
       {{/ebs_optimized}}
       BlockDeviceMappings:
         - DeviceName: /dev/xvdk
+          {{#use_ebs}}
           Ebs:
             VolumeSize: {{volume_size}}
             VolumeType: {{volume_type}}
@@ -49,6 +51,10 @@ SenzaComponents:
             {{#volume_iops}}
             Iops: {{volume_iops}}
             {{/volume_iops}}
+          {{/use_ebs}}
+          {{^use_ebs}}
+          VirtualName: ephemeral0
+          {{/use_ebs}}
       ElasticLoadBalancer: PostgresLoadBalancer
       HealthCheckType: EC2
       LoadBalancerNames:
@@ -164,20 +170,26 @@ def ebs_optimized_supported(instance_type):
 def gather_user_variables(variables, region):
     prompt(variables, 'wal_s3_bucket', 'Postgres WAL S3 bucket to use', default='zalando-spilo-app')
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
-    if ebs_optimized_supported(variables['instance_type']):
-        variables['ebs_optimized'] = True
     prompt(variables, 'hosted_zone', 'Hosted Zone', default=get_default_zone(region) or 'example.com')
     if (variables['hosted_zone'][-1:] != '.'):
         variables['hosted_zone'] += '.'
     prompt(variables, 'discovery_domain', 'ETCD Discovery Domain',
            default='postgres.'+variables['hosted_zone'][:-1])
-    prompt(variables, 'volume_size', 'Database volume size (GB, 10 or more)', default=10)
-    prompt(variables, 'volume_type', 'Database volume type (gp2, io1 or standard)', default='gp2')
-    if variables['volume_type'] == 'io1':
-        pio_max = variables['volume_size'] * 30
-        prompt(variables, "volume_iops", 'Provisioned I/O operations per second (100 - {0})'.format(pio_max),
-               default=str(int(pio_max/2)))
-    prompt(variables, "snapshot_id", "ID of the snapshot to populate EBS volume from", default="")
+    if variables['instance_type'].lower().split('.')[0] in ('c3', 'g2', 'hi1', 'i2', 'm3', 'r3'):
+        variables['use_ebs'] = click.confirm('Do you want database data directory on external (EBS) storage? (default=Yes)',
+                                             default=True)
+    else:
+        variables['use_ebs'] = True
+    if variables['use_ebs']:
+        prompt(variables, 'volume_size', 'Database volume size (GB, 10 or more)', default=10)
+        prompt(variables, 'volume_type', 'Database volume type (gp2, io1 or standard)', default='gp2')
+        if variables['volume_type'] == 'io1':
+            pio_max = variables['volume_size'] * 30
+            prompt(variables, "volume_iops", 'Provisioned I/O operations per second (100 - {0})'.format(pio_max),
+                   default=str(int(pio_max/2)))
+        prompt(variables, "snapshot_id", "ID of the snapshot to populate EBS volume from", default="")
+        if ebs_optimized_supported(variables['instance_type']):
+            variables['ebs_optimized'] = True
     prompt(variables, "fstype", "Filesystem for the data partition", default="ext4")
     prompt(variables, "fsoptions", "Filesystem mount options (comma-separated)",
            default="noatime,nodiratime,nobarrier")

@@ -186,7 +186,7 @@ def gather_user_variables(variables, region):
         if variables['volume_type'] == 'io1':
             pio_max = variables['volume_size'] * 30
             prompt(variables, "volume_iops", 'Provisioned I/O operations per second (100 - {0})'.format(pio_max),
-                   default=str(int(pio_max/2)))
+                   default=str(pio_max))
         prompt(variables, "snapshot_id", "ID of the snapshot to populate EBS volume from", default="")
         if ebs_optimized_supported(variables['instance_type']):
             variables['ebs_optimized'] = True

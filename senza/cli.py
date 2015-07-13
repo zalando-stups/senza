@@ -136,7 +136,7 @@ json_output_option = click.option('-o', '--output', type=click.Choice(['json', '
                                   help='Use alternative output format')
 watch_option = click.option('-w', is_flag=True, help='Auto update the screen every 2 seconds')
 watchrefresh_option = click.option('--watch', type=click.IntRange(1, 300), metavar='SECS',
-                            help='Auto update the screen every X seconds')
+                                   help='Auto update the screen every X seconds')
 
 
 def watching(w: bool, watch: int):

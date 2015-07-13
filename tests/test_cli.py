@@ -1,6 +1,5 @@
 import datetime
 import os
-import sys
 from click.testing import CliRunner
 import collections
 from unittest.mock import MagicMock, Mock
@@ -43,7 +42,8 @@ def test_missing_credentials(capsys):
 
 
 def test_expired_credentials(capsys):
-    func = MagicMock(side_effect=boto.exception.BotoServerError(403, 'X', {'message': '**Security Token included in the Request is expired**'}))
+    func = MagicMock(side_effect=boto.exception.BotoServerError(403, 'X',
+                     {'message': '**Security Token included in the Request is expired**'}))
 
     try:
         handle_exceptions(func)()
@@ -57,6 +57,7 @@ def test_expired_credentials(capsys):
 
 def test_print_basic(monkeypatch):
     monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock())
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
 
     data = {'SenzaInfo': {'StackName': 'test'}, 'SenzaComponents': [{'Configuration': {'Type': 'Senza::Configuration',
                                                                                        'ServerSubnets': {
@@ -88,10 +89,10 @@ def test_print_replace_mustache(monkeypatch):
     sg.id = 'sg-007'
 
     monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock())
-    monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: MagicMock(get_all_images=lambda filters: images,
-                                                                          get_all_security_groups=lambda: [sg]))
+    monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: MagicMock(get_all_security_groups=lambda: [sg]))
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
     data = {'SenzaInfo': {'StackName': 'test',
-                          'Parameters': [{'ApplicationId': { 'Description': 'Application ID from kio'}}]},
+                          'Parameters': [{'ApplicationId': {'Description': 'Application ID from kio'}}]},
             'SenzaComponents': [{'Configuration': {'ServerSubnets': {'eu-west-1': ['subnet-123']},
                                                    'Type': 'Senza::Configuration'}},
                                 {'AppServer': {'Image': 'AppImage',
@@ -102,7 +103,6 @@ def test_print_replace_mustache(monkeypatch):
                                                                  'source': 'foo/bar'},
                                                'Type': 'Senza::TaupageAutoScalingGroup'}}]
             }
-
 
     runner = CliRunner()
 
@@ -185,6 +185,7 @@ def test_dump(monkeypatch):
     cf.list_stacks.return_value = [stack]
     cf.get_template.return_value = {'GetTemplateResponse': {'GetTemplateResult': {'TemplateBody': '{"foo": "bar"}'}}}
     monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: cf)
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
 
     runner = CliRunner()
 
@@ -205,6 +206,7 @@ def test_init(monkeypatch):
     monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock())
     monkeypatch.setattr('boto.vpc.connect_to_region', lambda x: MagicMock())
     monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
 
     runner = CliRunner()
 
@@ -218,7 +220,8 @@ def test_init(monkeypatch):
 
     assert 'Generating Senza definition file myapp.yaml.. OK' in result.output
     assert generated_definition['SenzaInfo']['StackName'] == 'sdf'
-    assert generated_definition['SenzaComponents'][1]['AppServer']['TaupageConfig']['application_version'] == '{{Arguments.ImageVersion}}'
+    assert (generated_definition['SenzaComponents'][1]['AppServer']['TaupageConfig']['application_version']
+            == '{{Arguments.ImageVersion}}')
 
 
 def test_instances(monkeypatch):
@@ -227,7 +230,9 @@ def test_instances(monkeypatch):
     monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: MagicMock(get_only_instances=lambda filters: [inst]))
     monkeypatch.setattr('boto.cloudformation.connect_to_region',
                         lambda x: MagicMock(list_stacks=lambda stack_status_filters: [stack]))
-    monkeypatch.setattr('boto.ec2.elb.connect_to_region', lambda x: MagicMock(describe_instance_health=lambda stack: []))
+    monkeypatch.setattr('boto.ec2.elb.connect_to_region',
+                        lambda x: MagicMock(describe_instance_health=lambda stack: []))
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
 
     runner = CliRunner()
 
@@ -252,6 +257,7 @@ def test_console(monkeypatch):
     monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: ec2)
     monkeypatch.setattr('boto.cloudformation.connect_to_region',
                         lambda x: MagicMock(list_stacks=lambda stack_status_filters: [stack]))
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
 
     runner = CliRunner()
 
@@ -284,7 +290,9 @@ def test_status(monkeypatch):
     monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: MagicMock(get_only_instances=lambda filters: [inst]))
     monkeypatch.setattr('boto.cloudformation.connect_to_region',
                         lambda x: MagicMock(list_stacks=lambda stack_status_filters: [stack]))
-    monkeypatch.setattr('boto.ec2.elb.connect_to_region', lambda x: MagicMock(describe_instance_health=lambda stack: []))
+    monkeypatch.setattr('boto.ec2.elb.connect_to_region',
+                        lambda x: MagicMock(describe_instance_health=lambda stack: []))
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
 
     runner = CliRunner()
 
@@ -305,6 +313,7 @@ def test_resources(monkeypatch):
     monkeypatch.setattr('boto.cloudformation.connect_to_region',
                         lambda x: MagicMock(describe_stack_resources=lambda x: [res],
                                             list_stacks=lambda stack_status_filters: [stack]))
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
 
     runner = CliRunner()
 
@@ -330,6 +339,7 @@ def test_domains(monkeypatch):
                         lambda x: MagicMock(describe_stack_resources=lambda x: [res],
                                             list_stacks=lambda stack_status_filters: [stack]))
     monkeypatch.setattr('boto.route53.connect_to_region', lambda x: route53)
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
 
     runner = CliRunner()
 
@@ -350,6 +360,7 @@ def test_events(monkeypatch):
     monkeypatch.setattr('boto.cloudformation.connect_to_region',
                         lambda x: MagicMock(describe_stack_events=lambda x: [evt],
                                             list_stacks=lambda stack_status_filters: [stack]))
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
 
     runner = CliRunner()
 
@@ -368,6 +379,7 @@ def test_list(monkeypatch):
     stack = MagicMock(stack_name='test-stack-1', creation_time=datetime.datetime.now())
     monkeypatch.setattr('boto.cloudformation.connect_to_region',
                         lambda x: MagicMock(list_stacks=lambda stack_status_filters: [stack]))
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
 
     runner = CliRunner()
 
@@ -403,6 +415,7 @@ def test_images(monkeypatch):
     ec2.get_only_instances.return_value = [instance]
     monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock())
     monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: ec2)
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
 
     runner = CliRunner()
 
@@ -419,6 +432,7 @@ def test_delete(monkeypatch):
     stack = MagicMock(stack_name='test-1')
     cf.list_stacks.return_value = [stack]
     monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: cf)
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
 
     runner = CliRunner()
 
@@ -448,13 +462,13 @@ def test_create(monkeypatch):
     sns.get_all_topics.return_value = {'ListTopicsResponse': {'ListTopicsResult': {'Topics': [topic]}}}
     monkeypatch.setattr('boto.cloudformation.connect_to_region', MagicMock(return_value=cf))
     monkeypatch.setattr('boto.sns.connect_to_region', MagicMock(return_value=sns))
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
 
     runner = CliRunner()
-
-    data = {'SenzaInfo': {
-        'OperatorTopicId': 'my-topic',
-        'StackName': 'test', 'Parameters': [{'MyParam': {'Type': 'String'}}]},
-            'SenzaComponents': [{'Config': {'Type': 'Senza::Configuration'}}]}
+    data = {'SenzaComponents': [{'Config': {'Type': 'Senza::Configuration'}}],
+            'SenzaInfo': {'OperatorTopicId': 'my-topic',
+                          'Parameters': [{'MyParam': {'Type': 'String'}}],
+                          'StackName': 'test'}}
 
     with runner.isolated_filesystem():
         with open('myapp.yaml', 'w') as fd:
@@ -489,6 +503,7 @@ def test_traffic(monkeypatch):
         StackVersion('myapp', 'v4', 'myapp.example.org', 'elb-4'),
     ]
     monkeypatch.setattr('senza.traffic.get_stack_versions', MagicMock(return_value=stacks))
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
 
     # start creating mocking of the route53 record sets and Application Versions
     # this is a lot of dirty and nasty code. Please, somebody help this code.

@@ -134,11 +134,14 @@ output_option = click.option('-o', '--output', type=click.Choice(['text', 'json'
                              help='Use alternative output format')
 json_output_option = click.option('-o', '--output', type=click.Choice(['json', 'yaml']), default='json',
                                   help='Use alternative output format')
-watch_option = click.option('-w', '--watch', type=click.IntRange(1, 300), metavar='SECS',
+watch_option = click.option('-w', is_flag=True, help='Auto update the screen every 2 seconds')
+watchrefresh_option = click.option('--watch', type=click.IntRange(1, 300), metavar='SECS',
                             help='Auto update the screen every X seconds')
 
 
-def watching(watch: int):
+def watching(w: bool, watch: int):
+    if w and not watch:
+        watch = 2
     if watch:
         click.clear()
     yield 0
@@ -147,7 +150,6 @@ def watching(watch: int):
             time.sleep(watch)
             click.clear()
             yield 0
-
 
 # from AWS docs:
 # Stack name must contain only alphanumeric characters (case sensitive)
@@ -326,15 +328,17 @@ def get_stack_refs(refs: list):
 @region_option
 @output_option
 @watch_option
+@watchrefresh_option
 @click.option('--all', is_flag=True, help='Show all stacks, including deleted ones')
 @click.argument('stack_ref', nargs=-1)
-def list_stacks(region, stack_ref, all, output, watch):
+def list_stacks(region, stack_ref, all, output, w, watch):
     '''List Cloud Formation stacks'''
     region = get_region(region)
+    check_credentials(region)
 
     stack_refs = get_stack_refs(stack_ref)
 
-    for _ in watching(watch):
+    for _ in watching(w, watch):
         rows = []
         for stack in get_stacks(stack_refs, region, all=all):
             rows.append({'stack_name': stack.name,
@@ -364,6 +368,7 @@ def create(definition, region, version, parameter, disable_rollback, dry_run, fo
     input = definition
 
     region = get_region(region)
+    check_credentials(region)
     args = parse_args(input, region, version, parameter)
 
     with Action('Generating Cloud Formation template..'):
@@ -420,6 +425,7 @@ def print_cfjson(definition, region, version, parameter, output, force):
     '''Print the generated Cloud Formation template'''
     input = definition
     region = get_region(region)
+    check_credentials(region)
     args = parse_args(input, region, version, parameter)
     data = evaluate(input.copy(), args, force)
     cfjson = json.dumps(data, sort_keys=True, indent=4)
@@ -435,6 +441,7 @@ def delete(stack_ref, region, dry_run, force):
     '''Delete a single Cloud Formation stack'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
+    check_credentials(region)
     cf = boto.cloudformation.connect_to_region(region)
 
     if not stack_refs:
@@ -463,14 +470,16 @@ def format_resource_type(resource_type):
 @click.argument('stack_ref', nargs=-1)
 @region_option
 @watch_option
+@watchrefresh_option
 @output_option
-def resources(stack_ref, region, watch, output):
+def resources(stack_ref, region, w, watch, output):
     '''Show all resources of a single Cloud Formation stack'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
+    check_credentials(region)
     cf = boto.cloudformation.connect_to_region(region)
 
-    for _ in watching(watch):
+    for _ in watching(w, watch):
         rows = []
         for stack in get_stacks(stack_refs, region):
             resources = cf.describe_stack_resources(stack.stack_name)
@@ -494,14 +503,16 @@ def resources(stack_ref, region, watch, output):
 @click.argument('stack_ref', nargs=-1)
 @region_option
 @watch_option
+@watchrefresh_option
 @output_option
-def events(stack_ref, region, watch, output):
+def events(stack_ref, region, w, watch, output):
     '''Show all Cloud Formation events for a single stack'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
+    check_credentials(region)
     cf = boto.cloudformation.connect_to_region(region)
 
-    for _ in watching(watch):
+    for _ in watching(w, watch):
         rows = []
         for stack in get_stacks(stack_refs, region):
             events = cf.describe_stack_events(stack.stack_name)
@@ -577,10 +588,12 @@ def get_instance_health(elb, stack_name: str) -> dict:
 @region_option
 @output_option
 @watch_option
-def instances(stack_ref, all, region, output, watch):
+@watchrefresh_option
+def instances(stack_ref, all, region, output, w, watch):
     '''List the stack's EC2 instances'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
+    check_credentials(region)
 
     conn = boto.ec2.connect_to_region(region)
     elb = boto.ec2.elb.connect_to_region(region)
@@ -591,7 +604,7 @@ def instances(stack_ref, all, region, output, watch):
         # filter out instances not part of any stack
         filters = {'tag-key': 'aws:cloudformation:stack-name'}
 
-    for _ in watching(watch):
+    for _ in watching(w, watch):
         rows = []
 
         for instance in conn.get_only_instances(filters=filters):
@@ -623,16 +636,18 @@ def instances(stack_ref, all, region, output, watch):
 @region_option
 @output_option
 @watch_option
-def status(stack_ref, region, output, watch):
+@watchrefresh_option
+def status(stack_ref, region, output, w, watch):
     '''Show stack status information'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
+    check_credentials(region)
 
     conn = boto.ec2.connect_to_region(region)
     elb = boto.ec2.elb.connect_to_region(region)
     cf = boto.cloudformation.connect_to_region(region)
 
-    for _ in watching(watch):
+    for _ in watching(w, watch):
         rows = []
         for stack in sorted(get_stacks(stack_refs, region)):
             instance_health = get_instance_health(elb, stack.stack_name)
@@ -683,17 +698,19 @@ def status(stack_ref, region, output, watch):
 @region_option
 @output_option
 @watch_option
-def domains(stack_ref, region, output, watch):
+@watchrefresh_option
+def domains(stack_ref, region, output, w, watch):
     '''List the stack's Route53 domains'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
+    check_credentials(region)
 
     cf = boto.cloudformation.connect_to_region(region)
     route53 = boto.route53.connect_to_region(region)
 
     records_by_name = {}
 
-    for _ in watching(watch):
+    for _ in watching(w, watch):
         rows = []
         for stack in get_stacks(stack_refs, region):
             if stack.stack_status == 'ROLLBACK_COMPLETE':
@@ -734,6 +751,7 @@ def traffic(stack_name, stack_version, percentage, region, output):
     '''Route traffic to a specific stack (weighted DNS record)'''
     stack_refs = get_stack_refs([stack_name, stack_version])
     region = get_region(region)
+    check_credentials(region)
 
     with OutputFormat(output):
         for ref in stack_refs:
@@ -754,6 +772,7 @@ def images(stack_ref, region, output, hide_older_than, show_instances):
     '''Show all used AMIs and available Taupage AMIs'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
+    check_credentials(region)
 
     conn = boto.ec2.connect_to_region(region)
 
@@ -858,7 +877,8 @@ def print_console(line: str):
               type=int, default=25, metavar='N')
 @region_option
 @watch_option
-def console(instance_or_stack_ref, limit, region, watch):
+@watchrefresh_option
+def console(instance_or_stack_ref, limit, region, w, watch):
     '''Print EC2 instance console output.
 
     INSTANCE_OR_STACK_REF can be an instance ID, private IP address or stack name/version.'''
@@ -875,10 +895,11 @@ def console(instance_or_stack_ref, limit, region, watch):
         filters = {'tag-key': 'aws:cloudformation:stack-name'}
 
     region = get_region(region)
+    check_credentials(region)
 
     conn = boto.ec2.connect_to_region(region)
 
-    for _ in watching(watch):
+    for _ in watching(w, watch):
 
         for instance in conn.get_only_instances(filters=filters):
             cf_stack_name = instance.tags.get('aws:cloudformation:stack-name')
@@ -899,6 +920,7 @@ def dump(stack_ref, region, output):
     '''Dump Cloud Formation template of existing stack'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
+    check_credentials(region)
 
     conn = boto.cloudformation.connect_to_region(region)
 

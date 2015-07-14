@@ -488,6 +488,10 @@ def test_create(monkeypatch):
                                catch_exceptions=True)
         assert 'Stack test-1 already exists' in result.output
 
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=myregion', 'abcde'*25, 'my-param-value'],
+                               catch_exceptions=True)
+        assert 'cannot exceed 128 characters.  Please choose another name/version.' in result.output
+
 
 def test_traffic(monkeypatch):
     r53conn = Mock(name='r53conn')

@@ -376,6 +376,9 @@ def create(definition, region, version, parameter, disable_rollback, dry_run, fo
         cfjson = json.dumps(data, sort_keys=True, indent=4)
 
     stack_name = "{0}-{1}".format(input["SenzaInfo"]["StackName"], version)
+    if len(stack_name) > 128:
+        raise click.UsageError('Stack name "{}" cannot exceed 128 characters. '.format(stack_name) +
+                               ' Please choose another name/version.')
 
     parameters = []
     for name, parameter in data.get("Parameters", {}).items():

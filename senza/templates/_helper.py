@@ -1,8 +1,10 @@
 import boto.ec2
 import boto.vpc
 import boto.s3
+import boto3
 import click
 import json
+import re
 from clickclick import Action
 from senza.aws import get_security_group
 
@@ -16,6 +18,18 @@ def prompt(variables: dict, var_name, *args, **kwargs):
             kwargs['default'] = kwargs['default']()
 
         variables[var_name] = click.prompt(*args, **kwargs)
+
+
+def check_value(max_length: int, match_regex: str):
+    def _value_checker(value: str):
+        if len(value) <= max_length:
+            if re.match(match_regex, value):
+                return value
+            else:
+                raise click.UsageError('did not match regex {}.'.format(match_regex))
+        else:
+            raise click.UsageError('Value is to long! {} chars'.format(len(value)))
+    return _value_checker
 
 
 def check_security_group(sg_name, rules, region, allow_from_self=False):
@@ -74,9 +88,19 @@ def get_account_alias(region):
 def get_mint_bucket_name(region: str):
     account_id = get_account_id(region)
     account_alias = get_account_alias(region)
+    s3 = boto3.resource('s3')
     parts = account_alias.split('-')
     prefix = parts[0]
     bucket_name = '{}-stups-mint-{}-{}'.format(prefix, account_id, region)
+    bucket = s3.Bucket(bucket_name)
+    try:
+        bucket.load()
+        return bucket.name
+    except:
+        bucket = None
+    for bucket in s3.buckets.all():
+        if bucket.name.startswith('{}-stups-mint-{}-'.format(prefix, account_id)):
+            return bucket.name
     return bucket_name
 
 

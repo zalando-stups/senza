@@ -5,7 +5,7 @@ HTTP app with auto scaling, ELB and DNS
 from clickclick import warning, error
 import pystache
 
-from ._helper import prompt, check_security_group, check_iam_role, get_mint_bucket_name
+from ._helper import prompt, check_security_group, check_iam_role, get_mint_bucket_name, check_value
 
 
 TEMPLATE = '''
@@ -53,7 +53,9 @@ SenzaComponents:
 
 
 def gather_user_variables(variables, region):
-    prompt(variables, 'application_id', 'Application ID', default='hello-world')
+    # maximal 32 characters because of the loadbalancer-name
+    prompt(variables, 'application_id', 'Application ID', default='hello-world',
+           value_proc=check_value(32, '^[a-zA-Z][-a-zA-Z0-9]*$'))
     prompt(variables, 'docker_image', 'Docker image without tag/version (e.g. "pierone.example.org/myteam/myapp")',
            default='stups/hello-world')
     prompt(variables, 'http_port', 'HTTP port', default=8080, type=int)

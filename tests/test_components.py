@@ -39,7 +39,7 @@ def test_component_load_balancer_healthcheck(monkeypatch):
         "HTTPPort": "9999",
         "HealthCheckPath": "/healthcheck"
     }
-
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
     definition = {"Resources": {}}
 
     args = MagicMock()
@@ -50,29 +50,58 @@ def test_component_load_balancer_healthcheck(monkeypatch):
     monkeypatch.setattr('senza.components.elastic_load_balancer.find_ssl_certificate_arn', mock_string_result)
     monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
 
-    result = component_elastic_load_balancer(definition, configuration, args, MagicMock(), False)
+    result = component_elastic_load_balancer(definition, configuration, args, info, False)
     # Defaults to HTTP
     assert "HTTP:9999/healthcheck" == result["Resources"]["test_lb"]["Properties"]["HealthCheck"]["Target"]
 
     # Support own health check port
     configuration["HealthCheckPort"] = "1234"
-    result = component_elastic_load_balancer(definition, configuration, args, MagicMock(), False)
+    result = component_elastic_load_balancer(definition, configuration, args, info, False)
     assert "HTTP:1234/healthcheck" == result["Resources"]["test_lb"]["Properties"]["HealthCheck"]["Target"]
     del(configuration["HealthCheckPort"])
 
-
     # Supports other AWS protocols
     configuration["HealthCheckProtocol"] = "TCP"
-    result = component_elastic_load_balancer(definition, configuration, args, MagicMock(), False)
+    result = component_elastic_load_balancer(definition, configuration, args, info, False)
     assert "TCP:9999/healthcheck" == result["Resources"]["test_lb"]["Properties"]["HealthCheck"]["Target"]
 
     # Will fail on incorrect protocol
     configuration["HealthCheckProtocol"] = "MYFANCYPROTOCOL"
     try:
-        component_elastic_load_balancer(definition, configuration, args, MagicMock(), False)
+        component_elastic_load_balancer(definition, configuration, args, info, False)
     except click.UsageError:
         pass
     except:
+        assert False, "check for supported protocols returns unknown Exception"
+    else:
+        assert False, "check for supported protocols failed"
+
+
+def test_component_load_balancer_namelength(monkeypatch):
+    configuration = {
+        "Name": "test_lb",
+        "SecurityGroups": "",
+        "HTTPPort": "9999",
+        "HealthCheckPath": "/healthcheck"
+    }
+    info = {'StackName': 'foobar'*5, 'StackVersion': '0.1'}
+    definition = {"Resources": {}}
+
+    args = MagicMock()
+    args.region = "foo"
+
+    mock_string_result = MagicMock()
+    mock_string_result.return_value = "foo"
+    monkeypatch.setattr('senza.components.elastic_load_balancer.find_ssl_certificate_arn', mock_string_result)
+    monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    try:
+        component_elastic_load_balancer(definition, configuration, args, info, False)
+    except click.UsageError:
+        pass
+    except:
+        assert False, "check for supported protocols returns unknown Exception"
+    else:
         assert False, "check for supported protocols failed"
 
 
@@ -109,6 +138,3 @@ def test_component_stups_auto_configuration(monkeypatch):
 
     assert {'myregion': {'Subnets': ['sn-1']}} == result['Mappings']['LoadBalancerSubnets']
     assert {'myregion': {'Subnets': ['sn-3']}} == result['Mappings']['ServerSubnets']
-
-
-

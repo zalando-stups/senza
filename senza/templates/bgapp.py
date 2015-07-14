@@ -4,7 +4,7 @@ Background app with single EC2 instance
 
 from clickclick import warning
 import pystache
-from ._helper import prompt, check_security_group, check_iam_role, get_mint_bucket_name
+from ._helper import prompt, check_security_group, check_iam_role, get_mint_bucket_name, check_value
 
 TEMPLATE = '''
 # basic information for generating and executing this definition
@@ -39,7 +39,8 @@ SenzaComponents:
 
 
 def gather_user_variables(variables, region):
-    prompt(variables, 'application_id', 'Application ID', default='hello-world')
+    prompt(variables, 'application_id', 'Application ID', default='hello-world',
+           value_proc=check_value(60, '^[a-zA-Z][-a-zA-Z0-9]*$'))
     prompt(variables, 'docker_image', 'Docker image without tag/version (e.g. "pierone.example.org/myteam/myapp")',
            default='stups/hello-world')
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')

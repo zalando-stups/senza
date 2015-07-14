@@ -63,6 +63,10 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
         health_check_port = configuration["HealthCheckPort"]
 
     health_check_target = "{0}:{1}{2}".format(health_check_protocol, health_check_port, health_check_path)
+    loadbalancer_name = "{0}-{1}".format(info["StackName"], info["StackVersion"])
+    if (len(loadbalancer_name) > 32):
+        raise click.UsageError('Loadbalancer name "{}" cannot exceed 32 characters. '.format(loadbalancer_name) +
+                               ' Please choose another name/version.')
 
     # load balancer
     definition["Resources"][lb_name] = {
@@ -87,7 +91,7 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
                 }
             ],
             "CrossZone": "true",
-            "LoadBalancerName": "{0}-{1}".format(info["StackName"], info["StackVersion"]),
+            "LoadBalancerName": loadbalancer_name,
             "SecurityGroups": resolve_security_groups(configuration["SecurityGroups"], args.region),
             "Tags": [
                 # Tag "Name"

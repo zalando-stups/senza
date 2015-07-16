@@ -4,7 +4,7 @@ Background app with single EC2 instance
 
 from clickclick import warning
 import pystache
-from ._helper import prompt, check_security_group, check_iam_role, get_mint_bucket_name, check_value
+from ._helper import prompt, confirm, check_security_group, check_iam_role, get_mint_bucket_name, check_value
 
 TEMPLATE = '''
 # basic information for generating and executing this definition
@@ -34,7 +34,9 @@ SenzaComponents:
         application_version: "{{=<% %>=}}{{Arguments.ImageVersion}}<%={{ }}=%>"
         runtime: Docker
         source: "{{ docker_image }}:{{=<% %>=}}{{Arguments.ImageVersion}}<%={{ }}=%>"
+        {{#mint_bucket}}
         mint_bucket: "{{ mint_bucket }}"
+        {{/mint_bucket}}
 '''
 
 
@@ -44,7 +46,10 @@ def gather_user_variables(variables, region):
     prompt(variables, 'docker_image', 'Docker image without tag/version (e.g. "pierone.example.org/myteam/myapp")',
            default='stups/hello-world')
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
-    prompt(variables, 'mint_bucket', 'Mint S3 bucket name', default=lambda: get_mint_bucket_name(region))
+    if 'pierone' in variables['docker_image'] or confirm('Did you need OAuth-Credentials from Mint?'):
+        prompt(variables, 'mint_bucket', 'Mint S3 bucket name', default=lambda: get_mint_bucket_name(region))
+    else:
+        variables['mint_bucket'] = None
 
     sg_name = 'app-{}'.format(variables['application_id'])
     rules_missing = check_security_group(sg_name, [('tcp', 22)], region, allow_from_self=True)

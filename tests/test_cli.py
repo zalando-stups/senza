@@ -224,6 +224,29 @@ def test_init(monkeypatch):
             == '{{Arguments.ImageVersion}}')
 
 
+def test_init_opt3(monkeypatch):
+    monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: MagicMock())
+    monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock())
+    monkeypatch.setattr('boto.vpc.connect_to_region', lambda x: MagicMock())
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
+
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli, ['init', 'myapp.yaml', '--region=myregion', '-v', 'test=123',
+                                     '-v', 'mint_bucket=mybucket'],
+                               catch_exceptions=False, input='3\nsdf\nsdf\n8080\n/\n')
+        assert os.path.exists('myapp.yaml')
+        with open('myapp.yaml') as fd:
+            generated_definition = yaml.safe_load(fd)
+
+    assert 'Generating Senza definition file myapp.yaml.. OK' in result.output
+    assert generated_definition['SenzaInfo']['StackName'] == 'sdf'
+    assert (generated_definition['SenzaComponents'][1]['AppServer']['TaupageConfig']['application_version']
+            == '{{Arguments.ImageVersion}}')
+
+
 def test_instances(monkeypatch):
     stack = MagicMock(stack_name='test-1')
     inst = MagicMock()

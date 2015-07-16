@@ -20,6 +20,10 @@ def prompt(variables: dict, var_name, *args, **kwargs):
         variables[var_name] = click.prompt(*args, **kwargs)
 
 
+def confirm(*args, **kwargs):
+    return click.confirm(*args, **kwargs)
+
+
 def check_value(max_length: int, match_regex: str):
     def _value_checker(value: str):
         if len(value) <= max_length:
@@ -137,8 +141,9 @@ def check_iam_role(application_id: str, bucket_name: str, region: str):
         with Action('Creating IAM role {}..'.format(role_name)):
             iam.create_role(role_name)
 
-    update_policy = not exists or \
-        click.confirm('IAM role {} already exists. Do you want Senza to overwrite the role policy?'.format(role_name))
+    update_policy = bucket_name is not None and (not exists or
+                                                 click.confirm('IAM role {} already exists. '.format(role_name) +
+                                                               'Do you want Senza to overwrite the role policy?'))
     if update_policy:
         with Action('Updating IAM role policy of {}..'.format(role_name)):
             policy = get_iam_role_policy(application_id, bucket_name, region)

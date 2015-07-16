@@ -5,7 +5,7 @@ HTTP app with auto scaling, ELB and DNS
 from clickclick import warning, error
 import pystache
 
-from ._helper import prompt, check_security_group, check_iam_role, get_mint_bucket_name, check_value
+from ._helper import prompt, confirm, check_security_group, check_iam_role, get_mint_bucket_name, check_value
 
 
 TEMPLATE = '''
@@ -40,7 +40,9 @@ SenzaComponents:
         health_check_path: {{http_health_check_path}}
         ports:
           {{http_port}}: {{http_port}}
+        {{#mint_bucket}}
         mint_bucket: "{{ mint_bucket }}"
+        {{/mint_bucket}}
 
   # creates an ELB entry and Route53 domains to this ELB
   - AppLoadBalancer:
@@ -61,7 +63,10 @@ def gather_user_variables(variables, region):
     prompt(variables, 'http_port', 'HTTP port', default=8080, type=int)
     prompt(variables, 'http_health_check_path', 'HTTP health check path', default='/')
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
-    prompt(variables, 'mint_bucket', 'Mint S3 bucket name', default=lambda: get_mint_bucket_name(region))
+    if 'pierone' in variables['docker_image'] or confirm('Did you need OAuth-Credentials from Mint?'):
+        prompt(variables, 'mint_bucket', 'Mint S3 bucket name', default=lambda: get_mint_bucket_name(region))
+    else:
+        variables['mint_bucket'] = None
 
     http_port = variables['http_port']
 

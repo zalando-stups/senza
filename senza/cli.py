@@ -588,11 +588,12 @@ def get_instance_health(elb, stack_name: str) -> dict:
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
 @click.option('--all', is_flag=True, help='Show all instances, including instances not part of any stack')
+@click.option('--terminated', is_flag=True, help='Show instances in TERMINATED state')
 @region_option
 @output_option
 @watch_option
 @watchrefresh_option
-def instances(stack_ref, all, region, output, w, watch):
+def instances(stack_ref, all, terminated, region, output, w, watch):
     '''List the stack's EC2 instances'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
@@ -616,16 +617,16 @@ def instances(stack_ref, all, region, output, w, watch):
             stack_version = instance.tags.get('StackVersion')
             if not stack_refs or matches_any(cf_stack_name, stack_refs):
                 instance_health = get_instance_health(elb, cf_stack_name)
-
-                rows.append({'stack_name': stack_name or '',
-                             'version': stack_version or '',
-                             'resource_id': instance.tags.get('aws:cloudformation:logical-id'),
-                             'instance_id': instance.id,
-                             'public_ip': instance.ip_address,
-                             'private_ip': instance.private_ip_address,
-                             'state': instance.state.upper().replace('-', '_'),
-                             'lb_status': instance_health.get(instance.id),
-                             'launch_time': parse_time(instance.launch_time)})
+                if instance.state.upper() != 'TERMINATED' or terminated:
+                    rows.append({'stack_name': stack_name or '',
+                                 'version': stack_version or '',
+                                 'resource_id': instance.tags.get('aws:cloudformation:logical-id'),
+                                 'instance_id': instance.id,
+                                 'public_ip': instance.ip_address,
+                                 'private_ip': instance.private_ip_address,
+                                 'state': instance.state.upper().replace('-', '_'),
+                                 'lb_status': instance_health.get(instance.id),
+                                 'launch_time': parse_time(instance.launch_time)})
 
         rows.sort(key=lambda r: (r['stack_name'], r['version'], r['instance_id']))
 

@@ -19,9 +19,10 @@ def get_component(componenttype: str):
     return getattr(module, function_name)
 
 
-def evaluate_template(template, info, components, args):
+def evaluate_template(template, info, components, args, account_info):
     data = {"SenzaInfo": info,
             "SenzaComponents": components,
-            "Arguments": args}
+            "Arguments": args,
+            "AccountInfo": account_info}
     result = pystache.render(template, data)
     return result

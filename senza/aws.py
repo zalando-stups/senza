@@ -5,6 +5,7 @@ import boto.cloudformation
 import boto.ec2
 import boto.iam
 import time
+import boto3
 
 
 def get_security_group(region: str, sg_name: str):
@@ -159,6 +160,37 @@ def matches_any(cf_stack_name: str, stack_refs: list):
         elif not ref.version and (cf_stack_name or '').rsplit('-', 1)[0] == ref.name:
             return True
     return False
+
+
+def get_account_id():
+    conn = boto3.client('iam')
+    try:
+        own_user = conn.get_user()['User']
+    except:
+        own_user = None
+    if not own_user:
+        roles = conn.list_roles()['Roles']
+        if not roles:
+            users = conn.list_users()['Users']
+            if not users:
+                saml = conn.list_saml_providers()['SAMLProviderList']
+                if not saml:
+                    return None
+                else:
+                    arn = [s['Arn'] for s in saml][0]
+            else:
+                arn = [u['Arn'] for u in users][0]
+        else:
+            arn = [r['Arn'] for r in roles][0]
+    else:
+        arn = own_user['Arn']
+    account_id = arn.split(':')[4]
+    return account_id
+
+
+def get_account_alias():
+    conn = boto3.client('iam')
+    return conn.list_account_aliases()['AccountAliases'][0]
 
 
 class StackReference(collections.namedtuple('StackReference', 'name version')):

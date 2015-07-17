@@ -118,6 +118,40 @@ def test_print_replace_mustache(monkeypatch):
     assert 'sg-007' in result.output
 
 
+def test_print_account_info(monkeypatch):
+    sg = MagicMock()
+    sg.name = 'app-master-mind'
+    sg.id = 'sg-007'
+
+    boto3 = MagicMock()
+    boto3.get_user.return_value = {'User': {'Arn': 'arn:aws:iam::0123456789:user/admin'}}
+    boto3.list_account_aliases.return_value = {'AccountAliases': ['org-dummy']}
+
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+    monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock())
+    monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: MagicMock(get_all_security_groups=lambda: [sg]))
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
+    data = {'SenzaComponents': [{'Configuration': {'ServerSubnets': {'eu-west-1': ['subnet-123']},
+                                                   'Type': 'Senza::Configuration'}},
+                                {'AppServer': {'Image': 'AppImage-{{AccountInfo.TeamID}}-{{AccountInfo.AccountID}}',
+                                               'InstanceType': 't2.micro',
+                                               'TaupageConfig': {'runtime': 'Docker',
+                                                                 'source': 'foo/bar'},
+                                               'Type': 'Senza::TaupageAutoScalingGroup'}}],
+            'SenzaInfo': {'StackName': 'test-{{AccountInfo.Region}}'}}
+
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', 'master-mind'],
+                               catch_exceptions=False)
+    assert 'test-myregion' in result.output
+    assert 'AppImage-dummy-0123456789' in result.output
+
+
 def test_print_auto(monkeypatch):
     images = [MagicMock(name='Taupage-AMI-123', id='ami-123')]
 

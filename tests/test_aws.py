@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock
 from senza.aws import resolve_topic_arn
 import boto.ec2
-from senza.aws import get_security_group, resolve_security_groups
+from senza.aws import get_security_group, resolve_security_groups, get_account_id, get_account_alias
 
 def test_resolve_security_groups(monkeypatch):
     ec2 = MagicMock()
@@ -28,3 +28,19 @@ def test_create(monkeypatch):
     monkeypatch.setattr('boto.sns.connect_to_region', MagicMock(return_value=sns))
 
     assert 'arn:123:mytopic' == resolve_topic_arn('myregion', 'mytopic')
+
+
+def test_get_account_id(monkeypatch):
+    boto3 = MagicMock()
+    boto3.get_user.return_value = {'User': {'Arn': 'arn:aws:iam::0123456789:user/admin'}}
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+
+    assert '0123456789' == get_account_id()
+
+
+def test_get_account_alias(monkeypatch):
+    boto3 = MagicMock()
+    boto3.list_account_aliases.return_value = {'AccountAliases': ['org-dummy']}
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+
+    assert 'org-dummy' == get_account_alias()

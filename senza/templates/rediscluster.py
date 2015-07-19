@@ -2,10 +2,10 @@
 Elasticache cluster running multiple redis nodes, with replication / HA
 '''
 
-from clickclick import warning, error
+from clickclick import warning
 import pystache
 
-from ._helper import prompt, confirm, check_security_group, check_value
+from ._helper import prompt, check_security_group, check_value
 
 
 TEMPLATE = '''
@@ -42,7 +42,7 @@ def gather_user_variables(variables, region):
 
     rules_missing = check_security_group(sg_name, [('tcp', 6379)], region, allow_from_self=True)
     if ('tcp', 6379) in rules_missing:
-        warning('Security group {} does not allow tcp/6379 access yet, you will not be able to access your redis'.format(
+        warning('Security group {} does not allow tcp/6379 access yet, you will not be able to access redis'.format(
             sg_name))
 
     return variables

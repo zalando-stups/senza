@@ -1,6 +1,4 @@
 
-import click
-
 from senza.aws import resolve_security_groups
 from senza.utils import ensure_keys
 
@@ -16,17 +14,17 @@ def component_redis_cluster(definition, configuration, args, info, force):
         "Properties": {
             "AutomaticFailoverEnabled": True,
             "CacheNodeType": configuration.get('CacheNodeType', 'cache.t2.small'),
-	        "CacheSubnetGroupName": {
+            "CacheSubnetGroupName": {
                 "Ref": "RedisSubnetGroup"
             },
             "Engine": "redis",
             "EngineVersion": configuration.get('EngineVersion', '2.8.19'),
             "NumCacheClusters": number_of_nodes,
             "CacheNodeType": configuration.get('CacheNodeType', 'cache.t2.small'),
-	        "SecurityGroupIds": resolve_security_groups(configuration["SecurityGroups"], args.region),
-            "ReplicationGroupDescription": "Redis replicated cache cluster",
+            "SecurityGroupIds": resolve_security_groups(configuration["SecurityGroups"], args.region),
+            "ReplicationGroupDescription": "Redis replicated cache cluster: " + name,
         }
-    }        
+    }
 
     definition["Resources"]["RedisSubnetGroup"] = {
         "Type": "AWS::ElastiCache::SubnetGroup",
@@ -37,4 +35,3 @@ def component_redis_cluster(definition, configuration, args, info, force):
     }
 
     return definition
-

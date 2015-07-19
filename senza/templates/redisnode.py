@@ -2,10 +2,10 @@
 Elasticache node running redis, without replication / HA (for caching)
 '''
 
-from clickclick import warning, error
+from clickclick import warning
 import pystache
 
-from ._helper import prompt, confirm, check_security_group, check_value
+from ._helper import prompt, check_security_group, check_value
 
 
 TEMPLATE = '''

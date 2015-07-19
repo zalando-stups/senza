@@ -1,6 +1,4 @@
 
-import click
-
 from senza.aws import resolve_security_groups
 from senza.utils import ensure_keys
 
@@ -19,8 +17,8 @@ def component_redis_node(definition, configuration, args, info, force):
             "CacheNodeType": configuration.get('CacheNodeType', 'cache.t2.small'),
             "CacheSubnetGroupName": {
                 "Ref": "RedisSubnetGroup"
-             },
-             "VpcSecurityGroupIds": resolve_security_groups(configuration["SecurityGroups"], args.region)
+            },
+            "VpcSecurityGroupIds": resolve_security_groups(configuration["SecurityGroups"], args.region)
         }
     }
 
@@ -33,4 +31,3 @@ def component_redis_node(definition, configuration, args, info, force):
     }
 
     return definition
-

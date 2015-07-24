@@ -8,7 +8,7 @@ from senza.aws import get_security_group
 from senza.components.weighted_dns_elastic_load_balancer import get_default_zone
 import pystache
 
-from ._helper import prompt, check_security_group, check_s3_bucket, get_mint_bucket_name
+from ._helper import prompt, check_security_group, check_s3_bucket
 
 POSTGRES_PORT = 5432
 HEALTHCHECK_PORT = 8008
@@ -82,7 +82,6 @@ SenzaComponents:
             filesystem: {{fstype}}
             erase_on_boot: true
             options: {{fsoptions}}
-        mint_bucket: {{mint_bucket}}
         {{#scalyr_account_key}}
         scalyr_account_key: {{scalyr_account_key}}
         {{/scalyr_account_key}}
@@ -143,11 +142,6 @@ Resources:
               - arn:aws:s3:::{{wal_s3_bucket}}/spilo/*
               - arn:aws:s3:::{{wal_s3_bucket}}
           - Effect: Allow
-            Action: s3:GetObject
-            Resource:
-              - arn:aws:s3:::{{mint_bucket}}/spilo/*
-              - arn:aws:s3:::{{mint_bucket}}
-          - Effect: Allow
             Action: ec2:CreateTags
             Resource: "*"
           - Effect: Allow
@@ -193,7 +187,6 @@ def gather_user_variables(variables, region):
     prompt(variables, "fstype", "Filesystem for the data partition", default="ext4")
     prompt(variables, "fsoptions", "Filesystem mount options (comma-separated)",
            default="noatime,nodiratime,nobarrier")
-    prompt(variables, 'mint_bucket', 'Mint S3 bucket name', default=lambda: get_mint_bucket_name(region))
     prompt(variables, "scalyr_account_key", "Account key for your scalyr account", "")
 
     variables['postgres_port'] = POSTGRES_PORT

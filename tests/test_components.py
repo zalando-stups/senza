@@ -95,14 +95,10 @@ def test_component_load_balancer_namelength(monkeypatch):
     monkeypatch.setattr('senza.components.elastic_load_balancer.find_ssl_certificate_arn', mock_string_result)
     monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
 
-    try:
-        component_elastic_load_balancer(definition, configuration, args, info, False)
-    except click.UsageError:
-        pass
-    except:
-        assert False, "check for supported protocols returns unknown Exception"
-    else:
-        assert False, "check for supported protocols failed"
+    result = component_elastic_load_balancer(definition, configuration, args, info, False)
+    lb_name = result['Resources']['test_lb']['Properties']['LoadBalancerName']
+    assert lb_name == 'foobarfoobarfoobarfoobarfoob-0.1'
+    assert len(lb_name) == 32
 
 
 def test_component_stups_auto_configuration(monkeypatch):

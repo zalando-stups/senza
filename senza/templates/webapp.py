@@ -57,7 +57,7 @@ SenzaComponents:
 def gather_user_variables(variables, region):
     # maximal 32 characters because of the loadbalancer-name
     prompt(variables, 'application_id', 'Application ID', default='hello-world',
-           value_proc=check_value(32, '^[a-zA-Z][-a-zA-Z0-9]*$'))
+           value_proc=check_value(60, '^[a-zA-Z][-a-zA-Z0-9]*$'))
     prompt(variables, 'docker_image', 'Docker image without tag/version (e.g. "pierone.example.org/myteam/myapp")',
            default='stups/hello-world')
     prompt(variables, 'http_port', 'HTTP port', default=8080, type=int)

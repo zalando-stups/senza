@@ -32,7 +32,7 @@ def check_value(max_length: int, match_regex: str):
             else:
                 raise click.UsageError('did not match regex {}.'.format(match_regex))
         else:
-            raise click.UsageError('Value is to long! {} chars'.format(len(value)))
+            raise click.UsageError('Value is too long! {} > {} chars'.format(len(value), max_length))
     return _value_checker
 
 

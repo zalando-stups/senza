@@ -12,6 +12,7 @@ coverage.xml
 junit.xml
 .coverage
 dist/
+build/
 htmlcov/
 
 # Vi

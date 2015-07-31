@@ -22,7 +22,7 @@ git add senza/__init__.py
 git commit -m "Bumped version to $version"
 git push
 
-python3 setup.py sdist upload
+python3 setup.py sdist bdist_wheel upload
 python3 setup-meta.py register
 
 git tag ${version}

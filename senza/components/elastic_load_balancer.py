@@ -4,6 +4,19 @@ import click
 from senza.aws import find_ssl_certificate_arn, resolve_security_groups
 
 
+def get_load_balancer_name(stack_name: str, stack_version: str):
+    '''
+    >>> get_load_balancer_name('a', '1')
+    'a-1'
+
+    >>> get_load_balancer_name('toolong123456789012345678901234567890', '1')
+    'toolong12345678901234567890123-1'
+    '''
+    # Loadbalancer name cannot exceed 32 characters, try to shorten
+    l = 32 - len(stack_version) - 1
+    return '{}-{}'.format(stack_name[:l], stack_version)
+
+
 def component_elastic_load_balancer(definition, configuration, args, info, force):
     lb_name = configuration["Name"]
 
@@ -63,10 +76,7 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
         health_check_port = configuration["HealthCheckPort"]
 
     health_check_target = "{0}:{1}{2}".format(health_check_protocol, health_check_port, health_check_path)
-    loadbalancer_name = "{0}-{1}".format(info["StackName"], info["StackVersion"])
-    if (len(loadbalancer_name) > 32):
-        raise click.UsageError('Loadbalancer name "{}" cannot exceed 32 characters. '.format(loadbalancer_name) +
-                               ' Please choose another name/version.')
+    loadbalancer_name = get_load_balancer_name(info["StackName"], info["StackVersion"])
 
     # load balancer
     definition["Resources"][lb_name] = {

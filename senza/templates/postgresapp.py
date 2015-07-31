@@ -7,19 +7,23 @@ from clickclick import warning, error
 from senza.aws import get_security_group
 from senza.components.weighted_dns_elastic_load_balancer import get_default_zone
 import pystache
+import requests
 
-from ._helper import prompt, check_security_group, check_s3_bucket, get_mint_bucket_name
+from ._helper import prompt, check_security_group, check_s3_bucket
 
 POSTGRES_PORT = 5432
 HEALTHCHECK_PORT = 8008
+SPILO_IMAGE_ADDRESS = "os-registry.stups.zalan.do/acid/spilo"
 
 TEMPLATE = '''
 # basic information for generating and executing this definition
 SenzaInfo:
   StackName: spilo
+  {{^docker_image}}
   Parameters:
     - ImageVersion:
         Description: "Docker image version of spilo."
+  {{/docker_image}}
 
 # a list of senza components to apply to the definition
 SenzaComponents:
@@ -66,7 +70,12 @@ SenzaComponents:
       AssociatePublicIpAddress: false # change for standalone deployment in default VPC
       TaupageConfig:
         runtime: Docker
+        {{#docker_image}}
+        source: {{docker_image}}
+        {{/docker_image}}
+        {{^docker_image}}
         source: "{{=<% %>=}}{{Arguments.ImageVersion}}<%={{ }}=%>"
+        {{/docker_image}}
         ports:
           {{postgres_port}}: {{postgres_port}}
           {{healthcheck_port}}: {{healthcheck_port}}
@@ -82,7 +91,6 @@ SenzaComponents:
             filesystem: {{fstype}}
             erase_on_boot: true
             options: {{fsoptions}}
-        mint_bucket: {{mint_bucket}}
         {{#scalyr_account_key}}
         scalyr_account_key: {{scalyr_account_key}}
         {{/scalyr_account_key}}
@@ -143,11 +151,6 @@ Resources:
               - arn:aws:s3:::{{wal_s3_bucket}}/spilo/*
               - arn:aws:s3:::{{wal_s3_bucket}}
           - Effect: Allow
-            Action: s3:GetObject
-            Resource:
-              - arn:aws:s3:::{{mint_bucket}}/spilo/*
-              - arn:aws:s3:::{{mint_bucket}}
-          - Effect: Allow
             Action: ec2:CreateTags
             Resource: "*"
           - Effect: Allow
@@ -168,6 +171,8 @@ def ebs_optimized_supported(instance_type):
 
 
 def gather_user_variables(variables, region):
+    if click.confirm('Do you want to set the docker image now? [No]'):
+        prompt(variables, "docker_image", "Docker Image Version", default=get_latest_spilo_image())
     prompt(variables, 'wal_s3_bucket', 'Postgres WAL S3 bucket to use', default='zalando-spilo-app')
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
     prompt(variables, 'hosted_zone', 'Hosted Zone', default=get_default_zone(region) or 'example.com')
@@ -193,7 +198,6 @@ def gather_user_variables(variables, region):
     prompt(variables, "fstype", "Filesystem for the data partition", default="ext4")
     prompt(variables, "fsoptions", "Filesystem mount options (comma-separated)",
            default="noatime,nodiratime,nobarrier")
-    prompt(variables, 'mint_bucket', 'Mint S3 bucket name', default=lambda: get_mint_bucket_name(region))
     prompt(variables, "scalyr_account_key", "Account key for your scalyr account", "")
 
     variables['postgres_port'] = POSTGRES_PORT
@@ -226,3 +230,22 @@ def gather_user_variables(variables, region):
 def generate_definition(variables):
     definition_yaml = pystache.render(TEMPLATE, variables)
     return definition_yaml
+
+
+def get_latest_spilo_image(registry_url='https://os-registry.stups.zalan.do',
+                           address='/teams/acid/artifacts/spilo/tags'):
+    try:
+        r = requests.get(registry_url+address)
+        if r.ok:
+            # sort the tags by creation date
+            latest = None
+            for tag in sorted(r.json(), key=lambda t: t['created'], reverse=True):
+                # try to avoid snapshots if possible
+                if 'SNAPSHOT' not in tag:
+                    latest = tag
+                    break
+                latest = latest or tag
+            return "{0}:{1}".format(SPILO_IMAGE_ADDRESS, tag)
+    except:
+        pass
+    return ""

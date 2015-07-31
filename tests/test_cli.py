@@ -224,7 +224,7 @@ def test_init(monkeypatch):
             == '{{Arguments.ImageVersion}}')
 
 
-def test_init_opt3(monkeypatch):
+def test_init_opt5(monkeypatch):
     monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: MagicMock())
     monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock())
     monkeypatch.setattr('boto.vpc.connect_to_region', lambda x: MagicMock())
@@ -236,7 +236,7 @@ def test_init_opt3(monkeypatch):
     with runner.isolated_filesystem():
         result = runner.invoke(cli, ['init', 'myapp.yaml', '--region=myregion', '-v', 'test=123',
                                      '-v', 'mint_bucket=mybucket'],
-                               catch_exceptions=False, input='3\nsdf\nsdf\n8080\n/\n')
+                               catch_exceptions=False, input='5\nsdf\nsdf\n8080\n/\n')
         assert os.path.exists('myapp.yaml')
         with open('myapp.yaml') as fd:
             generated_definition = yaml.safe_load(fd)

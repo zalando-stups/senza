@@ -239,13 +239,14 @@ def get_latest_spilo_image(registry_url='https://os-registry.stups.zalan.do',
         if r.ok:
             # sort the tags by creation date
             latest = None
-            for tag in sorted(r.json(), key=lambda t: t['created'], reverse=True):
+            for entry in sorted(r.json(), key=lambda t: t['created'], reverse=True):
+                tag = entry['name']
                 # try to avoid snapshots if possible
                 if 'SNAPSHOT' not in tag:
                     latest = tag
                     break
                 latest = latest or tag
-            return "{0}:{1}".format(SPILO_IMAGE_ADDRESS, tag)
+            return "{0}:{1}".format(SPILO_IMAGE_ADDRESS, latest)
     except:
         pass
     return ""

@@ -76,7 +76,7 @@ def test_print_basic(monkeypatch):
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
 
-        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', '1.0-SNAPSHOT'],
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123'],
                                catch_exceptions=False)
 
     assert 'AWSTemplateFormatVersion' in result.output
@@ -524,30 +524,58 @@ def test_create(monkeypatch):
     runner = CliRunner()
     data = {'SenzaComponents': [{'Config': {'Type': 'Senza::Configuration'}}],
             'SenzaInfo': {'OperatorTopicId': 'my-topic',
-                          'Parameters': [{'MyParam': {'Type': 'String'}}],
+                          'Parameters': [{'MyParam': {'Type': 'String'}}, {'ExtraParam': {'Type': 'String'}}],
                           'StackName': 'test'}}
 
     with runner.isolated_filesystem():
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '1', 'my-param-value'],
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '1', 'my-param-value', 'extra-param-value'],
                                catch_exceptions=False)
         assert 'DRY-RUN' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=myregion', '1', 'my-param-value'],
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=myregion', '1', 'my-param-value', 'extra-param-value'],
                                catch_exceptions=False)
         assert 'OK' in result.output
 
         cf.create_stack.side_effect = boto.exception.BotoServerError('sdf', 'already exists',
                                                                      {'Error': {'Code': 'AlreadyExistsException'}})
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=myregion', '1', 'my-param-value'],
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=myregion', '1', 'my-param-value', 'extra-param-value'],
                                catch_exceptions=True)
         assert 'Stack test-1 already exists' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=myregion', 'abcde'*25, 'my-param-value'],
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=myregion', 'abcde'*25, 'my-param-value', 'extra-param-value'],
                                catch_exceptions=True)
         assert 'cannot exceed 128 characters.  Please choose another name/version.' in result.output
+
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '2'],
+                               catch_exceptions=True)
+        assert 'Missing parameter' in result.output
+
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '2', 'my-param-value', 'ExtraParam=extra-param-value'],
+                               catch_exceptions=True)
+        assert 'OK' in result.output
+
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '2', 'my-param-value', 'ExtraParam=extra=param=value'],  # checks that equal signs are OK in the keyword param value
+                               catch_exceptions=True)
+        assert 'OK' in result.output
+
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '2', 'UnknownParam=value'],
+                               catch_exceptions=True)
+        assert 'Unrecognized keyword parameter' in result.output
+
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '2', 'my-param-value', 'MyParam=param-value-again'],
+                               catch_exceptions=True)
+        assert 'Parameter specified multiple times' in result.output
+
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '2', 'MyParam=my-param-value', 'MyParam=param-value-again'],
+                               catch_exceptions=True)
+        assert 'Parameter specified multiple times' in result.output
+
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '2', 'MyParam=my-param-value', 'positional'],
+                               catch_exceptions=True)
+        assert 'Positional parameters must not follow keywords' in result.output
 
 
 def test_traffic(monkeypatch):

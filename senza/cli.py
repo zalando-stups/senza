@@ -345,7 +345,7 @@ def parse_args(input, region, version, parameter):
     for key, value in paras.items():
         if value is None:  # TODO: and no default value
             raise click.UsageError('Missing parameter ""'.format(key))
-            
+
     args = TemplateArguments(region=region, version=version, **paras)
     return args
 

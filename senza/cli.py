@@ -257,12 +257,15 @@ def is_credentials_expired_error(e: BotoServerError) -> bool:
 
 def parse_args(input, region, version, parameter):
     paras = {}
+    defaults = {}
 
     # process positional parameters first
     seen_keyword = False
     for i, param in enumerate(input['SenzaInfo'].get('Parameters', [])):
         for key, config in param.items():
-            paras[key] = None  # collect all allowed keys regardless
+            # collect all allowed keys and default values regardless
+            paras[key] = None
+            defaults[key] = config.get('DefaultValue', None)
             if i < len(parameter):
                 if '=' in parameter[i]:
                     seen_keyword = True
@@ -270,9 +273,6 @@ def parse_args(input, region, version, parameter):
                     if seen_keyword:
                         raise click.UsageError("Positional parameters must not follow keywords.")
                     paras[key] = parameter[i]
-            else:
-                if not seen_keyword:
-                    raise click.UsageError('Missing parameter "{}"'.format(key))
 
     if len(paras) < len(parameter):
         raise click.UsageError('Too many parameters given.')
@@ -289,9 +289,10 @@ def parse_args(input, region, version, parameter):
                     raise click.UsageError('Parameter specified multiple times: "{}"'.format(key))
                 paras[key] = value
 
-    # finally, make sure every parameter got a value assigned
-    for key, value in paras.items():
-        if value is None:  # TODO: and no default value
+    # finally, make sure every parameter got a value assigned, using defaults if given
+    for key, defval in defaults.items():
+        paras[key] = paras[key] or defval
+        if paras[key] is None:
             raise click.UsageError('Missing parameter "{}"'.format(key))
 
     args = TemplateArguments(region=region, version=version, **paras)

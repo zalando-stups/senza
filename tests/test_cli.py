@@ -490,7 +490,7 @@ def test_create(monkeypatch):
     runner = CliRunner()
     data = {'SenzaComponents': [{'Config': {'Type': 'Senza::Configuration'}}],
             'SenzaInfo': {'OperatorTopicId': 'my-topic',
-                          'Parameters': [{'MyParam': {'Type': 'String'}}, {'ExtraParam': {'Type': 'String'}}],
+                          'Parameters': [{'MyParam': {'Type': 'String'}}, {'ExtraParam': {'Type': 'String'}}, {'DefParam': {'Type': 'String', 'DefaultValue': 'DefValue'}}],
                           'StackName': 'test'}}
 
     with runner.isolated_filesystem():
@@ -518,6 +518,10 @@ def test_create(monkeypatch):
         result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '2'],
                                catch_exceptions=True)
         assert 'Missing parameter' in result.output
+
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '2', 'p1', 'p2', 'p3', 'p4'],
+                               catch_exceptions=True)
+        assert 'Too many parameters given' in result.output
 
         result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '2', 'my-param-value', 'ExtraParam=extra-param-value'],
                                catch_exceptions=True)

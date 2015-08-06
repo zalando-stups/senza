@@ -525,7 +525,7 @@ def test_create(monkeypatch):
     data = {'SenzaComponents': [{'Config': {'Type': 'Senza::Configuration'}}],
             'SenzaInfo': {'OperatorTopicId': 'my-topic',
                           'Parameters': [{'MyParam': {'Type': 'String'}}, {'ExtraParam': {'Type': 'String'}}, {'DefParam': {'Type': 'String', 'DefaultValue': 'DefValue'}}],
-                          'StackName': 'test'}}
+                          'StackName': 'test', 'Tags': [{'CustomTag': 'CustomValue'}]}}
 
     with runner.isolated_filesystem():
         with open('myapp.yaml', 'w') as fd:

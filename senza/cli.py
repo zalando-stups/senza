@@ -471,8 +471,9 @@ def create(definition, region, version, parameter, disable_rollback, dry_run, fo
         parameters.append([name, getattr(args, name, None)])
 
     tags = {}
-    for tag in input["SenzaInfo"].get('Tags', ()):
+    for tag in input["SenzaInfo"].get('Tags', []):
         for key, value in tag.items():
+            # # As the SenzaInfo is not evaluated, we explicitly evaluate the values here
             tags[key] = evaluate_template(value, info, [], args)
 
     tags.update({

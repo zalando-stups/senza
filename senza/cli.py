@@ -470,11 +470,16 @@ def create(definition, region, version, parameter, disable_rollback, dry_run, fo
     for name, parameter in data.get("Parameters", {}).items():
         parameters.append([name, getattr(args, name, None)])
 
-    tags = {
+    tags = {}
+    for tag in input["SenzaInfo"].get('Tags', ()):
+        for key, value in tag.items():
+            tags[key] = evaluate_template(value, info, [], args)
+
+    tags.update( {
         "Name": stack_name,
         "StackName": input["SenzaInfo"]["StackName"],
         "StackVersion": version
-    }
+    } )
 
     if "OperatorTopicId" in input["SenzaInfo"]:
         topic = input["SenzaInfo"]["OperatorTopicId"]

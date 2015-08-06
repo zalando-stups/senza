@@ -24,6 +24,8 @@ SenzaInfo:
     - ImageVersion:
         Description: "Docker image version of spilo."
   {{/docker_image}}
+  Tags:
+    - SpiloCluster: "{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>"
 
 # a list of senza components to apply to the definition
 SenzaComponents:

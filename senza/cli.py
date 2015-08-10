@@ -613,7 +613,8 @@ def get_instance_health(elb, stack_name: str) -> dict:
     except boto.exception.BotoServerError as e:
         # ignore non existing ELBs
         # ignore ValidationError "LoadBalancer name cannot be longer than 32 characters"
-        if e.code not in ('LoadBalancerNotFound', 'ValidationError'):
+        # ignore rate limit exceeded errors
+        if e.code not in ('LoadBalancerNotFound', 'ValidationError', 'Throttling'):
             raise
     return instance_health
 

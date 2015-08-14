@@ -721,6 +721,8 @@ def instances(stack_ref, all, terminated, docker_image, region, output, w, watch
         # filter out instances not part of any stack
         filters = {'tag-key': 'aws:cloudformation:stack-name'}
 
+    opt_docker_column = ' docker_source' if docker_image else ''
+
     for _ in watching(w, watch):
         rows = []
 
@@ -732,11 +734,7 @@ def instances(stack_ref, all, terminated, docker_image, region, output, w, watch
                 instance_health = get_instance_health(elb, cf_stack_name)
                 if instance.state.upper() != 'TERMINATED' or terminated:
 
-                    if docker_image:
-                        docker_source = get_instance_docker_image_source(instance)
-                        opt_docker_column = ' docker_source'
-                    else:
-                        docker_source, opt_docker_column = '', ''
+                    docker_source = get_instance_docker_image_source(instance) if docker_image else ''
 
                     rows.append({'stack_name': stack_name or '',
                                  'version': stack_version or '',

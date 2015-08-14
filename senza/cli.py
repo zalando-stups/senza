@@ -19,6 +19,7 @@ from clickclick import AliasedGroup, Action, choice, info, FloatRange, OutputFor
 from clickclick.console import print_table
 import requests
 import yaml
+import base64
 import boto.cloudformation
 import boto.vpc
 import boto.ec2
@@ -69,6 +70,7 @@ TITLES = {
     'version': 'Ver.',
     'total_instances': 'Inst.#',
     'running_instances': 'Running',
+    'docker_source': 'Docker Image Source',
     'healthy_instances': 'Healthy',
     'http_status': 'HTTP',
     'main_dns': 'Main DNS',
@@ -625,15 +627,32 @@ def get_instance_health(elb, stack_name: str) -> dict:
     return instance_health
 
 
+def get_instance_user_data(instance) -> dict:
+    try:
+        attrs = instance.get_attribute('userData')
+        data_b64 = attrs['userData']
+        data_yaml = base64.b64decode(data_b64)
+        data_dict = yaml.load(data_yaml)
+        return data_dict
+    except Exception as e:  # there's just too many ways this can fail, catch 'em all
+        sys.stderr.write('Failed to query instance user data: {}\n'.format(e))
+    return {}
+
+
+def get_instance_docker_image_source(instance) -> str:
+    return get_instance_user_data(instance).get('source', '')
+
+
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
 @click.option('--all', is_flag=True, help='Show all instances, including instances not part of any stack')
 @click.option('--terminated', is_flag=True, help='Show instances in TERMINATED state')
+@click.option('-d', '--docker-image', is_flag=True, help='Show docker image source for every instance listed')
 @region_option
 @output_option
 @watch_option
 @watchrefresh_option
-def instances(stack_ref, all, terminated, region, output, w, watch):
+def instances(stack_ref, all, terminated, docker_image, region, output, w, watch):
     '''List the stack's EC2 instances'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
@@ -648,6 +667,8 @@ def instances(stack_ref, all, terminated, region, output, w, watch):
         # filter out instances not part of any stack
         filters = {'tag-key': 'aws:cloudformation:stack-name'}
 
+    opt_docker_column = ' docker_source' if docker_image else ''
+
     for _ in watching(w, watch):
         rows = []
 
@@ -658,6 +679,9 @@ def instances(stack_ref, all, terminated, region, output, w, watch):
             if not stack_refs or matches_any(cf_stack_name, stack_refs):
                 instance_health = get_instance_health(elb, cf_stack_name)
                 if instance.state.upper() != 'TERMINATED' or terminated:
+
+                    docker_source = get_instance_docker_image_source(instance) if docker_image else ''
+
                     rows.append({'stack_name': stack_name or '',
                                  'version': stack_version or '',
                                  'resource_id': instance.tags.get('aws:cloudformation:logical-id'),
@@ -666,13 +690,15 @@ def instances(stack_ref, all, terminated, region, output, w, watch):
                                  'private_ip': instance.private_ip_address,
                                  'state': instance.state.upper().replace('-', '_'),
                                  'lb_status': instance_health.get(instance.id),
+                                 'docker_source': docker_source,
                                  'launch_time': parse_time(instance.launch_time)})
 
         rows.sort(key=lambda r: (r['stack_name'], r['version'], r['instance_id']))
 
         with OutputFormat(output):
             print_table(('stack_name version resource_id instance_id public_ip ' +
-                         'private_ip state lb_status launch_time').split(), rows, styles=STYLES, titles=TITLES)
+                         'private_ip state lb_status{} launch_time'.format(opt_docker_column)).split(),
+                        rows, styles=STYLES, titles=TITLES)
 
 
 @cli.command()

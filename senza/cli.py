@@ -732,7 +732,12 @@ def instances(stack_ref, all, terminated, docker_image, region, output, w, watch
                 instance_health = get_instance_health(elb, cf_stack_name)
                 if instance.state.upper() != 'TERMINATED' or terminated:
 
-                    docker_source = get_instance_docker_image_source(instance) if docker_image else ''
+                    if docker_image:
+                        docker_source = get_instance_docker_image_source(instance)
+                        opt_docker_column = ' docker_source'
+                    else:
+                        docker_source, opt_docker_column = '', ''
+
                     rows.append({'stack_name': stack_name or '',
                                  'version': stack_version or '',
                                  'resource_id': instance.tags.get('aws:cloudformation:logical-id'),
@@ -748,7 +753,7 @@ def instances(stack_ref, all, terminated, docker_image, region, output, w, watch
 
         with OutputFormat(output):
             print_table(('stack_name version resource_id instance_id public_ip ' +
-                         'private_ip state lb_status{} launch_time'.format(' docker_source' if docker_image else '')).split(),
+                         'private_ip state lb_status{} launch_time'.format(opt_docker_column)).split(),
                         rows, styles=STYLES, titles=TITLES)
 
 

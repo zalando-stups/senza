@@ -490,7 +490,7 @@ def test_create(monkeypatch):
     runner = CliRunner()
     data = {'SenzaComponents': [{'Config': {'Type': 'Senza::Configuration'}}],
             'SenzaInfo': {'OperatorTopicId': 'my-topic',
-                          'Parameters': [{'MyParam': {'Type': 'String'}}, {'ExtraParam': {'Type': 'String'}}, {'DefParam': {'Type': 'String', 'DefaultValue': 'DefValue'}}],
+                          'Parameters': [{'MyParam': {'Type': 'String'}}, {'ExtraParam': {'Type': 'String'}}, {'DefParam': {'Type': 'String', 'Default': 'DefValue'}}],
                           'StackName': 'test', 'Tags': [{'CustomTag': 'CustomValue'}]}}
 
     with runner.isolated_filesystem():

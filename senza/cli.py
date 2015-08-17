@@ -267,7 +267,7 @@ def parse_args(input, region, version, parameter):
         for key, config in param.items():
             # collect all allowed keys and default values regardless
             paras[key] = None
-            defaults[key] = config.get('DefaultValue', None)
+            defaults[key] = config.get('Default', None)
             if i < len(parameter):
                 if '=' in parameter[i]:
                     seen_keyword = True

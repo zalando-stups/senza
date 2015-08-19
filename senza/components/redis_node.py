@@ -13,6 +13,7 @@ def component_redis_node(definition, configuration, args, info, force):
             "ClusterName": name,
             "Engine": "redis",
             "EngineVersion": configuration.get('EngineVersion', '2.8.19'),
+            "CacheParameterGroupName": configuration.get('CacheParameterGroupName', 'default.redis2.8'),
             "NumCacheNodes": 1,
             "CacheNodeType": configuration.get('CacheNodeType', 'cache.t2.small'),
             "CacheSubnetGroupName": {

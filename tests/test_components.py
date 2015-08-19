@@ -163,6 +163,7 @@ def test_component_redis_node(monkeypatch):
     assert 'EngineVersion' in result['Resources']['RedisCacheCluster']['Properties']
     assert 'CacheNodeType' in result['Resources']['RedisCacheCluster']['Properties']
     assert 'CacheSubnetGroupName' in result['Resources']['RedisCacheCluster']['Properties']
+    assert 'CacheParameterGroupName' in result['Resources']['RedisCacheCluster']['Properties']
 
     assert 'RedisSubnetGroup' in result['Resources']
     assert 'SubnetIds' in result['Resources']['RedisSubnetGroup']['Properties']
@@ -194,6 +195,7 @@ def test_component_redis_cluster(monkeypatch):
     assert 'EngineVersion' in result['Resources']['RedisReplicationGroup']['Properties']
     assert 'CacheNodeType' in result['Resources']['RedisReplicationGroup']['Properties']
     assert 'CacheSubnetGroupName' in result['Resources']['RedisReplicationGroup']['Properties']
+    assert 'CacheParameterGroupName' in result['Resources']['RedisReplicationGroup']['Properties']
 
     assert 'RedisSubnetGroup' in result['Resources']
     assert 'SubnetIds' in result['Resources']['RedisSubnetGroup']['Properties']

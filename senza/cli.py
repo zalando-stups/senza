@@ -10,6 +10,7 @@ import os
 import re
 import sys
 import json
+from urllib.error import URLError
 import dns.resolver
 import time
 
@@ -31,6 +32,8 @@ import boto.route53
 from .aws import parse_time, get_required_capabilities, resolve_topic_arn, get_stacks, StackReference, matches_any
 from .components import get_component, evaluate_template
 import senza
+from urllib.request import urlopen
+from urllib.parse import quote
 from .traffic import change_version_traffic, print_version_traffic
 from .utils import named_value, camel_case_to_underscore
 
@@ -99,9 +102,13 @@ class DefinitionParamType(click.ParamType):
     def convert(self, value, param, ctx):
         if isinstance(value, str):
             try:
-                with open(value, 'r') as fd:
-                    data = yaml.safe_load(fd)
-            except FileNotFoundError:
+                url = value if '://' in value else 'file://{}'.format(quote(os.path.abspath(value)))
+                # if '://' not in value:
+                #     url = 'file://{}'.format(quote(os.path.abspath(value)))
+
+                response = urlopen(url)
+                data = yaml.safe_load(response.read())
+            except URLError:
                 self.fail('"{}" not found'.format(value), param, ctx)
         else:
             data = value

@@ -37,6 +37,39 @@ def test_get_account_id(monkeypatch):
 
     assert '0123456789' == get_account_id()
 
+    boto3 = MagicMock()
+    boto3.get_user.side_effect = Exception()
+    boto3.list_roles.return_value = {'Roles': [{'Arn': 'arn:aws:iam::0123456789:role/role-test'}]}
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+
+    assert '0123456789' == get_account_id()
+
+    boto3 = MagicMock()
+    boto3.get_user.side_effect = Exception()
+    boto3.list_roles.return_value = {'Roles': []}
+    boto3.list_users.return_value = {'Users': [{'Arn': 'arn:aws:iam::0123456789:user/user-test'}]}
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+
+    assert '0123456789' == get_account_id()
+
+    boto3 = MagicMock()
+    boto3.get_user.side_effect = Exception()
+    boto3.list_roles.return_value = {'Roles': []}
+    boto3.list_users.return_value = {'Users': []}
+    boto3.list_saml_providers.return_value = {'SAMLProviderList': [{'Arn': 'arn:aws:iam::0123456789:saml-provider/saml-test'}]}
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+
+    assert '0123456789' == get_account_id()
+
+    boto3 = MagicMock()
+    boto3.get_user.side_effect = Exception()
+    boto3.list_roles.return_value = {'Roles': []}
+    boto3.list_users.return_value = {'Users': []}
+    boto3.list_saml_providers.return_value = {'SAMLProviderList': []}
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+
+    assert get_account_id() is None
+
 
 def test_get_account_alias(monkeypatch):
     boto3 = MagicMock()

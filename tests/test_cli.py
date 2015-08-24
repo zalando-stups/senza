@@ -4,7 +4,7 @@ from click.testing import CliRunner
 import collections
 from unittest.mock import MagicMock, Mock
 import yaml
-from senza.cli import cli, handle_exceptions
+from senza.cli import cli, handle_exceptions, AccountArguments
 import boto.exception
 from senza.traffic import PERCENT_RESOLUTION, StackVersion
 
@@ -737,3 +737,22 @@ def test_traffic(monkeypatch):
 
         run(['v4', '0'])
         assert weights() == [0, 0, 0, 0]
+
+
+def test_AccountArguments(monkeypatch):
+    senza_aws = MagicMock()
+    senza_aws.get_account_alias.return_value = 'test-cli'
+    senza_aws.get_account_id.return_value = '123456'
+    boto3 = MagicMock()
+    boto3.list_hosted_zones.return_value = {'HostedZones': [{'Name': 'test.example.net'}]}
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+    monkeypatch.setattr('senza.cli.get_account_alias', MagicMock(return_value='test-cli'))
+    monkeypatch.setattr('senza.cli.get_account_id', MagicMock(return_value='98741256325'))
+
+    test = AccountArguments('test-region')
+
+    assert test.Region == 'test-region'
+    assert test.AccountAlias == 'test-cli'
+    assert test.AccountID == '98741256325'
+    assert test.Domain == 'test.example.net'
+    assert test.TeamID == 'cli'

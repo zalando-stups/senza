@@ -255,12 +255,32 @@ class TemplateArguments:
 
 
 class AccountArguments:
+    '''
+    >>> test = AccountArguments('blubber',
+    ... AccountID='123456',
+    ... AccountAlias='testdummy',
+    ... Domain='test.example.org.',
+    ... TeamID='superteam')
+    >>> test.AccountID
+    '123456'
+    >>> test.AccountAlias
+    'testdummy'
+    >>> test.TeamID
+    'superteam'
+    >>> test.Domain
+    'test.example.org.'
+    >>> test.blubber
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    AttributeError: 'AccountArguments' object has no attribute 'blubber'
+    '''
     def __init__(self, region, **kwargs):
         setattr(self, '__Region', region)
         for key, val in kwargs.items():
-            setattr(self, key, val)
+            setattr(self, '__' + key, val)
 
-    def __getAccountID(self):
+    @property
+    def AccountID(self):
         attr = getattr(self, '__AccountID', None)
         if attr is None:
             accountid = get_account_id()
@@ -268,7 +288,8 @@ class AccountArguments:
             return accountid
         return attr
 
-    def __getAccountAlias(self):
+    @property
+    def AccountAlias(self):
         attr = getattr(self, '__AccountAlias', None)
         if attr is None:
             accountalias = get_account_alias()
@@ -276,32 +297,28 @@ class AccountArguments:
             return accountalias
         return attr
 
-    def __getRegion(self):
+    @property
+    def Region(self):
         return getattr(self, '__Region', None)
 
-    def __getDomain(self):
+    @property
+    def Domain(self):
         attr = getattr(self, '__Domain', None)
         if attr is None:
             conn = boto3.client('route53')
             domain = conn.list_hosted_zones()['HostedZones'][0]['Name']
-            accountalias = get_account_alias()
             setattr(self, '__Domain', domain)
-            return accountalias
+            return domain
         return attr
 
-    def __getTeamID(self):
+    @property
+    def TeamID(self):
         attr = getattr(self, '__TeamID', None)
         if attr is None:
             team_id = get_account_alias().split('-', maxsplit=1)[-1]
             setattr(self, '__TeamID', team_id)
             return team_id
         return attr
-
-    AccountID = property(fget=__getAccountID)
-    AccountAlias = property(fget=__getAccountAlias)
-    Region = property(fget=__getRegion)
-    TeamID = property(fget=__getTeamID)
-    Domain = property(fget=__getDomain)
 
 
 def is_credentials_expired_error(e: BotoServerError) -> bool:

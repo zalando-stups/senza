@@ -4,7 +4,7 @@ from click.testing import CliRunner
 import collections
 from unittest.mock import MagicMock, Mock
 import yaml
-from senza.cli import cli, handle_exceptions
+from senza.cli import cli, handle_exceptions, AccountArguments
 import boto.exception
 from senza.traffic import PERCENT_RESOLUTION, StackVersion
 
@@ -118,6 +118,40 @@ def test_print_replace_mustache(monkeypatch):
     assert 'sg-007' in result.output
 
 
+def test_print_account_info(monkeypatch):
+    sg = MagicMock()
+    sg.name = 'app-master-mind'
+    sg.id = 'sg-007'
+
+    boto3 = MagicMock()
+    boto3.get_user.return_value = {'User': {'Arn': 'arn:aws:iam::0123456789:user/admin'}}
+    boto3.list_account_aliases.return_value = {'AccountAliases': ['org-dummy']}
+
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+    monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock())
+    monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: MagicMock(get_all_security_groups=lambda: [sg]))
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock())
+    data = {'SenzaComponents': [{'Configuration': {'ServerSubnets': {'eu-west-1': ['subnet-123']},
+                                                   'Type': 'Senza::Configuration'}},
+                                {'AppServer': {'Image': 'AppImage-{{AccountInfo.TeamID}}-{{AccountInfo.AccountID}}',
+                                               'InstanceType': 't2.micro',
+                                               'TaupageConfig': {'runtime': 'Docker',
+                                                                 'source': 'foo/bar'},
+                                               'Type': 'Senza::TaupageAutoScalingGroup'}}],
+            'SenzaInfo': {'StackName': 'test-{{AccountInfo.Region}}'}}
+
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123'],
+                               catch_exceptions=False)
+    assert 'test-myregion' in result.output
+    assert 'AppImage-dummy-0123456789' in result.output
+
+
 def test_print_auto(monkeypatch):
     images = [MagicMock(name='Taupage-AMI-123', id='ami-123')]
 
@@ -177,6 +211,68 @@ def test_print_auto(monkeypatch):
     assert 'subnet-123' in result.output
     assert 'source: foo/bar:1.0-SNAPSHOT' in result.output
     assert '"HealthCheckType": "ELB"' in result.output
+
+def test_print_default_value(monkeypatch):
+    images = [MagicMock(name='Taupage-AMI-123', id='ami-123')]
+
+    zone = MagicMock()
+    zone.name = 'zo.ne'
+    cert = {'server_certificate_name': 'zo-ne', 'arn': 'arn:aws:123'}
+    cert_response = {
+        'list_server_certificates_response': {'list_server_certificates_result': {'server_certificate_metadata_list': [
+            cert
+        ]}}}
+
+    sg = MagicMock()
+    sg.name = 'app-sg'
+    sg.id = 'sg-007'
+
+    monkeypatch.setattr('boto.cloudformation.connect_to_region', lambda x: MagicMock())
+    monkeypatch.setattr('boto.vpc.connect_to_region', lambda x: MagicMock())
+    monkeypatch.setattr('boto.iam.connect_to_region', lambda x: MagicMock(list_server_certs=lambda: cert_response))
+    monkeypatch.setattr('boto.route53.connect_to_region', lambda x: MagicMock(get_zones=lambda: [zone]))
+    monkeypatch.setattr('boto.ec2.connect_to_region', lambda x: MagicMock(get_all_images=lambda filters: images,
+                                                                          get_all_security_groups=lambda: [sg]))
+
+    sns = MagicMock()
+    topic = {'TopicArn': 'arn:123:mytopic'}
+    sns.get_all_topics.return_value = {'ListTopicsResponse': {'ListTopicsResult': {'Topics': [topic]}}}
+    monkeypatch.setattr('boto.sns.connect_to_region', MagicMock(return_value=sns))
+
+    data = {'SenzaInfo': {'StackName': 'test',
+                          'OperatorTopicId': 'mytopic',
+                          'Parameters': [{'ImageVersion': {'Description': ''}},
+                                         {'ExtraParam': {'Type': 'String'}},
+                                         {'DefParam': {'Default': 'DefValue',
+                                                       'Type': 'String'}}]},
+            'SenzaComponents': [{'Configuration': {'Type': 'Senza::StupsAutoConfiguration'}},
+                                {'AppServer': {'Type': 'Senza::TaupageAutoScalingGroup',
+                                               'ElasticLoadBalancer': 'AppLoadBalancer',
+                                               'InstanceType': 't2.micro',
+                                               'TaupageConfig': {'runtime': 'Docker',
+                                                                 'source': 'foo/bar:{{Arguments.ImageVersion}}',
+                                                                 'DefParam': '{{Arguments.DefParam}}',
+                                                                 'ExtraParam': '{{Arguments.ExtraParam}}'}}},
+                                {'AppLoadBalancer': {'Type': 'Senza::WeightedDnsElasticLoadBalancer',
+                                                     'HTTPPort': 8080,
+                                                     'SecurityGroups': ['app-sg']}}]}
+
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', '1.0-SNAPSHOT', 'extra value'],
+                               catch_exceptions=False)
+        assert 'DefParam: DefValue\\n' in result.output
+        assert 'ExtraParam: extra value\\n' in result.output
+
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', '1.0-SNAPSHOT', 'extra value',
+                                     'other def value'],
+                               catch_exceptions=False)
+        assert 'DefParam: other def value\\n' in result.output
+        assert 'ExtraParam: extra value\\n' in result.output
 
 
 def test_dump(monkeypatch):
@@ -490,8 +586,8 @@ def test_create(monkeypatch):
     runner = CliRunner()
     data = {'SenzaComponents': [{'Config': {'Type': 'Senza::Configuration'}}],
             'SenzaInfo': {'OperatorTopicId': 'my-topic',
-                          'Parameters': [{'MyParam': {'Type': 'String'}}, {'ExtraParam': {'Type': 'String'}}, {'DefParam': {'Type': 'String', 'Default': 'DefValue'}}],
-                          'StackName': 'test', 'Tags': [{'CustomTag': 'CustomValue'}]}}
+                          'Parameters': [{'MyParam': {'Type': 'String'}}, {'ExtraParam': {'Type': 'String'}}],
+                          'StackName': 'test'}}
 
     with runner.isolated_filesystem():
         with open('myapp.yaml', 'w') as fd:
@@ -641,3 +737,22 @@ def test_traffic(monkeypatch):
 
         run(['v4', '0'])
         assert weights() == [0, 0, 0, 0]
+
+
+def test_AccountArguments(monkeypatch):
+    senza_aws = MagicMock()
+    senza_aws.get_account_alias.return_value = 'test-cli'
+    senza_aws.get_account_id.return_value = '123456'
+    boto3 = MagicMock()
+    boto3.list_hosted_zones.return_value = {'HostedZones': [{'Name': 'test.example.net'}]}
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+    monkeypatch.setattr('senza.cli.get_account_alias', MagicMock(return_value='test-cli'))
+    monkeypatch.setattr('senza.cli.get_account_id', MagicMock(return_value='98741256325'))
+
+    test = AccountArguments('test-region')
+
+    assert test.Region == 'test-region'
+    assert test.AccountAlias == 'test-cli'
+    assert test.AccountID == '98741256325'
+    assert test.Domain == 'test.example.net'
+    assert test.TeamID == 'cli'

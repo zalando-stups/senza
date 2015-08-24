@@ -28,8 +28,10 @@ import boto.ec2.autoscale
 import boto.iam
 import boto.sns
 import boto.route53
+import boto3
 
-from .aws import parse_time, get_required_capabilities, resolve_topic_arn, get_stacks, StackReference, matches_any
+from .aws import parse_time, get_required_capabilities, resolve_topic_arn, get_stacks, StackReference, matches_any, \
+    get_account_id, get_account_alias
 from .components import get_component, evaluate_template
 import senza
 from urllib.request import urlopen
@@ -143,8 +145,8 @@ output_option = click.option('-o', '--output', type=click.Choice(['text', 'json'
                              help='Use alternative output format')
 json_output_option = click.option('-o', '--output', type=click.Choice(['json', 'yaml']), default='json',
                                   help='Use alternative output format')
-watch_option = click.option('-w', is_flag=True, help='Auto update the screen every 2 seconds')
-watchrefresh_option = click.option('--watch', type=click.IntRange(1, 300), metavar='SECS',
+watch_option = click.option('-W', is_flag=True, help='Auto update the screen every 2 seconds')
+watchrefresh_option = click.option('-w', '--watch', type=click.IntRange(1, 300), metavar='SECS',
                                    help='Auto update the screen every X seconds')
 
 
@@ -189,13 +191,13 @@ def print_version(ctx, param, value):
     ctx.exit()
 
 
-def evaluate(definition, args, force: bool):
+def evaluate(definition, args, account_info, force: bool):
     # extract Senza* meta information
     info = definition.pop("SenzaInfo")
     info["StackVersion"] = args.version
 
     template = yaml.dump(definition, default_flow_style=False)
-    definition = evaluate_template(template, info, [], args)
+    definition = evaluate_template(template, info, [], args, account_info)
     definition = yaml.load(definition)
 
     components = definition.pop("SenzaComponents", [])
@@ -219,7 +221,7 @@ def evaluate(definition, args, force: bool):
 
     # throw executed template to templating engine and provide all information for substitutions
     template = yaml.dump(definition, default_flow_style=False)
-    definition = evaluate_template(template, info, components, args)
+    definition = evaluate_template(template, info, components, args, account_info)
     definition = yaml.load(definition)
 
     return definition
@@ -257,6 +259,73 @@ class TemplateArguments:
     def __init__(self, **kwargs):
         for key, val in kwargs.items():
             setattr(self, key, val)
+
+
+class AccountArguments:
+    '''
+    >>> test = AccountArguments('blubber',
+    ... AccountID='123456',
+    ... AccountAlias='testdummy',
+    ... Domain='test.example.org.',
+    ... TeamID='superteam')
+    >>> test.AccountID
+    '123456'
+    >>> test.AccountAlias
+    'testdummy'
+    >>> test.TeamID
+    'superteam'
+    >>> test.Domain
+    'test.example.org.'
+    >>> test.blubber
+    Traceback (most recent call last):
+      File "<stdin>", line 1, in <module>
+    AttributeError: 'AccountArguments' object has no attribute 'blubber'
+    '''
+    def __init__(self, region, **kwargs):
+        setattr(self, '__Region', region)
+        for key, val in kwargs.items():
+            setattr(self, '__' + key, val)
+
+    @property
+    def AccountID(self):
+        attr = getattr(self, '__AccountID', None)
+        if attr is None:
+            accountid = get_account_id()
+            setattr(self, '__AccountID', accountid)
+            return accountid
+        return attr
+
+    @property
+    def AccountAlias(self):
+        attr = getattr(self, '__AccountAlias', None)
+        if attr is None:
+            accountalias = get_account_alias()
+            setattr(self, '__AccountAlias', accountalias)
+            return accountalias
+        return attr
+
+    @property
+    def Region(self):
+        return getattr(self, '__Region', None)
+
+    @property
+    def Domain(self):
+        attr = getattr(self, '__Domain', None)
+        if attr is None:
+            conn = boto3.client('route53')
+            domain = conn.list_hosted_zones()['HostedZones'][0]['Name']
+            setattr(self, '__Domain', domain)
+            return domain
+        return attr
+
+    @property
+    def TeamID(self):
+        attr = getattr(self, '__TeamID', None)
+        if attr is None:
+            team_id = get_account_alias().split('-', maxsplit=1)[-1]
+            setattr(self, '__TeamID', team_id)
+            return team_id
+        return attr
 
 
 def is_credentials_expired_error(e: BotoServerError) -> bool:
@@ -412,9 +481,10 @@ def create(definition, region, version, parameter, disable_rollback, dry_run, fo
     region = get_region(region)
     check_credentials(region)
     args = parse_args(input, region, version, parameter)
+    account_info = AccountArguments(region=region)
 
     with Action('Generating Cloud Formation template..'):
-        data = evaluate(input.copy(), args, force)
+        data = evaluate(input.copy(), args, account_info, force)
         cfjson = json.dumps(data, sort_keys=True, indent=4)
 
     stack_name = "{0}-{1}".format(input["SenzaInfo"]["StackName"], version)
@@ -478,7 +548,8 @@ def print_cfjson(definition, region, version, parameter, output, force):
     region = get_region(region)
     check_credentials(region)
     args = parse_args(input, region, version, parameter)
-    data = evaluate(input.copy(), args, force)
+    account_info = AccountArguments(region=region)
+    data = evaluate(input.copy(), args, account_info, force)
     cfjson = json.dumps(data, sort_keys=True, indent=4)
     print_json(cfjson, output)
 

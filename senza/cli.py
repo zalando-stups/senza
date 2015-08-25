@@ -306,6 +306,14 @@ class AccountArguments:
         attr = getattr(self, '__Domain', None)
         if attr is None:
             conn = boto3.client('route53')
+            domainlist = conn.list_hosted_zones()['HostedZones']
+            if len(domainlist) == 0:
+                raise AttributeError('No Domain configured')
+            elif len(domainlist) > 1:
+                domain = choice('Please select the domain',
+                                sorted(domain['Name'] for domain in domainlist))
+            else:
+                domain = domainlist[0]['Name']
             domain = conn.list_hosted_zones()['HostedZones'][0]['Name']
             setattr(self, '__Domain', domain)
             return domain

@@ -338,7 +338,7 @@ def parse_args(input, region, version, parameter, account_info):
             paras[key] = None
             defaults[key] = config.get('Default', None)
             if defaults[key] is not None:
-                defaults[key] = pystache_render(str(defaults[key]), {'AccountInfo': account_info}, missing_tags='strict')
+                defaults[key] = pystache_render(str(defaults[key]), {'AccountInfo': account_info})
             if i < len(parameter):
                 if '=' in parameter[i]:
                     seen_keyword = True

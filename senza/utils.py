@@ -1,4 +1,5 @@
 import re
+import pystache
 
 
 def named_value(d):
@@ -23,3 +24,8 @@ def camel_case_to_underscore(name):
     '''
     s1 = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', s1).lower()
+
+
+def pystache_render(*args, **kwargs):
+    render = pystache.Renderer(missing_tags='strict')
+    return render.render(*args, **kwargs)

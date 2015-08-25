@@ -34,7 +34,7 @@ from .aws import parse_time, get_required_capabilities, resolve_topic_arn, get_s
 from .components import get_component, evaluate_template
 import senza
 from .traffic import change_version_traffic, print_version_traffic
-from .utils import named_value, camel_case_to_underscore
+from .utils import named_value, camel_case_to_underscore, pystache_render
 
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -326,7 +326,7 @@ def is_credentials_expired_error(e: BotoServerError) -> bool:
            (e.status == 403 and 'security token included in the request is expired' in e.message.lower())
 
 
-def parse_args(input, region, version, parameter):
+def parse_args(input, region, version, parameter, account_info):
     paras = {}
     defaults = {}
 
@@ -337,6 +337,8 @@ def parse_args(input, region, version, parameter):
             # collect all allowed keys and default values regardless
             paras[key] = None
             defaults[key] = config.get('Default', None)
+            if defaults[key] is not None:
+                defaults[key] = pystache_render(str(defaults[key]), {'AccountInfo': account_info}, missing_tags='strict')
             if i < len(parameter):
                 if '=' in parameter[i]:
                     seen_keyword = True
@@ -473,8 +475,8 @@ def create(definition, region, version, parameter, disable_rollback, dry_run, fo
 
     region = get_region(region)
     check_credentials(region)
-    args = parse_args(input, region, version, parameter)
     account_info = AccountArguments(region=region)
+    args = parse_args(input, region, version, parameter, account_info)
 
     with Action('Generating Cloud Formation template..'):
         data = evaluate(input.copy(), args, account_info, force)
@@ -540,8 +542,8 @@ def print_cfjson(definition, region, version, parameter, output, force):
     input = definition
     region = get_region(region)
     check_credentials(region)
-    args = parse_args(input, region, version, parameter)
     account_info = AccountArguments(region=region)
+    args = parse_args(input, region, version, parameter, account_info)
     data = evaluate(input.copy(), args, account_info, force)
     cfjson = json.dumps(data, sort_keys=True, indent=4)
     print_json(cfjson, output)

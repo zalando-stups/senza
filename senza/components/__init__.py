@@ -1,7 +1,6 @@
 import importlib
-import pystache
 
-from senza.utils import camel_case_to_underscore
+from senza.utils import camel_case_to_underscore, pystache_render
 
 
 def get_component(componenttype: str):
@@ -24,5 +23,5 @@ def evaluate_template(template, info, components, args, account_info):
             "SenzaComponents": components,
             "Arguments": args,
             "AccountInfo": account_info}
-    result = pystache.render(template, data)
+    result = pystache_render(template, data)
     return result

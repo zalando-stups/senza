@@ -3,7 +3,7 @@ Elasticache cluster running multiple redis nodes, with replication / HA
 '''
 
 from clickclick import warning
-import pystache
+from senza.utils import pystache_render
 
 from ._helper import prompt, check_security_group, check_value
 
@@ -49,5 +49,5 @@ def gather_user_variables(variables, region):
 
 
 def generate_definition(variables):
-    definition_yaml = pystache.render(TEMPLATE, variables)
+    definition_yaml = pystache_render(TEMPLATE, variables)
     return definition_yaml

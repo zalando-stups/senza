@@ -1,0 +1,37 @@
+
+# basic information for generating and executing this definition
+SenzaInfo:
+  StackName: hello-world
+  Parameters:
+    - ApplicationId:
+        Description: "Application ID from kio( <teamid>-hello-world )"
+        Default: "{{AccountInfo.TeamID}}-hello-world"
+    - ImageVersion:
+        Description: "Docker image version of hello-world."
+        Default: 2
+    - MintBucket:
+        Description: "Mint bucket for your team"
+        Default: "mintbucket-{{AccountInfo.AccountID}}-{{AccountInfo.Region}}"
+
+# a list of senza components to apply to the definition
+SenzaComponents:
+
+  # this basic configuration is required for the other components
+  - Configuration:
+      Type: Senza::StupsAutoConfiguration # auto-detect network setup
+
+  # will create a launch configuration and auto scaling group with scaling triggers
+  - AppServer:
+      Type: Senza::TaupageAutoScalingGroup
+      InstanceType: t2.micro
+      SecurityGroups:
+        - app-{{Arguments.ApplicationId}}
+      IamRoles:
+        - app-{{Arguments.ApplicationId}}
+      AssociatePublicIpAddress: false # change for standalone deployment in default VPC
+      TaupageConfig:
+        application_version: "{{Arguments.ImageVersion}}"
+        runtime: Docker
+        source: "stups/hello-world:{{Arguments.ImageVersion}}"
+        mint_bucket: "{{Arguments.MintBucket}}"
+        domain: "{{AccountInfo.Domain}}"

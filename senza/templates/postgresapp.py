@@ -6,7 +6,7 @@ import click
 from clickclick import warning, error
 from senza.aws import get_security_group
 from senza.components.weighted_dns_elastic_load_balancer import get_default_zone
-import pystache
+from senza.utils import pystache_render
 import requests
 
 from ._helper import prompt, check_security_group, check_s3_bucket
@@ -230,7 +230,7 @@ def gather_user_variables(variables, region):
 
 
 def generate_definition(variables):
-    definition_yaml = pystache.render(TEMPLATE, variables)
+    definition_yaml = pystache_render(TEMPLATE, variables)
     return definition_yaml
 
 

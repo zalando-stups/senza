@@ -3,7 +3,7 @@ HTTP app with auto scaling, ELB and DNS
 '''
 
 from clickclick import warning, error
-import pystache
+from senza.utils import pystache_render
 
 from ._helper import prompt, confirm, check_security_group, check_iam_role, get_mint_bucket_name, check_value
 
@@ -93,5 +93,5 @@ def gather_user_variables(variables, region):
 
 
 def generate_definition(variables):
-    definition_yaml = pystache.render(TEMPLATE, variables)
+    definition_yaml = pystache_render(TEMPLATE, variables)
     return definition_yaml

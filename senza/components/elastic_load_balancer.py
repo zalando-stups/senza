@@ -78,11 +78,19 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
     health_check_target = "{0}:{1}{2}".format(health_check_protocol, health_check_port, health_check_path)
     loadbalancer_name = get_load_balancer_name(info["StackName"], info["StackVersion"])
 
+    loadbalancer_scheme = "internet-facing"
+    allowed_loadbalancer_schemes = ("internet-facing", "internal")
+    if "Scheme" in configuration:
+        loadbalancer_scheme = configuration["Scheme"]
+
+    if loadbalancer_scheme not in allowed_loadbalancer_schemes:
+        raise click.UsageError('Scheme "{}" is not supported for LoadBalancer'.format(loadbalancer_scheme))
+
     # load balancer
     definition["Resources"][lb_name] = {
         "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
         "Properties": {
-            "Scheme": "internet-facing",
+            "Scheme": loadbalancer_scheme,
             "Subnets": {"Fn::FindInMap": ["LoadBalancerSubnets", {"Ref": "AWS::Region"}, "Subnets"]},
             "HealthCheck": {
                 "HealthyThreshold": "2",

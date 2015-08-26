@@ -44,6 +44,11 @@ def component_configuration(definition, configuration, args, info, force):
         definition = ensure_keys(definition, "Mappings", "LoadBalancerSubnets", region)
         definition["Mappings"]["LoadBalancerSubnets"][region]["Subnets"] = subnets
 
+    # LoadBalancerInternalSubnets
+    for region, subnets in configuration.get('LoadBalancerInternalSubnets', {}).items():
+        definition = ensure_keys(definition, "Mappings", "LoadBalancerInternalSubnets", region)
+        definition["Mappings"]["LoadBalancerInternalSubnets"][region]["Subnets"] = subnets
+
     # Images
     for name, image in configuration.get('Images', {}).items():
         for region, ami in image.items():

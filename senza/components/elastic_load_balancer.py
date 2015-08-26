@@ -86,12 +86,17 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
     if loadbalancer_scheme not in allowed_loadbalancer_schemes:
         raise click.UsageError('Scheme "{}" is not supported for LoadBalancer'.format(loadbalancer_scheme))
 
+    if loadbalancer_scheme == "internal":
+        loadbalancer_subnet_map = "LoadBalancerInternalSubnets"
+    else:
+        loadbalancer_subnet_map = "LoadBalancerSubnets"
+
     # load balancer
     definition["Resources"][lb_name] = {
         "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
         "Properties": {
             "Scheme": loadbalancer_scheme,
-            "Subnets": {"Fn::FindInMap": ["LoadBalancerSubnets", {"Ref": "AWS::Region"}, "Subnets"]},
+            "Subnets": {"Fn::FindInMap": [loadbalancer_subnet_map, {"Ref": "AWS::Region"}, "Subnets"]},
             "HealthCheck": {
                 "HealthyThreshold": "2",
                 "UnhealthyThreshold": "2",

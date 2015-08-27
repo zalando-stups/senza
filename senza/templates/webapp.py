@@ -2,7 +2,7 @@
 HTTP app with auto scaling, ELB and DNS
 '''
 
-from clickclick import warning, error
+from clickclick import warning, error, choice
 from senza.utils import pystache_render
 
 from ._helper import prompt, confirm, check_security_group, check_iam_role, get_mint_bucket_name, check_value
@@ -51,6 +51,7 @@ SenzaComponents:
       HealthCheckPath: {{http_health_check_path}}
       SecurityGroups:
         - app-{{application_id}}-lb
+      Scheme: {{loadbalancer_scheme}}
 '''
 
 
@@ -67,7 +68,12 @@ def gather_user_variables(variables, region):
         prompt(variables, 'mint_bucket', 'Mint S3 bucket name', default=lambda: get_mint_bucket_name(region))
     else:
         variables['mint_bucket'] = None
-
+    variables['loadbalancer_scheme'] = choice(prompt='Please select the load balancer scheme',
+                                              options=[('internal',
+                                                        'internal: only accessible from the own VPC'),
+                                                       ('internet-facing',
+                                                        'internet-facing: accessible from the public internet')],
+                                              default='internal')
     http_port = variables['http_port']
 
     sg_name = 'app-{}'.format(variables['application_id'])

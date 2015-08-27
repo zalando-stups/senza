@@ -680,7 +680,8 @@ def init(definition_file, region, template, user_variable):
             templates.append(mod.split('.')[0])
     while template not in templates:
         template = choice('Please select the project template',
-                          [(t, get_template_description(t)) for t in sorted(templates)])
+                          [(t, get_template_description(t)) for t in sorted(templates)],
+                          default='webapp')
 
     module = importlib.import_module('senza.templates.{}'.format(template))
     variables = {}

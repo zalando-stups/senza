@@ -212,6 +212,7 @@ def test_print_auto(monkeypatch):
     assert 'source: foo/bar:1.0-SNAPSHOT' in result.output
     assert '"HealthCheckType": "ELB"' in result.output
 
+
 def test_print_default_value(monkeypatch):
     images = [MagicMock(name='Taupage-AMI-123', id='ami-123')]
 

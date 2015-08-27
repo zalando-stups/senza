@@ -32,6 +32,7 @@ def component_stups_auto_configuration(definition, configuration, args, info, fo
 
     server_subnets = []
     lb_subnets = []
+    lb_internal_subnets = []
     for subnet in vpc_conn.get_all_subnets():
         name = subnet.tags.get('Name', '')
         if availability_zones and subnet.availability_zone not in availability_zones:
@@ -39,6 +40,9 @@ def component_stups_auto_configuration(definition, configuration, args, info, fo
             continue
         if 'dmz' in name:
             lb_subnets.append(subnet.id)
+        elif 'internal' in name:
+            lb_internal_subnets.append(subnet.id)
+            server_subnets.append(subnet.id)
         else:
             server_subnets.append(subnet.id)
 
@@ -51,6 +55,9 @@ def component_stups_auto_configuration(definition, configuration, args, info, fo
 
     configuration = ensure_keys(configuration, "LoadBalancerSubnets", args.region)
     configuration["LoadBalancerSubnets"][args.region] = lb_subnets
+
+    configuration = ensure_keys(configuration, "LoadBalancerInternalSubnets", args.region)
+    configuration["LoadBalancerInternalSubnets"][args.region] = lb_internal_subnets
 
     most_recent_image = find_taupage_image(args.region)
     configuration = ensure_keys(configuration, "Images", 'LatestTaupageImage', args.region)

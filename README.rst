@@ -84,6 +84,7 @@ Senza Definition
           HTTPPort: 8080
           HealthCheckPath: /ui/
           SecurityGroups: [app-kio-lb]
+          Scheme: internet-facing
 
     # just plain Cloud Formation definitions are fully supported:
     Outputs:

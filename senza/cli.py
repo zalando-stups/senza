@@ -233,6 +233,7 @@ def handle_exceptions(func):
         try:
             func()
         except boto.exception.NoAuthHandlerFound as e:
+            sys.stdout.flush()
             sys.stderr.write('No AWS credentials found. ' +
                              'Use the "mai" command line tool to get a temporary access key\n')
             sys.stderr.write('or manually configure either ~/.aws/credentials ' +
@@ -240,6 +241,7 @@ def handle_exceptions(func):
             sys.exit(1)
         except BotoServerError as e:
             if is_credentials_expired_error(e):
+                sys.stdout.flush()
                 sys.stderr.write('AWS credentials have expired. ' +
                                  'Use the "mai" command line tool to get a new temporary access key.\n')
                 sys.exit(1)

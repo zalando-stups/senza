@@ -610,7 +610,7 @@ def test_create(monkeypatch):
 
         result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=myregion', 'abcde'*25, 'my-param-value', 'extra-param-value'],
                                catch_exceptions=True)
-        assert 'cannot exceed 128 characters.  Please choose another name/version.' in result.output
+        assert 'cannot exceed 128 characters. Please choose another name/version.' in result.output
 
         result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '2'],
                                catch_exceptions=True)

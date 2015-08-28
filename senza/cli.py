@@ -16,7 +16,7 @@ import time
 
 from boto.exception import BotoServerError
 import click
-from clickclick import AliasedGroup, Action, choice, info, FloatRange, OutputFormat
+from clickclick import AliasedGroup, Action, choice, info, FloatRange, OutputFormat, fatal_error
 from clickclick.console import print_table
 import requests
 import yaml
@@ -501,8 +501,8 @@ def create(definition, region, version, parameter, disable_rollback, dry_run, fo
 
     stack_name = "{0}-{1}".format(input["SenzaInfo"]["StackName"], version)
     if len(stack_name) > 128:
-        raise click.UsageError('Stack name "{}" cannot exceed 128 characters. '.format(stack_name) +
-                               ' Please choose another name/version.')
+        fatal_error('Error: Stack name "{}" cannot exceed 128 characters. '.format(stack_name) +
+                    'Please choose another name/version.')
 
     parameters = []
     for name, parameter in data.get("Parameters", {}).items():
@@ -524,7 +524,7 @@ def create(definition, region, version, parameter, disable_rollback, dry_run, fo
         topic = input["SenzaInfo"]["OperatorTopicId"]
         topic_arn = resolve_topic_arn(region, topic)
         if not topic_arn:
-            raise click.UsageError('SNS topic "{}" does not exist'.format(topic))
+            fatal_error('Error: SNS topic "{}" does not exist'.format(topic))
         topics = [topic_arn]
     else:
         topics = None
@@ -533,7 +533,7 @@ def create(definition, region, version, parameter, disable_rollback, dry_run, fo
 
     cf = boto.cloudformation.connect_to_region(region)
 
-    with Action('Creating Cloud Formation stack {}..'.format(stack_name)):
+    with Action('Creating Cloud Formation stack {}..'.format(stack_name)) as act:
         try:
             if dry_run:
                 info('**DRY-RUN** {}'.format(topics))
@@ -542,7 +542,7 @@ def create(definition, region, version, parameter, disable_rollback, dry_run, fo
                                 notification_arns=topics, disable_rollback=disable_rollback, capabilities=capabilities)
         except boto.exception.BotoServerError as e:
             if e.error_code == 'AlreadyExistsException':
-                raise click.UsageError('Stack {} already exists. Please choose another version.'.format(stack_name))
+                act.fatal_error('Stack {} already exists. Please choose another version.'.format(stack_name))
             else:
                 raise
 
@@ -584,9 +584,8 @@ def delete(stack_ref, region, dry_run, force):
     stacks = list(get_stacks(stack_refs, region))
 
     if len(stacks) > 1 and not dry_run and not force:
-        raise click.UsageError(('{} matching stacks found. ' +
-                               'Please use the "--force" flag if you really want to delete multiple stacks.').format(
-                               len(stacks)))
+        fatal_error('Error: {} matching stacks found. '.format(len(stacks)) +
+                    'Please use the "--force" flag if you really want to delete multiple stacks.')
 
     for stack in stacks:
         with Action('Deleting Cloud Formation stack {}..'.format(stack.stack_name)):

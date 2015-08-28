@@ -9,7 +9,7 @@ from senza.components.weighted_dns_elastic_load_balancer import get_default_zone
 from senza.utils import pystache_render
 import requests
 
-from ._helper import prompt, check_security_group, check_s3_bucket
+from ._helper import prompt, check_security_group, check_s3_bucket, get_account_alias
 
 POSTGRES_PORT = 5432
 HEALTHCHECK_PORT = 8008
@@ -175,7 +175,10 @@ def ebs_optimized_supported(instance_type):
 def gather_user_variables(variables, region):
     if click.confirm('Do you want to set the docker image now? [No]'):
         prompt(variables, "docker_image", "Docker Image Version", default=get_latest_spilo_image())
-    prompt(variables, 'wal_s3_bucket', 'Postgres WAL S3 bucket to use', default='zalando-spilo-app')
+    else:
+        variables['docker_image'] = None
+    prompt(variables, 'wal_s3_bucket', 'Postgres WAL S3 bucket to use',
+           default='{}-{}-spilo-app'.format(get_account_alias(region), region))
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
     prompt(variables, 'hosted_zone', 'Hosted Zone', default=get_default_zone(region) or 'example.com')
     if (variables['hosted_zone'][-1:] != '.'):
@@ -187,6 +190,9 @@ def gather_user_variables(variables, region):
                                              default=True)
     else:
         variables['use_ebs'] = True
+    variables['ebs_optimized'] = None
+    variables['volume_iops'] = None
+    variables['snapshot_id'] = None
     if variables['use_ebs']:
         prompt(variables, 'volume_size', 'Database volume size (GB, 10 or more)', default=10)
         prompt(variables, 'volume_type', 'Database volume type (gp2, io1 or standard)', default='gp2')

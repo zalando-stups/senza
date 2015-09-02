@@ -100,6 +100,7 @@ def test_component_load_balancer_idletimeout(monkeypatch):
     # issue 105: support additional ELB properties
     result = component_elastic_load_balancer(definition, configuration, args, info, False)
     assert 300 == result["Resources"]["test_lb"]["Properties"]["ConnectionSettings"]["IdleTimeout"]
+    assert 'HTTPPort' not in result["Resources"]["test_lb"]["Properties"]
 
 
 def test_component_load_balancer_namelength(monkeypatch):

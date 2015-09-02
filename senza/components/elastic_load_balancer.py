@@ -3,6 +3,9 @@ import click
 
 from senza.aws import find_ssl_certificate_arn, resolve_security_groups
 
+SENZA_PROPERTIES = frozenset(
+    'Domains HealthCheckPath HealthCheckPort HealthCheckProtocol HTTPPort Name SecurityGroups Type'.split())
+
 
 def get_load_balancer_name(stack_name: str, stack_version: str):
     '''
@@ -95,7 +98,6 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
     definition["Resources"][lb_name] = {
         "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
         "Properties": {
-            "Scheme": loadbalancer_scheme,
             "Subnets": {"Fn::FindInMap": [loadbalancer_subnet_map, {"Ref": "AWS::Region"}, "Subnets"]},
             "HealthCheck": {
                 "HealthyThreshold": "2",
@@ -135,5 +137,10 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
             ]
         }
     }
+    for key, val in configuration.items():
+        # overwrite any specified properties, but
+        # ignore our special Senza properties as they are not supported by CF
+        if key not in SENZA_PROPERTIES:
+            definition['Resources'][lb_name]['Properties'][key] = val
 
     return definition

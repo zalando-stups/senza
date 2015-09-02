@@ -3,8 +3,8 @@ import click
 
 from senza.aws import find_ssl_certificate_arn, resolve_security_groups
 
-SENZA_PROPERTIES = frozenset(
-    'Domains HealthCheckPath HealthCheckPort HealthCheckProtocol HTTPPort Name SecurityGroups Type'.split())
+SENZA_PROPERTIES = frozenset(['Domains', 'HealthCheckPath', 'HealthCheckPort', 'HealthCheckProtocol',
+                              'HTTPPort', 'Name', 'SecurityGroups', 'SSLCertificateId', 'Type'])
 
 
 def get_load_balancer_name(stack_name: str, stack_version: str):

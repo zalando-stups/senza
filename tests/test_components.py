@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 from senza.components import get_component
 from senza.components.iam_role import component_iam_role, get_merged_policies
 from senza.components.elastic_load_balancer import component_elastic_load_balancer
+from senza.components.weighted_dns_elastic_load_balancer import component_weighted_dns_elastic_load_balancer
 from senza.components.stups_auto_configuration import component_stups_auto_configuration
 from senza.components.redis_node import component_redis_node
 from senza.components.redis_cluster import component_redis_cluster
@@ -224,3 +225,26 @@ def test_component_redis_cluster(monkeypatch):
 
     assert 'RedisSubnetGroup' in result['Resources']
     assert 'SubnetIds' in result['Resources']['RedisSubnetGroup']['Properties']
+
+
+def test_weighted_dns_load_balancer(monkeypatch):
+    configuration = {
+        "Name": "test_lb",
+        "SecurityGroups": "",
+        "HTTPPort": "9999",
+        'MainDomain': 'main.domain',
+        'VersionDomain': 'version.domain'
+    }
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    definition = {"Resources": {}}
+
+    args = MagicMock()
+    args.region = "foo"
+
+    mock_string_result = MagicMock()
+    mock_string_result.return_value = "foo"
+    monkeypatch.setattr('senza.components.elastic_load_balancer.find_ssl_certificate_arn', mock_string_result)
+    monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    result = component_weighted_dns_elastic_load_balancer(definition, configuration, args, info, False)
+    assert 'MainDomain' not in result["Resources"]["test_lb"]["Properties"]

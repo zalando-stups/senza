@@ -19,6 +19,7 @@ def component_weighted_dns_elastic_load_balancer(definition, configuration, args
         if 'MainDomain' in configuration:
             main_domain = configuration['MainDomain']
             main_subdomain, main_zone = main_domain.split('.', 1)
+            del configuration['MainDomain']
         else:
             main_zone = get_default_zone(args.region)
             main_subdomain = info['StackName']
@@ -26,6 +27,7 @@ def component_weighted_dns_elastic_load_balancer(definition, configuration, args
         if 'VersionDomain' in configuration:
             version_domain = configuration['VersionDomain']
             version_subdomain, version_zone = version_domain.split('.', 1)
+            del configuration['VersionDomain']
         else:
             version_zone = get_default_zone(args.region)
             version_subdomain = '{}-{}'.format(info['StackName'], info['StackVersion'])

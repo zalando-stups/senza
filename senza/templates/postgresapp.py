@@ -13,7 +13,7 @@ from ._helper import prompt, check_security_group, check_s3_bucket, get_account_
 
 POSTGRES_PORT = 5432
 HEALTHCHECK_PORT = 8008
-SPILO_IMAGE_ADDRESS = "registry.opensource.stups.zalan.do/acid/spilo-9.4"
+SPILO_IMAGE_ADDRESS = "registry.opensource.zalan.do/acid/spilo-9.4"
 
 TEMPLATE = '''
 # basic information for generating and executing this definition

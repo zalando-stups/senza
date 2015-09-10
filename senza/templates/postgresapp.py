@@ -13,7 +13,7 @@ from ._helper import prompt, check_security_group, check_s3_bucket, get_account_
 
 POSTGRES_PORT = 5432
 HEALTHCHECK_PORT = 8008
-SPILO_IMAGE_ADDRESS = "os-registry.stups.zalan.do/acid/spilo"
+SPILO_IMAGE_ADDRESS = "registry.opensource.zalan.do/acid/spilo-9.4"
 
 TEMPLATE = '''
 # basic information for generating and executing this definition
@@ -240,8 +240,8 @@ def generate_definition(variables):
     return definition_yaml
 
 
-def get_latest_spilo_image(registry_url='https://os-registry.stups.zalan.do',
-                           address='/teams/acid/artifacts/spilo/tags'):
+def get_latest_spilo_image(registry_url='https://registry.opensource.zalan.do',
+                           address='/teams/acid/artifacts/spilo-9.4/tags'):
     try:
         r = requests.get(registry_url+address)
         if r.ok:

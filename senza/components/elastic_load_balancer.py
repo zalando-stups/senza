@@ -81,10 +81,14 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
     health_check_target = "{0}:{1}{2}".format(health_check_protocol, health_check_port, health_check_path)
     loadbalancer_name = get_load_balancer_name(info["StackName"], info["StackVersion"])
 
-    loadbalancer_scheme = "internet-facing"
+    loadbalancer_scheme = "internal"
     allowed_loadbalancer_schemes = ("internet-facing", "internal")
     if "Scheme" in configuration:
         loadbalancer_scheme = configuration["Scheme"]
+
+    if loadbalancer_scheme == 'internet-facing':
+        click.secho('You are deploying an internet-facing ELB that will be publicly accessible! ' +
+                    'You should have OAUTH2 and HTTPS in place!', fg='red', bold=True, err=True)
 
     if loadbalancer_scheme not in allowed_loadbalancer_schemes:
         raise click.UsageError('Scheme "{}" is not supported for LoadBalancer'.format(loadbalancer_scheme))

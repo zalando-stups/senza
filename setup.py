@@ -1,14 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-"""
-
-"""
-
 import sys
 import os
 import inspect
-from distutils.cmd import Command
 
 import setuptools
 from setuptools.command.test import test as TestCommand
@@ -97,59 +92,6 @@ class PyTest(TestCommand):
         sys.exit(errno)
 
 
-def sphinx_builder():
-    try:
-        from sphinx.setup_command import BuildDoc
-    except ImportError:
-
-        class NoSphinx(Command):
-
-            user_options = []
-
-            def initialize_options(self):
-                raise RuntimeError('Sphinx documentation is not installed, run: pip install sphinx')
-
-        return NoSphinx
-
-    class BuildSphinxDocs(BuildDoc):
-
-        def run(self):
-            if self.builder == 'doctest':
-                import sphinx.ext.doctest as doctest
-                # Capture the DocTestBuilder class in order to return the total
-                # number of failures when exiting
-                ref = capture_objs(doctest.DocTestBuilder)
-                BuildDoc.run(self)
-                errno = ref[-1].total_failures
-                sys.exit(errno)
-            else:
-                BuildDoc.run(self)
-
-    return BuildSphinxDocs
-
-
-class ObjKeeper(type):
-
-    instances = {}
-
-    def __init__(cls, name, bases, dct):
-        cls.instances[cls] = []
-
-    def __call__(cls, *args, **kwargs):
-        cls.instances[cls].append(super(ObjKeeper, cls).__call__(*args, **kwargs))
-        return cls.instances[cls][-1]
-
-
-def capture_objs(cls):
-    from six import add_metaclass
-    module = inspect.getmodule(cls)
-    name = cls.__name__
-    keeper_class = add_metaclass(ObjKeeper)(cls)
-    setattr(module, name, keeper_class)
-    cls = getattr(module, name)
-    return keeper_class.instances[cls]
-
-
 def get_install_requirements(path):
     content = open(os.path.join(__location__, path)).read()
     return [req for req in content.split('\\n') if req != '']
@@ -162,33 +104,11 @@ def read(fname):
 def setup_package():
     # Assemble additional setup commands
     cmdclass = {}
-    cmdclass['docs'] = sphinx_builder()
-    cmdclass['doctest'] = sphinx_builder()
     cmdclass['test'] = PyTest
 
-    # Some helper variables
-    version = os.getenv('GO_PIPELINE_LABEL', VERSION)
-
-    docs_path = os.path.join(__location__, 'docs')
-    docs_build_path = os.path.join(docs_path, '_build')
     install_reqs = get_install_requirements('requirements.txt')
 
-    command_options = {'docs': {
-        'project': ('setup.py', MAIN_PACKAGE),
-        'version': ('setup.py', version.split('-', 1)[0]),
-        'release': ('setup.py', version),
-        'build_dir': ('setup.py', docs_build_path),
-        'config_dir': ('setup.py', docs_path),
-        'source_dir': ('setup.py', docs_path),
-    }, 'doctest': {
-        'project': ('setup.py', MAIN_PACKAGE),
-        'version': ('setup.py', version.split('-', 1)[0]),
-        'release': ('setup.py', version),
-        'build_dir': ('setup.py', docs_build_path),
-        'config_dir': ('setup.py', docs_path),
-        'source_dir': ('setup.py', docs_path),
-        'builder': ('setup.py', 'doctest'),
-    }, 'test': {'test_suite': ('setup.py', 'tests'), 'cov': ('setup.py', MAIN_PACKAGE)}}
+    command_options = {'test': {'test_suite': ('setup.py', 'tests'), 'cov': ('setup.py', MAIN_PACKAGE)}}
     if JUNIT_XML:
         command_options['test']['junitxml'] = 'setup.py', 'junit.xml'
     if COVERAGE_XML:
@@ -198,7 +118,7 @@ def setup_package():
 
     setup(
         name=NAME,
-        version=version,
+        version=VERSION,
         url=URL,
         description=DESCRIPTION,
         author=AUTHOR,

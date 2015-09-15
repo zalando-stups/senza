@@ -85,6 +85,8 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
     allowed_loadbalancer_schemes = ("internet-facing", "internal")
     if "Scheme" in configuration:
         loadbalancer_scheme = configuration["Scheme"]
+    else:
+        configuration["Scheme"] = loadbalancer_scheme
 
     if loadbalancer_scheme == 'internet-facing':
         click.secho('You are deploying an internet-facing ELB that will be publicly accessible! ' +

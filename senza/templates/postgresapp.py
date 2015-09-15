@@ -123,6 +123,8 @@ Resources:
           LoadBalancerPort: 5432
           Protocol: TCP
       LoadBalancerName: "spilo-{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>"
+      ConnectionSettings:
+        IdleTimeout: 3600
       SecurityGroups:
         - {{spilo_sg_id}}
       Scheme: internal

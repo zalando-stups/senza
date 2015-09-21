@@ -127,8 +127,13 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
     default_health_check_type = 'EC2'
 
     if "ElasticLoadBalancer" in configuration:
-        definition["Resources"][asg_name]["Properties"]["LoadBalancerNames"] = [
-            {"Ref": configuration["ElasticLoadBalancer"]}]
+        if isinstance(configuration["ElasticLoadBalancer"], str):
+            definition["Resources"][asg_name]["Properties"]["LoadBalancerNames"] = [
+                {"Ref": configuration["ElasticLoadBalancer"]}]
+        elif isinstance(configuration["ElasticLoadBalancer"], list):
+            definition["Resources"][asg_name]["Properties"]["LoadBalancerNames"] = []
+            for ref in configuration["ElasticLoadBalancer"]:
+                definition["Resources"][asg_name]["Properties"]["LoadBalancerNames"].append({'Ref': ref})
         # use ELB health check by default
         default_health_check_type = 'ELB'
 

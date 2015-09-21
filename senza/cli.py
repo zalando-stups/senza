@@ -916,7 +916,6 @@ def domains(stack_ref, region, output, w, watch):
                     name = res.physical_resource_id
                     if name not in records_by_name:
                         zone_name = name.split('.', 1)[1]
-
                         for rec in get_records(zone_name):
                             records_by_name[(rec['Name'].rstrip('.'), rec.get('SetIdentifier'))] = rec
                     record = records_by_name.get((name, stack.StackName)) or records_by_name.get((name, None))

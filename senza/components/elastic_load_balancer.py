@@ -27,6 +27,7 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
     # domains pointing to the load balancer
     main_zone = None
     for name, domain in configuration.get('Domains', {}).items():
+        name = '{}{}'.format(lb_name, name)
         definition["Resources"][name] = {
             "Type": "AWS::Route53::RecordSet",
             "Properties": {

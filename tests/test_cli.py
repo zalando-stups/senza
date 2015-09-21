@@ -277,8 +277,10 @@ def test_print_auto(monkeypatch):
 
         result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', '1.0-SNAPSHOT'],
                                catch_exceptions=False)
-
-    data = json.loads(result.output)
+    # no stdout/stderr seperation with runner.invoke...
+    stdout, cfjson = result.output.split('\n', 1)
+    assert 'Generating Cloud Formation template.. OK' == stdout
+    data = json.loads(cfjson)
     assert 'AWSTemplateFormatVersion' in data.keys()
     assert 'subnet-abc123' in data['Mappings']['ServerSubnets']['myregion']['Subnets']
     assert 'subnet-ghi789' not in data['Mappings']['ServerSubnets']['myregion']['Subnets']
@@ -595,7 +597,7 @@ def test_resources(monkeypatch):
                      'StackId': 'arn:aws:cloudformation:myregions:123456:stack/test-1/123456',
                      'StackName': 'test-1',
                      'Timestamp': datetime.datetime.utcnow()},
-                    ]}
+                ]}
             return cf
         return MagicMock()
 
@@ -666,7 +668,7 @@ def test_domains(monkeypatch):
                      'TTL': 20,
                      'Type': 'CNAME',
                      'Weight': 20},
-                    ]}
+                ]}
             return route53
         return MagicMock()
 
@@ -713,7 +715,7 @@ def test_events(monkeypatch):
                  'StackId': 'arn:aws:cloudformation:myregions:123456:stack/test-1/123456',
                  'StackName': 'test-1',
                  'Timestamp': datetime.datetime.utcnow()},
-                ]}
+            ]}
 
             return cf
         return MagicMock()
@@ -892,7 +894,7 @@ def test_create(monkeypatch):
                                catch_exceptions=True)
         assert 'Stack test-1 already exists' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=myregion', 'abcde'*25, 'my-param-value',
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=myregion', 'abcde' * 25, 'my-param-value',
                                      'extra-param-value'],
                                catch_exceptions=True)
         assert 'cannot exceed 128 characters. Please choose another name/version.' in result.output

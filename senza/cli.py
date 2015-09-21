@@ -514,6 +514,36 @@ def list_stacks(region, stack_ref, all, output, w, watch):
 @click.option('-f', '--force', is_flag=True, help='Ignore failing validation checks')
 def create(definition, region, version, parameter, disable_rollback, dry_run, force):
     '''Create a new Cloud Formation stack from the given Senza definition file'''
+    data = create_cf_template(definition, region, version, parameter, force)
+    cf = boto3.client('cloudformation', region)
+
+    with Action('Creating Cloud Formation stack {}..'.format(data['StackName'])) as act:
+        try:
+            if dry_run:
+                info('**DRY-RUN** {}'.format(data['NotificationARNs']))
+            else:
+                cf.create_stack(DisableRollback=disable_rollback, **data)
+        except ClientError as e:
+            if e.response['Error']['Code'] == 'AlreadyExistsException':
+                act.fatal_error('Stack {} already exists. Please choose another version.'.format(data['StackName']))
+            else:
+                raise
+
+
+@cli.command('print')
+@click.argument('definition', type=DEFINITION)
+@click.argument('version', callback=validate_version)
+@click.argument('parameter', nargs=-1)
+@region_option
+@json_output_option
+@click.option('-f', '--force', is_flag=True, help='Ignore failing validation checks')
+def print_cfjson(definition, region, version, parameter, output, force):
+    '''Print the generated Cloud Formation template'''
+    data = create_cf_template(definition, region, version, parameter, force)
+    print_json(data['TemplateBody'], output)
+
+
+def create_cf_template(definition, region, version, parameter, force):
     region = get_region(region)
     check_credentials(region)
     account_info = AccountArguments(region=region)
@@ -564,41 +594,9 @@ def create(definition, region, version, parameter, disable_rollback, dry_run, fo
         topics = []
 
     capabilities = get_required_capabilities(data)
-
-    cf = boto3.client('cloudformation', region)
-
-    with Action('Creating Cloud Formation stack {}..'.format(stack_name)) as act:
-        try:
-            if dry_run:
-                info('**DRY-RUN** {}'.format(topics))
-            else:
-                cfjson = json.dumps(data, sort_keys=True, indent=4)
-                cf.create_stack(StackName=stack_name, TemplateBody=cfjson, Parameters=parameters, Tags=tags_list,
-                                NotificationARNs=topics, DisableRollback=disable_rollback, Capabilities=capabilities)
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'AlreadyExistsException':
-                act.fatal_error('Stack {} already exists. Please choose another version.'.format(stack_name))
-            else:
-                raise
-
-
-@cli.command('print')
-@click.argument('definition', type=DEFINITION)
-@click.argument('version', callback=validate_version)
-@click.argument('parameter', nargs=-1)
-@region_option
-@json_output_option
-@click.option('-f', '--force', is_flag=True, help='Ignore failing validation checks')
-def print_cfjson(definition, region, version, parameter, output, force):
-    '''Print the generated Cloud Formation template'''
-    input = definition
-    region = get_region(region)
-    check_credentials(region)
-    account_info = AccountArguments(region=region)
-    args = parse_args(input, region, version, parameter, account_info)
-    data = evaluate(input.copy(), args, account_info, force)
     cfjson = json.dumps(data, sort_keys=True, indent=4)
-    print_json(cfjson, output)
+    return {'StackName': stack_name, 'TemplateBody': cfjson, 'Parameters': parameters, 'Tags': tags_list,
+            'NotificationARNs': topics, 'Capabilities': capabilities}
 
 
 @cli.command()

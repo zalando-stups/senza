@@ -1,40 +1,40 @@
-import boto.ec2
-import boto.vpc
+import boto3
 
 from senza.components.configuration import component_configuration
 from senza.utils import ensure_keys
+from senza.aws import get_tag
 
 
 def find_taupage_image(region: str):
     '''Find the latest Taupage AMI, first try private images, fallback to public'''
-    ec2_conn = boto.ec2.connect_to_region(region)
-    filters = {'name': '*Taupage-AMI-*',
-               'is_public': 'false',
-               'state': 'available',
-               'root_device_type': 'ebs'}
-    images = ec2_conn.get_all_images(filters=filters)
+    ec2 = boto3.resource('ec2', region)
+    filters = [{'Name': 'name', 'Values': ['*Taupage-AMI-*']},
+               {'Name': 'is-public', 'Values': ['false']},
+               {'Name': 'state', 'Values': ['available']},
+               {'Name': 'root-device-type', 'Values': ['ebs']}]
+    images = list(ec2.images.filter(Filters=filters))
     if not images:
-        public_filters = {'name': '*Taupage-Public-AMI-*',
-                          'is_public': 'true',
-                          'state': 'available',
-                          'root_device_type': 'ebs'}
-        images = ec2_conn.get_all_images(filters=public_filters)
+        public_filters = [{'Name': 'name', 'Values': ['*Taupage-Public-AMI-*']},
+                          {'Name': 'is-public', 'Values': ['true']},
+                          {'Name': 'state', 'Values': ['available']},
+                          {'Name': 'root-device-type', 'Values': ['ebs']}]
+        images = list(ec2.images.filter(Filters=public_filters))
     if not images:
         raise Exception('No Taupage AMI found')
     most_recent_image = sorted(images, key=lambda i: i.name)[-1]
     return most_recent_image
 
 
-def component_stups_auto_configuration(definition, configuration, args, info, force):
-    vpc_conn = boto.vpc.connect_to_region(args.region)
+def component_stups_auto_configuration(definition, configuration, args, info, force, account_info):
+    ec2 = boto3.resource('ec2', args.region)
 
     availability_zones = configuration.get('AvailabilityZones')
 
     server_subnets = []
     lb_subnets = []
     lb_internal_subnets = []
-    for subnet in vpc_conn.get_all_subnets():
-        name = subnet.tags.get('Name', '')
+    for subnet in ec2.subnets.all():
+        name = get_tag(subnet.tags, 'Name')
         if availability_zones and subnet.availability_zone not in availability_zones:
             # skip subnet as it's not in one of the given AZs
             continue
@@ -63,6 +63,6 @@ def component_stups_auto_configuration(definition, configuration, args, info, fo
     configuration = ensure_keys(configuration, "Images", 'LatestTaupageImage', args.region)
     configuration["Images"]['LatestTaupageImage'][args.region] = most_recent_image.id
 
-    component_configuration(definition, configuration, args, info, force)
+    component_configuration(definition, configuration, args, info, force, account_info)
 
     return definition

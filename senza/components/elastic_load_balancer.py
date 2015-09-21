@@ -1,5 +1,6 @@
 
 import click
+from clickclick import fatal_error
 
 from senza.aws import find_ssl_certificate_arn, resolve_security_groups
 
@@ -20,7 +21,7 @@ def get_load_balancer_name(stack_name: str, stack_version: str):
     return '{}-{}'.format(stack_name[:l], stack_version)
 
 
-def component_elastic_load_balancer(definition, configuration, args, info, force):
+def component_elastic_load_balancer(definition, configuration, args, info, force, account_info):
     lb_name = configuration["Name"]
 
     # domains pointing to the load balancer
@@ -35,7 +36,7 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
                     {"Fn::GetAtt": [lb_name, "DNSName"]}
                 ],
                 "Name": "{0}.{1}".format(domain["Subdomain"], domain["Zone"]),
-                "HostedZoneName": "{0}.".format(domain["Zone"])
+                "HostedZoneName": "{0}".format(domain["Zone"])
             },
         }
 
@@ -50,7 +51,7 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
     pattern = None
     if not ssl_cert:
         if main_zone:
-            pattern = main_zone.lower().replace('.', '-')
+            pattern = main_zone.lower().rstrip('.').replace('.', '-')
         else:
             pattern = ''
     elif not ssl_cert.startswith('arn:'):
@@ -60,7 +61,7 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
         ssl_cert = find_ssl_certificate_arn(args.region, pattern)
 
         if not ssl_cert:
-            raise click.UsageError('Could not find any matching SSL certificate for "{}"'.format(pattern))
+            fatal_error('Could not find any matching SSL certificate for "{}"'.format(pattern))
 
     health_check_protocol = "HTTP"
     allowed_health_check_protocols = ("HTTP", "TCP", "UDP", "SSL")

@@ -27,11 +27,11 @@ def check_docker_image_exists(docker_image: pierone.api.DockerImage):
         raise click.UsageError('Docker image "{}" does not exist'.format(docker_image))
 
 
-def component_taupage_auto_scaling_group(definition, configuration, args, info, force):
+def component_taupage_auto_scaling_group(definition, configuration, args, info, force, account_info):
     # inherit from the normal auto scaling group but discourage user info and replace with a Taupage config
     if 'Image' not in configuration:
         configuration['Image'] = 'LatestTaupageImage'
-    definition = component_auto_scaling_group(definition, configuration, args, info, force)
+    definition = component_auto_scaling_group(definition, configuration, args, info, force, account_info)
 
     taupage_config = configuration['TaupageConfig']
 

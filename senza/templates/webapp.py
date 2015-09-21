@@ -55,7 +55,7 @@ SenzaComponents:
 '''
 
 
-def gather_user_variables(variables, region):
+def gather_user_variables(variables, region, account_info):
     # maximal 32 characters because of the loadbalancer-name
     prompt(variables, 'application_id', 'Application ID', default='hello-world',
            value_proc=check_value(60, '^[a-zA-Z][-a-zA-Z0-9]*$'))

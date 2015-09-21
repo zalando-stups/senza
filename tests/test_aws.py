@@ -1,13 +1,12 @@
 from unittest.mock import MagicMock
 from senza.aws import resolve_topic_arn
-import boto.ec2
 from senza.aws import get_security_group, resolve_security_groups, get_account_id, get_account_alias
+
 
 def test_resolve_security_groups(monkeypatch):
     ec2 = MagicMock()
-    sg = boto.ec2.securitygroup.SecurityGroup(name='app-test', id='sg-test')
-    ec2.get_all_security_groups.return_value = [sg]
-    monkeypatch.setattr('boto.ec2.connect_to_region', MagicMock(return_value=ec2))
+    ec2.security_groups.filter.return_value = [MagicMock(name='app-test', id='sg-test')]
+    monkeypatch.setattr('boto3.resource', MagicMock(return_value=ec2))
 
     security_groups = []
     security_groups.append({'Fn::GetAtt': ['RefSecGroup', 'GroupId']})
@@ -21,11 +20,12 @@ def test_resolve_security_groups(monkeypatch):
 
     assert result == resolve_security_groups(security_groups, 'myregion')
 
+
 def test_create(monkeypatch):
     sns = MagicMock()
-    topic = {'TopicArn': 'arn:123:mytopic'}
-    sns.get_all_topics.return_value = {'ListTopicsResponse': {'ListTopicsResult': {'Topics': [topic]}}}
-    monkeypatch.setattr('boto.sns.connect_to_region', MagicMock(return_value=sns))
+    topic = MagicMock(arn='arn:123:mytopic')
+    sns.topics.all.return_value = [topic]
+    monkeypatch.setattr('boto3.resource', MagicMock(return_value=sns))
 
     assert 'arn:123:mytopic' == resolve_topic_arn('myregion', 'mytopic')
 

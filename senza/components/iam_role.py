@@ -1,25 +1,20 @@
 
-import boto.iam
-import json
-import urllib
-
+import boto3
 from senza.utils import ensure_keys
 
 
-def get_merged_policies(roles: list, region: str):
-    iam = boto.iam.connect_to_region(region)
+def get_merged_policies(roles: list):
+    iam = boto3.resource('iam')
     policies = []
-    for role in roles:
-        policy_names = iam.list_role_policies(role)
-        for policy_name in policy_names['list_role_policies_response']['list_role_policies_result']['policy_names']:
-            policy = iam.get_role_policy(role, policy_name)['get_role_policy_response']['get_role_policy_result']
-            document = urllib.parse.unquote(policy['policy_document'])
-            policies.append({'PolicyName': policy_name,
-                             'PolicyDocument': json.loads(document)})
+    for rolename in roles:
+        role = iam.Role(rolename)
+        for policy in role.policies.all():
+            policies.append({'PolicyName': policy.policy_name,
+                             'PolicyDocument': policy.policy_document})
     return policies
 
 
-def component_iam_role(definition, configuration, args, info, force):
+def component_iam_role(definition, configuration, args, info, force, account_info):
     definition = ensure_keys(definition, "Resources")
     role_name = configuration['Name']
     definition['Resources'][role_name] = {
@@ -39,7 +34,7 @@ def component_iam_role(definition, configuration, args, info, force):
             }),
             'Path': configuration.get('Path', '/'),
             'Policies': configuration.get('Policies', []) + get_merged_policies(
-                configuration.get('MergePoliciesFromIamRoles', []), args.region)
+                configuration.get('MergePoliciesFromIamRoles', []))
         }
     }
     return definition

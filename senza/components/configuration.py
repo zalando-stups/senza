@@ -11,7 +11,7 @@ def get_default_description(info, args):
     return '{} ({})'.format(info['StackName'].title().replace('-', ' '), format_params(args))
 
 
-def component_configuration(definition, configuration, args, info, force):
+def component_configuration(definition, configuration, args, info, force, account_info):
     # add info as mappings
     # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html
     definition = ensure_keys(definition, "Mappings", "Senza", "Info")

@@ -5,7 +5,7 @@ from senza.utils import ensure_keys
 from senza.components.iam_role import get_merged_policies
 
 
-def component_auto_scaling_group(definition, configuration, args, info, force):
+def component_auto_scaling_group(definition, configuration, args, info, force, account_info):
     definition = ensure_keys(definition, "Resources")
 
     # launch configuration

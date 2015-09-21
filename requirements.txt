@@ -1,7 +1,8 @@
-clickclick>=0.11
+clickclick>=0.14
 pystache
-boto>=2.37.0
 PyYAML
 dnspython3
 stups-pierone>=0.7
-boto3>=1.0.1
+boto3>=1.1.3
+botocore>=1.2.1
+pytest>=2.7.3

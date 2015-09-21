@@ -1,19 +1,20 @@
 import collections
 import datetime
 import functools
-import boto.cloudformation
-import boto.ec2
-import boto.iam
 import time
 import boto3
+from botocore.exceptions import ClientError
 
 
 def get_security_group(region: str, sg_name: str):
-    conn = boto.ec2.connect_to_region(region)
-    all_security_groups = conn.get_all_security_groups()
-    for _sg in all_security_groups:
-        if _sg.name == sg_name:
-            return _sg
+    ec2 = boto3.resource('ec2', region)
+    try:
+        return list(ec2.security_groups.filter(GroupNames=[sg_name]))[0]
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'InvalidGroup.NotFound':
+            return None
+        else:
+            raise
 
 
 def resolve_security_groups(security_groups: list, region: str):
@@ -34,15 +35,13 @@ def resolve_security_groups(security_groups: list, region: str):
 
 def find_ssl_certificate_arn(region, pattern):
     '''Find the a matching SSL cert and return its ARN'''
-    iam_conn = boto.iam.connect_to_region(region)
-    response = iam_conn.list_server_certs()
-    response = response['list_server_certificates_response']
-    certs = response['list_server_certificates_result']['server_certificate_metadata_list']
+    iam = boto3.resource('iam')
     candidates = set()
+    certs = list(iam.server_certificates.all())
     for cert in certs:
         # only consider matching SSL certs or use the only one available
-        if pattern in cert['server_certificate_name'] or len(certs) == 1:
-            candidates.add(cert['arn'])
+        if pattern == cert.name or len(certs) == 1:
+            candidates.add(cert.server_certificate_metadata['Arn'])
     if candidates:
         # return first match (alphabetically sorted
         return sorted(candidates)[0]
@@ -81,21 +80,20 @@ def get_required_capabilities(data: dict):
     return capabilities
 
 
-def resolve_topic_arn(region, topic):
+def resolve_topic_arn(region, topic_name):
     '''
     >>> resolve_topic_arn(None, 'arn:123')
     'arn:123'
     '''
-    if topic.startswith('arn:'):
-        topic_arn = topic
+    topic_arn = None
+    if topic_name.startswith('arn:'):
+        topic_arn = topic_name
     else:
         # resolve topic name to ARN
-        sns = boto.sns.connect_to_region(region)
-        response = sns.get_all_topics()
-        topic_arn = False
-        for obj in response['ListTopicsResponse']['ListTopicsResult']['Topics']:
-            if obj['TopicArn'].endswith(topic):
-                topic_arn = obj['TopicArn']
+        sns = boto3.resource('sns', region)
+        for topic in sns.topics.all():
+            if topic.arn.endswith(':{}'.format(topic_name)):
+                topic_arn = topic.arn
 
     return topic_arn
 
@@ -104,7 +102,7 @@ def resolve_topic_arn(region, topic):
 class SenzaStackSummary:
     def __init__(self, stack):
         self.stack = stack
-        parts = stack.stack_name.rsplit('-', 1)
+        parts = stack['StackName'].rsplit('-', 1)
         self.name = parts[0]
         if len(parts) > 1:
             self.version = parts[1]
@@ -114,7 +112,7 @@ class SenzaStackSummary:
     def __getattr__(self, item):
         if item in self.__dict__:
             return self.__dict__[item]
-        return getattr(self.stack, item)
+        return self.stack.get(item)
 
     def __lt__(self, other):
         def key(v):
@@ -122,18 +120,36 @@ class SenzaStackSummary:
         return key(self) < key(other)
 
     def __eq__(self, other):
-        return self.stack_name == other.stack_name
+        return self.stack['StackName'] == other.stack['StackName']
 
 
 def get_stacks(stack_refs: list, region, all=False):
-    cf = boto.cloudformation.connect_to_region(region)
+    # boto3.resource('cf')-stacks.filter() doesn't support status_filter, only StackName
+    cf = boto3.client('cloudformation', region)
     if all:
         status_filter = None
     else:
-        status_filter = [st for st in cf.valid_states if st != 'DELETE_COMPLETE']
-    stacks = cf.list_stacks(stack_status_filters=status_filter)
-    for stack in stacks:
-        if not stack_refs or matches_any(stack.stack_name, stack_refs):
+        # status_filter = [st for st in cf.valid_states if st != 'DELETE_COMPLETE']
+        status_filter = [
+            "CREATE_IN_PROGRESS",
+            "CREATE_FAILED",
+            "CREATE_COMPLETE",
+            "ROLLBACK_IN_PROGRESS",
+            "ROLLBACK_FAILED",
+            "ROLLBACK_COMPLETE",
+            "DELETE_IN_PROGRESS",
+            "DELETE_FAILED",
+            # "DELETE_COMPLETE",
+            "UPDATE_IN_PROGRESS",
+            "UPDATE_COMPLETE_CLEANUP_IN_PROGRESS",
+            "UPDATE_COMPLETE",
+            "UPDATE_ROLLBACK_IN_PROGRESS",
+            "UPDATE_ROLLBACK_FAILED",
+            "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS",
+            "UPDATE_ROLLBACK_COMPLETE"
+        ]
+    for stack in cf.list_stacks(StackStatusFilter=status_filter)['StackSummaries']:
+        if not stack_refs or matches_any(stack['StackName'], stack_refs):
             yield SenzaStackSummary(stack)
 
 
@@ -160,6 +176,28 @@ def matches_any(cf_stack_name: str, stack_refs: list):
         elif not ref.version and (cf_stack_name or '').rsplit('-', 1)[0] == ref.name:
             return True
     return False
+
+
+def get_tag(tags: list, key: str):
+    '''
+    >>> tags = [{'Key': 'aws:cloudformation:stack-id',
+    ...          'Value': 'arn:aws:cloudformation:eu-west-1:123:stack/test-123'},
+    ...         {'Key': 'Name',
+    ...          'Value': 'test-123'},
+    ...         {'Key': 'StackVersion',
+    ...          'Value': '123'}]
+    >>> get_tag(tags, 'StackVersion')
+    '123'
+    >>> get_tag(tags, 'aws:cloudformation:stack-id')
+    'arn:aws:cloudformation:eu-west-1:123:stack/test-123'
+    >>> get_tag(tags, 'notfound') is None
+    True
+    '''
+    found = [tag['Value'] for tag in tags if tag['Key'] == key]
+    if len(found):
+        return found[0]
+    else:
+        return None
 
 
 def get_account_id():

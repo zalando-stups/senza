@@ -40,7 +40,7 @@ SenzaComponents:
 '''
 
 
-def gather_user_variables(variables, region):
+def gather_user_variables(variables, region, account_info):
     prompt(variables, 'application_id', 'Application ID', default='hello-world',
            value_proc=check_value(60, '^[a-zA-Z][-a-zA-Z0-9]*$'))
     prompt(variables, 'docker_image', 'Docker image without tag/version (e.g. "pierone.example.org/myteam/myapp")',

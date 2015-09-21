@@ -5,7 +5,6 @@ HA Postgres app, which needs an S3 bucket to store WAL files
 import click
 from clickclick import warning, error
 from senza.aws import get_security_group
-from senza.components.weighted_dns_elastic_load_balancer import get_default_zone
 from senza.utils import pystache_render
 import requests
 
@@ -174,19 +173,19 @@ def ebs_optimized_supported(instance_type):
                              'r3.4xlarge')
 
 
-def gather_user_variables(variables, region):
+def gather_user_variables(variables, region, account_info):
     if click.confirm('Do you want to set the docker image now? [No]'):
         prompt(variables, "docker_image", "Docker Image Version", default=get_latest_spilo_image())
     else:
         variables['docker_image'] = None
     prompt(variables, 'wal_s3_bucket', 'Postgres WAL S3 bucket to use',
-           default='{}-{}-spilo-app'.format(get_account_alias(region), region))
+           default='{}-{}-spilo-app'.format(get_account_alias(), region))
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
-    prompt(variables, 'hosted_zone', 'Hosted Zone', default=get_default_zone(region) or 'example.com')
+    prompt(variables, 'hosted_zone', 'Hosted Zone', default=account_info.Domain or 'example.com')
     if (variables['hosted_zone'][-1:] != '.'):
         variables['hosted_zone'] += '.'
     prompt(variables, 'discovery_domain', 'ETCD Discovery Domain',
-           default='postgres.'+variables['hosted_zone'][:-1])
+           default='postgres.' + variables['hosted_zone'][:-1])
     if variables['instance_type'].lower().split('.')[0] in ('c3', 'g2', 'hi1', 'i2', 'm3', 'r3'):
         variables['use_ebs'] = click.confirm('Do you want database data directory on external (EBS) storage? [Yes]',
                                              default=True)
@@ -245,7 +244,7 @@ def generate_definition(variables):
 def get_latest_spilo_image(registry_url='https://registry.opensource.zalan.do',
                            address='/teams/acid/artifacts/spilo-9.4/tags'):
     try:
-        r = requests.get(registry_url+address)
+        r = requests.get(registry_url + address)
         if r.ok:
             # sort the tags by creation date
             latest = None

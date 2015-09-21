@@ -423,28 +423,55 @@ def get_stack_refs(refs: list):
 
     >>> get_stack_refs(['foobar-stack', '1', 'other-stack'])
     [StackReference(name='foobar-stack', version='1'), StackReference(name='other-stack', version=None)]
+    >>> get_stack_refs(['foobar-stack', 'v1', 'v2', 'v99', 'other-stack'])
+    [StackReference(name='foobar-stack', version='v1'), StackReference(name='foobar-stack', version='v2'), \
+StackReference(name='foobar-stack', version='v99'), StackReference(name='other-stack', version=None)]
     '''
     refs = list(refs)
     refs.reverse()
     stack_refs = []
+    last_stack = None
     while refs:
         ref = refs.pop()
-        try:
-            with open(ref) as fd:
-                data = yaml.safe_load(fd)
-            ref = data['SenzaInfo']['StackName']
-        except Exception as e:
-            if not STACK_NAME_PATTERN.match(ref):
-                # we can be sure that ref is a file path,
-                # as stack names cannot contain dots or slashes
-                raise click.FileError(ref, str(e))
-
-        if refs:
-            version = refs.pop()
+        if last_stack is not None and re.compile(r'v[0-9][a-zA-Z0-9-]*$').match(ref):
+            stack_refs.append(StackReference(last_stack, ref))
         else:
-            version = None
-        stack_refs.append(StackReference(ref, version))
+            try:
+                with open(ref) as fd:
+                    data = yaml.safe_load(fd)
+                ref = data['SenzaInfo']['StackName']
+            except Exception as e:
+                if not STACK_NAME_PATTERN.match(ref):
+                    # we can be sure that ref is a file path,
+                    # as stack names cannot contain dots or slashes
+                    raise click.FileError(ref, str(e))
+
+            if refs:
+                version = refs.pop()
+            else:
+                version = None
+            stack_refs.append(StackReference(ref, version))
+            last_stack = ref
     return stack_refs
+
+
+def all_with_version(stack_refs: list):
+    '''
+    >>> all_with_version([StackReference(name='foobar-stack', version='1'), \
+                          StackReference(name='other-stack', version=None)])
+    False
+    >>> all_with_version([StackReference(name='foobar-stack', version='1'), \
+                          StackReference(name='other-stack', version='v23')])
+    True
+    >>> all_with_version([StackReference(name='foobar-stack', version='1')])
+    True
+    >>> all_with_version([StackReference(name='other-stack', version=None)])
+    False
+    '''
+    for ref in stack_refs:
+        if not ref.version:
+            return False
+    return True
 
 
 @cli.command('list')
@@ -591,7 +618,7 @@ def delete(stack_ref, region, dry_run, force):
 
     stacks = list(get_stacks(stack_refs, region))
 
-    if len(stacks) > 1 and not dry_run and not force:
+    if not all_with_version(stack_refs) and len(stacks) > 1 and not dry_run and not force:
         fatal_error('Error: {} matching stacks found. '.format(len(stacks)) +
                     'Please use the "--force" flag if you really want to delete multiple stacks.')
 

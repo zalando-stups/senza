@@ -60,10 +60,10 @@ SenzaComponents:
           {{^use_ebs}}
           VirtualName: ephemeral0
           {{/use_ebs}}
-      ElasticLoadBalancer: PostgresLoadBalancer
+      ElasticLoadBalancer:
+        - PostgresLoadBalancer
+        - PostgresReplicaLoadBalancer
       HealthCheckType: EC2
-      LoadBalancerNames:
-        - Ref: PostgresLoadBalancer
       SecurityGroups:
         - app-spilo
       IamRoles:
@@ -96,6 +96,17 @@ SenzaComponents:
         scalyr_account_key: {{scalyr_account_key}}
         {{/scalyr_account_key}}
 Resources:
+  PostgresReplicaRoute53Record:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Type: CNAME
+      TTL: 20
+      HostedZoneName: {{hosted_zone}}
+      Name: "{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>-replica.{{hosted_zone}}"
+      ResourceRecords:
+        - Fn::GetAtt:
+           - PostgresReplicaLoadBalancer
+           - DNSName
   PostgresRoute53Record:
     Type: AWS::Route53::RecordSet
     Properties:
@@ -107,6 +118,31 @@ Resources:
         - Fn::GetAtt:
            - PostgresLoadBalancer
            - DNSName
+  PostgresReplicaLoadBalancer:
+    Type: AWS::ElasticLoadBalancing::LoadBalancer
+    Properties:
+      CrossZone: true
+      HealthCheck:
+        HealthyThreshold: 2
+        Interval: 5
+        Target: HTTP:{{healthcheck_port}}/slave
+        Timeout: 3
+        UnhealthyThreshold: 2
+      Listeners:
+        - InstancePort: 5432
+          LoadBalancerPort: 5432
+          Protocol: TCP
+      LoadBalancerName: "spilo-{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>-replica"
+      ConnectionSettings:
+        IdleTimeout: 3600
+      SecurityGroups:
+        - {{spilo_sg_id}}
+      Scheme: internal
+      Subnets:
+        Fn::FindInMap:
+          - LoadBalancerSubnets
+          - Ref: AWS::Region
+          - Subnets
   PostgresLoadBalancer:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Properties:
@@ -181,7 +217,7 @@ def gather_user_variables(variables, region, account_info):
     prompt(variables, 'wal_s3_bucket', 'Postgres WAL S3 bucket to use',
            default='{}-{}-spilo-app'.format(get_account_alias(), region))
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
-    prompt(variables, 'hosted_zone', 'Hosted Zone', default=account_info.Domain or 'example.com')
+    variables['hosted_zone'] = account_info.Domain or 'example.com'
     if (variables['hosted_zone'][-1:] != '.'):
         variables['hosted_zone'] += '.'
     prompt(variables, 'discovery_domain', 'ETCD Discovery Domain',

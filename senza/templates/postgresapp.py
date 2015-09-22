@@ -181,7 +181,7 @@ def gather_user_variables(variables, region, account_info):
     prompt(variables, 'wal_s3_bucket', 'Postgres WAL S3 bucket to use',
            default='{}-{}-spilo-app'.format(get_account_alias(), region))
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
-    prompt(variables, 'hosted_zone', 'Hosted Zone', default=account_info.Domain or 'example.com')
+    variables['hosted_zone'] = account_info.Domain or 'example.com'
     if (variables['hosted_zone'][-1:] != '.'):
         variables['hosted_zone'] += '.'
     prompt(variables, 'discovery_domain', 'ETCD Discovery Domain',

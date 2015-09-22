@@ -150,6 +150,7 @@ def check_s3_bucket(bucket_name: str, region: str):
         exists = False
         try:
             s3.meta.client.head_bucket(Bucket=bucket_name)
+            exists = True
         except:
             pass
     if not exists:

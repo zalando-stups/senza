@@ -27,6 +27,7 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
     # domains pointing to the load balancer
     main_zone = None
     for name, domain in configuration.get('Domains', {}).items():
+        name = '{}{}'.format(lb_name, name)
         definition["Resources"][name] = {
             "Type": "AWS::Route53::RecordSet",
             "Properties": {
@@ -80,7 +81,12 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
         health_check_port = configuration["HealthCheckPort"]
 
     health_check_target = "{0}:{1}{2}".format(health_check_protocol, health_check_port, health_check_path)
-    loadbalancer_name = get_load_balancer_name(info["StackName"], info["StackVersion"])
+    if configuration.get('NameSufix'):
+        loadbalancer_name = get_load_balancer_name(info["StackName"], '{}-{}'.format(info["StackVersion"],
+                                                                                     configuration['NameSufix']))
+        del(configuration['NameSufix'])
+    else:
+        loadbalancer_name = get_load_balancer_name(info["StackName"], info["StackVersion"])
 
     loadbalancer_scheme = "internal"
     allowed_loadbalancer_schemes = ("internet-facing", "internal")

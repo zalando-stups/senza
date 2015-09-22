@@ -14,6 +14,7 @@ junit.xml
 dist/
 build/
 htmlcov/
+.cache/
 
 # Vi
 *.sw*

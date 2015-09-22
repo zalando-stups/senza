@@ -567,7 +567,6 @@ def create_cf_template(definition, region, version, parameter, force):
         tags.update(senza_tags)
     elif isinstance(senza_tags, list):
         for tag in senza_tags:
-            info('{}: {}'.format(type(tag), tag))
             for key, value in tag.items():
                 # # As the SenzaInfo is not evaluated, we explicitly evaluate the values here
                 tags[key] = evaluate_template(value, info, [], args, account_info)
@@ -916,7 +915,6 @@ def domains(stack_ref, region, output, w, watch):
                     name = res.physical_resource_id
                     if name not in records_by_name:
                         zone_name = name.split('.', 1)[1]
-
                         for rec in get_records(zone_name):
                             records_by_name[(rec['Name'].rstrip('.'), rec.get('SetIdentifier'))] = rec
                     record = records_by_name.get((name, stack.StackName)) or records_by_name.get((name, None))
@@ -1102,12 +1100,16 @@ def console(instance_or_stack_ref, limit, region, w, watch):
         for instance in ec2.instances.filter(Filters=filters):
             cf_stack_name = get_tag(instance.tags, 'aws:cloudformation:stack-name')
             if not stack_refs or matches_any(cf_stack_name, stack_refs):
-                output = instance.console_output()
+                output = {}
+                try:
+                    output = instance.console_output()
+                except:
+                    pass
                 click.secho('Showing last {} lines of {}/{}..'.format(limit,
                                                                       cf_stack_name,
                                                                       instance.private_ip_address or instance.id),
                             bold=True)
-                if output['Output']:
+                if isinstance(output, dict) and output.get('Output'):
                     for line in output['Output'].split('\n')[-limit:]:
                         print_console(line)
 

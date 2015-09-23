@@ -736,6 +736,8 @@ def init(definition_file, region, template, user_variable):
 
 
 def get_instance_health(elb, stack_name: str) -> dict:
+    if stack_name is None:
+        return {}
     instance_health = {}
     try:
         instance_states = elb.describe_instance_health(LoadBalancerName=stack_name)['InstanceStates']

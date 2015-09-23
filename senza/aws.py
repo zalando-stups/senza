@@ -13,6 +13,13 @@ def get_security_group(region: str, sg_name: str):
     except ClientError as e:
         if e.response['Error']['Code'] == 'InvalidGroup.NotFound':
             return None
+        elif e.response['Error']['Code'] == 'VPCIdNotSpecified':
+            # no Default VPC, we must use the lng way...
+            for sg in ec2.security_groups.all():
+                # FIXME: What if we have 2 VPC, with a SG with the same name?!
+                if sg.group_name == sg_name:
+                    return sg
+            return None
         else:
             raise
 

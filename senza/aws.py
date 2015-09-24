@@ -134,7 +134,7 @@ def get_stacks(stack_refs: list, region, all=False):
     # boto3.resource('cf')-stacks.filter() doesn't support status_filter, only StackName
     cf = boto3.client('cloudformation', region)
     if all:
-        status_filter = None
+        status_filter = []
     else:
         # status_filter = [st for st in cf.valid_states if st != 'DELETE_COMPLETE']
         status_filter = [

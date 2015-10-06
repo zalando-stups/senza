@@ -259,12 +259,7 @@ def test_component_taupage_auto_scaling_group_user_data_without_ref():
         }
     }
 
-    expected_user_data = {
-        'Fn::Join': ['', [
-            '#taupage-ami-config\nenvironment:\n  ENV1: ', {'Fn::GetAtt': ['Obj2', 'Attr2']},
-            '\n  ENV2: ', {'Ref': 'REF2'}, '\n  ENV3: r3\nmint_bucket: ', {'Ref': 'REF1'},
-            '\nruntime: Docker\nsource: ', {'Fn::Join': ['/', ['pierone.stups.zalan.do', 'cool',
-                                                         {'Fn::GetAtt': ['Obj1', 'Attr1']}]]}, '\n']]}
+    expected_user_data = '#taupage-ami-config\nenvironment:\n  ENV3: r3\nruntime: Docker\n'
 
     assert expected_user_data == generate_user_data(configuration)
 

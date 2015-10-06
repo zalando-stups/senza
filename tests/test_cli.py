@@ -5,6 +5,7 @@ import collections
 from unittest.mock import MagicMock
 import yaml
 import json
+import io
 from senza.cli import cli, handle_exceptions, AccountArguments
 import botocore.exceptions
 from senza.traffic import PERCENT_RESOLUTION, StackVersion
@@ -356,6 +357,103 @@ def test_print_default_value(monkeypatch):
                                catch_exceptions=False)
         assert 'DefParam: other def value\\n' in result.output
         assert 'ExtraParam: extra value\\n' in result.output
+
+
+def test_print_taupage_config_without_ref(monkeypatch):
+    def my_resource(rtype, *args):
+        if rtype == 'ec2':
+            ec2 = MagicMock()
+            ec2.security_groups.filter.return_value = [MagicMock(name='app-master-mind', id='sg-007')]
+            return ec2
+        return MagicMock()
+
+    monkeypatch.setattr('boto3.client', MagicMock())
+    monkeypatch.setattr('boto3.resource', my_resource)
+    data = {'SenzaInfo': {'StackName': 'test',
+                          'Parameters': [{'ApplicationId': {'Description': 'Application ID from kio'}}]},
+            'SenzaComponents': [{'Configuration': {'ServerSubnets': {'myregion': ['subnet-123']},
+                                                   'Type': 'Senza::Configuration'}},
+                                {'AppServer': {'Image': 'AppImage',
+                                               'InstanceType': 't2.micro',
+                                               'SecurityGroups': ['app-{{Arguments.ApplicationId}}'],
+                                               'IamRoles': ['app-{{Arguments.ApplicationId}}'],
+                                               'TaupageConfig': {'runtime': 'Docker',
+                                                                 'source': 'foo/bar',
+                                                                 'mint_bucket': 'zalando-mint-bucket',
+                                                                 'environment': {'ENV1': 'v1',
+                                                                                 'ENV2': 'v2'}},
+                                               'Type': 'Senza::TaupageAutoScalingGroup'}}]
+            }
+
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd, default_flow_style=False)
+
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', 'master-mind'],
+                               catch_exceptions=False)
+
+        output = io.StringIO(result.output)
+        output.readline()
+        awsjson = json.load(output)
+
+    expected_user_data = "#taupage-ami-config\napplication_id: test\napplication_version: '123'\n" \
+                         "environment:\n  ENV1: v1\n  ENV2: v2\nmint_bucket: zalando-mint-bucket\n" \
+                         "notify_cfn:\n  resource: AppServer\n  stack: test-123\nruntime: Docker\nsource: foo/bar\n"
+
+    assert expected_user_data == awsjson["Resources"]["AppServerConfig"]["Properties"]["UserData"]["Fn::Base64"]
+
+
+def test_print_taupage_config_with_ref(monkeypatch):
+    def my_resource(rtype, *args):
+        if rtype == 'ec2':
+            ec2 = MagicMock()
+            ec2.security_groups.filter.return_value = [MagicMock(name='app-master-mind', id='sg-007')]
+            return ec2
+        return MagicMock()
+
+    monkeypatch.setattr('boto3.client', MagicMock())
+    monkeypatch.setattr('boto3.resource', my_resource)
+    data = {'SenzaInfo': {'StackName': 'test',
+                          'Parameters': [{'ApplicationId': {'Description': 'Application ID from kio'}}]},
+            'SenzaComponents': [{'Configuration': {'ServerSubnets': {'myregion': ['subnet-123']},
+                                                   'Type': 'Senza::Configuration'}},
+                                {'AppServer': {'Image': 'AppImage',
+                                               'InstanceType': 't2.micro',
+                                               'SecurityGroups': ['app-{{Arguments.ApplicationId}}'],
+                                               'IamRoles': ['app-{{Arguments.ApplicationId}}'],
+                                               'TaupageConfig': {'runtime': 'Docker',
+                                                                 'source': 'foo/bar',
+                                                                 'mint_bucket': {'Fn::Join': ['-', [{'Ref': 'bucket1'}, '{{ Arguments.ApplicationId}}']]},
+                                                                 'environment': {'ENV1': {'Ref': 'resource1'},
+                                                                                 'ENV2': 'v2'}},
+                                               'Type': 'Senza::TaupageAutoScalingGroup'}}]
+            }
+
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd, default_flow_style=False)
+
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', 'master-mind'],
+                               catch_exceptions=False)
+
+        output = io.StringIO(result.output)
+        output.readline()
+        awsjson = json.load(output)
+
+    expected_user_data = {"Fn::Join": ["", [
+        "#taupage-ami-config\napplication_id: test\napplication_version: '123'\nenvironment:\n  ENV1: ",
+        {"Ref": "resource1"},
+        "\n  ENV2: v2\nmint_bucket: ",
+        {"Fn::Join": ["-", [
+           {"Ref": "bucket1"},
+            "master-mind"]]},
+        "\nnotify_cfn:\n  resource: AppServer\n  stack: test-123\nruntime: Docker\nsource: foo/bar\n"]]}
+
+    assert expected_user_data == awsjson["Resources"]["AppServerConfig"]["Properties"]["UserData"]["Fn::Base64"]
 
 
 def test_dump(monkeypatch):

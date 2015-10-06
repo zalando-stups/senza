@@ -7,6 +7,7 @@ from senza.components.weighted_dns_elastic_load_balancer import component_weight
 from senza.components.stups_auto_configuration import component_stups_auto_configuration
 from senza.components.redis_node import component_redis_node
 from senza.components.redis_cluster import component_redis_cluster
+from senza.components.taupage_auto_scaling_group import generate_user_data
 
 
 def test_invalid_component():
@@ -248,3 +249,43 @@ def test_weighted_dns_load_balancer(monkeypatch):
 
     result = component_weighted_dns_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
     assert 'MainDomain' not in result["Resources"]["test_lb"]["Properties"]
+
+
+def test_component_taupage_auto_scaling_group_user_data_without_ref():
+    configuration = {
+        'runtime': 'Docker',
+        'environment': {
+            'ENV3': "r3"
+        }
+    }
+
+    expected_user_data = {
+        'Fn::Join': ['', [
+            '#taupage-ami-config\nenvironment:\n  ENV1: ', {'Fn::GetAtt': ['Obj2', 'Attr2']},
+            '\n  ENV2: ', {'Ref': 'REF2'}, '\n  ENV3: r3\nmint_bucket: ', {'Ref': 'REF1'},
+            '\nruntime: Docker\nsource: ', {'Fn::Join': ['/', ['pierone.stups.zalan.do', 'cool',
+                                                         {'Fn::GetAtt': ['Obj1', 'Attr1']}]]}, '\n']]}
+
+    assert expected_user_data == generate_user_data(configuration)
+
+
+def test_component_taupage_auto_scaling_group_user_data_with_ref():
+    configuration = {
+        'runtime': 'Docker',
+        'source': {'Fn::Join': ['/', ['pierone.stups.zalan.do', 'cool', {'Fn::GetAtt': ['Obj1', 'Attr1']}]]},
+        'mint_bucket': {'Ref': 'REF1'},
+        'environment': {
+            'ENV1': {'Fn::GetAtt': ['Obj2', 'Attr2']},
+            'ENV2': {'Ref': 'REF2'},
+            'ENV3': "r3"
+        }
+    }
+
+    expected_user_data = {
+        'Fn::Join': ['', [
+            '#taupage-ami-config\nenvironment:\n  ENV1: ', {'Fn::GetAtt': ['Obj2', 'Attr2']},
+            '\n  ENV2: ', {'Ref': 'REF2'}, '\n  ENV3: r3\nmint_bucket: ', {'Ref': 'REF1'},
+            '\nruntime: Docker\nsource: ', {'Fn::Join': ['/', ['pierone.stups.zalan.do', 'cool',
+                                                         {'Fn::GetAtt': ['Obj1', 'Attr1']}]]}, '\n']]}
+
+    assert expected_user_data == generate_user_data(configuration)

@@ -3,10 +3,16 @@ import click
 import pierone.api
 import textwrap
 import yaml
+import json
+import sys
+import re
 
 from senza.components.auto_scaling_group import component_auto_scaling_group
 from senza.docker import docker_image_exists
 from senza.utils import ensure_keys
+
+
+_AWS_FN_RE = re.compile(r"('[{]{2} (.*?) [}]{2}')", re.DOTALL)
 
 
 def check_docker_image_exists(docker_image: pierone.api.DockerImage):
@@ -58,10 +64,62 @@ def component_taupage_auto_scaling_group(definition, configuration, args, info, 
     if not force and docker_image.registry:
         check_docker_image_exists(docker_image)
 
-    userdata = "#taupage-ami-config\n" + yaml.dump(taupage_config, default_flow_style=False)
+    userdata = generate_user_data(taupage_config)
 
     config_name = configuration["Name"] + "Config"
     ensure_keys(definition, "Resources", config_name, "Properties", "UserData")
     definition["Resources"][config_name]["Properties"]["UserData"]["Fn::Base64"] = userdata
 
     return definition
+
+
+def generate_user_data(taupage_config):
+    """
+    Generates the CloudFormation "UserData" field.
+    It looks for AWS functions such as Fn:: and Ref and generates the appropriate UserData json field,
+    It leaves nodes representing AWS functions or refs unmodified and converts into text everything else.
+    Example::
+      environment:
+        S3_BUCKET: {"Ref": "ExhibitorBucket"}
+        S3_PREFIX: exhibitor
+
+    transforms into::
+      {"Fn::Join": ["", "environment:\n  S3_BUCKET: ", {"Ref": "ExhibitorBucket"}, "\n  S3_PREFIX: exhibitor"]}
+
+    :param taupage_config:
+    :return:
+    """
+
+    def transform(node):
+        """Transform AWS functions and refs into an string representation for later split and substitution"""
+
+        if isinstance(node, dict):
+            key = list(node.keys())[0]
+            if len(node) == 1 and (key == "Ref" or key.startswith("Fn::")):
+                return "".join(["{{ ", json.dumps(node), " }}"])
+            else:
+                return {key: transform(value) for key, value in node.items()}
+        elif isinstance(node, list):
+            return [transform(subnode) for subnode in node]
+        else:
+            return node
+
+    def split(text):
+        """Splits yaml text into text and AWS functions/refs"""
+
+        parts = []
+        last_pos = 0
+        for m in _AWS_FN_RE.finditer(text):
+            parts += [text[last_pos:m.start(1)], json.loads(m.group(2))]
+            last_pos = m.end(1)
+        parts += [text[last_pos:]]
+        return parts
+
+    yaml_text = yaml.dump(transform(taupage_config), width=sys.maxsize, default_flow_style=False)
+
+    parts = split("#taupage-ami-config\n" + yaml_text)
+
+    if len(parts) == 1:
+        return parts[0]
+    else:
+        return {"Fn::Join": ["", parts]}

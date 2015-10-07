@@ -72,7 +72,6 @@ def component_taupage_auto_scaling_group(definition, configuration, args, info, 
 
     return definition
 
-
 def generate_user_data(taupage_config):
     """
     Generates the CloudFormation "UserData" field.
@@ -90,15 +89,25 @@ def generate_user_data(taupage_config):
     :return:
     """
 
+    def is_aws_fn(name):
+        try:
+            return name == "Ref" or (isinstance(name, str) and name.startswith("Fn::"))
+        except:
+            return False
+
     def transform(node):
         """Transform AWS functions and refs into an string representation for later split and substitution"""
 
         if isinstance(node, dict):
-            key = list(node.keys())[0]
-            if len(node) == 1 and (key == "Ref" or key.startswith("Fn::")):
-                return "".join(["{{ ", json.dumps(node), " }}"])
+            num_keys = len(node)
+            if num_keys > 0:
+                key = next(iter(node.keys()))
+                if num_keys == 1 and is_aws_fn(key):
+                    return "".join(["{{ ", json.dumps(node), " }}"])
+                else:
+                    return {key: transform(value) for key, value in node.items()}
             else:
-                return {key: transform(value) for key, value in node.items()}
+                return node
         elif isinstance(node, list):
             return [transform(subnode) for subnode in node]
         else:

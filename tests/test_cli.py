@@ -1,5 +1,6 @@
 import datetime
 import os
+import io
 from click.testing import CliRunner
 import collections
 from unittest.mock import MagicMock

@@ -5,7 +5,6 @@ import collections
 from unittest.mock import MagicMock
 import yaml
 import json
-import io
 from senza.cli import cli, handle_exceptions, AccountArguments
 import botocore.exceptions
 from senza.traffic import PERCENT_RESOLUTION, StackVersion
@@ -394,9 +393,9 @@ def test_print_taupage_config_without_ref(monkeypatch):
         result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', 'master-mind'],
                                catch_exceptions=False)
 
-        output = io.StringIO(result.output)
-        output.readline()
-        awsjson = json.load(output)
+    stdout, cfjson = result.output.split('\n', 1)
+    assert 'Generating Cloud Formation template.. OK' == stdout
+    awsjson = json.loads(cfjson)
 
     expected_user_data = "#taupage-ami-config\napplication_id: test\napplication_version: '123'\n" \
                          "environment:\n  ENV1: v1\n  ENV2: v2\nmint_bucket: zalando-mint-bucket\n" \
@@ -425,7 +424,12 @@ def test_print_taupage_config_with_ref(monkeypatch):
                                                'IamRoles': ['app-{{Arguments.ApplicationId}}'],
                                                'TaupageConfig': {'runtime': 'Docker',
                                                                  'source': 'foo/bar',
-                                                                 'mint_bucket': {'Fn::Join': ['-', [{'Ref': 'bucket1'}, '{{ Arguments.ApplicationId}}']]},
+                                                                 'mint_bucket': {'Fn::Join':
+                                                                                 ['-',
+                                                                                  [{'Ref': 'bucket1'},
+                                                                                   '{{ Arguments.ApplicationId}}'
+                                                                                   ]
+                                                                                  ]},
                                                                  'environment': {'ENV1': {'Ref': 'resource1'},
                                                                                  'ENV2': 'v2'}},
                                                'Type': 'Senza::TaupageAutoScalingGroup'}}]
@@ -440,17 +444,15 @@ def test_print_taupage_config_with_ref(monkeypatch):
         result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', 'master-mind'],
                                catch_exceptions=False)
 
-        output = io.StringIO(result.output)
-        output.readline()
-        awsjson = json.load(output)
+    stdout, cfjson = result.output.split('\n', 1)
+    assert 'Generating Cloud Formation template.. OK' == stdout
+    awsjson = json.loads(cfjson)
 
     expected_user_data = {"Fn::Join": ["", [
         "#taupage-ami-config\napplication_id: test\napplication_version: '123'\nenvironment:\n  ENV1: ",
         {"Ref": "resource1"},
         "\n  ENV2: v2\nmint_bucket: ",
-        {"Fn::Join": ["-", [
-           {"Ref": "bucket1"},
-            "master-mind"]]},
+        {"Fn::Join": ["-", [{"Ref": "bucket1"}, "master-mind"]]},
         "\nnotify_cfn:\n  resource: AppServer\n  stack: test-123\nruntime: Docker\nsource: foo/bar\n"]]}
 
     assert expected_user_data == awsjson["Resources"]["AppServerConfig"]["Properties"]["UserData"]["Fn::Base64"]

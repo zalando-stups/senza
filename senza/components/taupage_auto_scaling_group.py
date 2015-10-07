@@ -72,6 +72,7 @@ def component_taupage_auto_scaling_group(definition, configuration, args, info, 
 
     return definition
 
+
 def generate_user_data(taupage_config):
     """
     Generates the CloudFormation "UserData" field.

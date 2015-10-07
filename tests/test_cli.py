@@ -429,7 +429,12 @@ def test_print_taupage_config_with_ref(monkeypatch):
                                                'TaupageConfig': {'runtime': 'Docker',
                                                                  'source': 'foo/bar',
                                                                  'ports': {80: 80},
-                                                                 'mint_bucket': {'Fn::Join': ['-', [{'Ref': 'bucket1'}, '{{ Arguments.ApplicationId}}']]},
+                                                                 'mint_bucket': {'Fn::Join':
+                                                                                 ['-',
+                                                                                  [{'Ref': 'bucket1'},
+                                                                                   '{{ Arguments.ApplicationId}}'
+                                                                                   ]
+                                                                                  ]},
                                                                  'environment': {'ENV1': {'Ref': 'resource1'},
                                                                                  'ENV2': 'v2'}},
                                                'Type': 'Senza::TaupageAutoScalingGroup'}}]
@@ -454,9 +459,7 @@ def test_print_taupage_config_with_ref(monkeypatch):
         "#taupage-ami-config\napplication_id: test\napplication_version: '123'\nenvironment:\n  ENV1: ",
         {"Ref": "resource1"},
         "\n  ENV2: v2\nmint_bucket: ",
-        {"Fn::Join": ["-", [
-           {"Ref": "bucket1"},
-            "master-mind"]]},
+        {"Fn::Join": ["-", [{"Ref": "bucket1"}, "master-mind"]]},
         "\nnotify_cfn:\n  resource: AppServer\n  stack: test-123\nports:\n  80: 80\nruntime: Docker\nsource: foo/bar\n"]]}
 
     assert expected_user_data == awsjson["Resources"]["AppServerConfig"]["Properties"]["UserData"]["Fn::Base64"]

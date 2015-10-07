@@ -34,7 +34,7 @@ def component_stups_auto_configuration(definition, configuration, args, info, fo
     lb_subnets = []
     lb_internal_subnets = []
     for subnet in ec2.subnets.all():
-        name = get_tag(subnet.tags, 'Name')
+        name = get_tag(subnet.tags, 'Name', '')
         if availability_zones and subnet.availability_zone not in availability_zones:
             # skip subnet as it's not in one of the given AZs
             continue

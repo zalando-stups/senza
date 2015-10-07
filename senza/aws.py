@@ -185,7 +185,7 @@ def matches_any(cf_stack_name: str, stack_refs: list):
     return False
 
 
-def get_tag(tags: list, key: str):
+def get_tag(tags: list, key: str, default=None):
     '''
     >>> tags = [{'Key': 'aws:cloudformation:stack-id',
     ...          'Value': 'arn:aws:cloudformation:eu-west-1:123:stack/test-123'},
@@ -204,7 +204,7 @@ def get_tag(tags: list, key: str):
     if len(found):
         return found[0]
     else:
-        return None
+        return default
 
 
 def get_account_id():

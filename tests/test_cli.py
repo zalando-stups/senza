@@ -1,6 +1,5 @@
 import datetime
 import os
-import io
 from click.testing import CliRunner
 import collections
 from unittest.mock import MagicMock
@@ -395,11 +394,9 @@ def test_print_taupage_config_without_ref(monkeypatch):
         result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', 'master-mind'],
                                catch_exceptions=False)
 
-    output = io.StringIO(result.output)
-
-    assert 'Generating Cloud Formation template.. OK\n' == output.readline()
-
-    awsjson = json.load(output)
+    stdout, cfjson = result.output.split('\n', 1)
+    assert 'Generating Cloud Formation template.. OK' == stdout
+    awsjson = json.loads(cfjson)
 
     expected_user_data = "#taupage-ami-config\napplication_id: test\napplication_version: '123'\n" \
                          "environment:\n  ENV1: v1\n  ENV2: v2\nmint_bucket: zalando-mint-bucket\n" \
@@ -449,11 +446,9 @@ def test_print_taupage_config_with_ref(monkeypatch):
         result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', 'master-mind'],
                                catch_exceptions=False)
 
-    output = io.StringIO(result.output)
-
-    assert 'Generating Cloud Formation template.. OK\n' == output.readline()
-
-    awsjson = json.load(output)
+    stdout, cfjson = result.output.split('\n', 1)
+    assert 'Generating Cloud Formation template.. OK' == stdout
+    awsjson = json.loads(cfjson)
 
     expected_user_data = {"Fn::Join": ["", [
         "#taupage-ami-config\napplication_id: test\napplication_version: '123'\nenvironment:\n  ENV1: ",

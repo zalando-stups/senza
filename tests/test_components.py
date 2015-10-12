@@ -284,3 +284,15 @@ def test_component_taupage_auto_scaling_group_user_data_with_ref():
                                                          {'Fn::GetAtt': ['Obj1', 'Attr1']}]]}, '\n']]}
 
     assert expected_user_data == generate_user_data(configuration)
+
+
+def test_component_taupage_auto_scaling_group_user_data_with_lists_and_empty_dict():
+    configuration = {
+        'resources': ['A', {"Ref": "Res1"}],
+        'ports': {}
+    }
+
+    expected_user_data = {'Fn::Join': ['', [
+        '#taupage-ami-config\nports: {}\nresources:\n- A\n- ', {'Ref': 'Res1'}, '\n']]}
+
+    assert expected_user_data == generate_user_data(configuration)

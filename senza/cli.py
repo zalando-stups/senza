@@ -30,7 +30,7 @@ import senza
 from urllib.request import urlopen
 from urllib.parse import quote
 from .traffic import change_version_traffic, print_version_traffic, get_records
-from .utils import named_value, camel_case_to_underscore, pystache_render
+from .utils import named_value, camel_case_to_underscore, pystache_render, ensure_keys
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -190,6 +190,11 @@ def evaluate(definition, args, account_info, force: bool):
     info["StackVersion"] = args.version
     # replace Arguments and AccountInfo Variabales in info section
     info = yaml.load(evaluate_template(yaml.dump(info), {}, {}, args, account_info))
+
+    # add info as mappings
+    # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html
+    definition = ensure_keys(definition, "Mappings", "Senza", "Info")
+    definition["Mappings"]["Senza"]["Info"] = info
 
     template = yaml.dump(definition, default_flow_style=False)
     definition = evaluate_template(template, info, [], args, account_info)

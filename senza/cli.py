@@ -13,6 +13,7 @@ import json
 from urllib.error import URLError
 import dns.resolver
 import time
+from subprocess import call
 
 import click
 from clickclick import AliasedGroup, Action, choice, info, FloatRange, OutputFormat, fatal_error
@@ -780,11 +781,13 @@ def get_instance_docker_image_source(instance) -> str:
 @click.option('--all', is_flag=True, help='Show all instances, including instances not part of any stack')
 @click.option('--terminated', is_flag=True, help='Show instances in TERMINATED state')
 @click.option('-d', '--docker-image', is_flag=True, help='Show docker image source for every instance listed')
+@click.option('-p', '--piu', metavar='REASON', help='execute PIU request-access command')
+@click.option('-O', '--odd-host', help='Odd SSH bastion hostname', envvar='ODD_HOST', metavar='HOSTNAME')
 @region_option
 @output_option
 @watch_option
 @watchrefresh_option
-def instances(stack_ref, all, terminated, docker_image, region, output, w, watch):
+def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region, output, w, watch):
     '''List the stack's EC2 instances'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
@@ -831,6 +834,11 @@ def instances(stack_ref, all, terminated, docker_image, region, output, w, watch
             print_table(('stack_name version resource_id instance_id public_ip ' +
                          'private_ip state lb_status{} launch_time'.format(opt_docker_column)).split(),
                         rows, styles=STYLES, titles=TITLES)
+
+        if piu is not None:
+            for row in rows:
+                if row['private_ip'] is not None:
+                    call(['piu', 'request-access', row['private_ip'], '{} via senza'.format(piu), '-O', odd_host])
 
 
 @cli.command()

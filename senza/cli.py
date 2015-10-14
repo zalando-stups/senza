@@ -44,6 +44,7 @@ STYLES = {
     'PENDING': {'fg': 'yellow', 'bold': True},
     'CREATE_IN_PROGRESS': {'fg': 'yellow', 'bold': True},
     'DELETE_IN_PROGRESS': {'fg': 'red', 'bold': True},
+    'STOPPED': {'fg': 'red'},
     'SHUTTING_DOWN': {'fg': 'red', 'bold': True},
     'ROLLBACK_IN_PROGRESS': {'fg': 'red', 'bold': True},
     'IN_SERVICE': {'fg': 'green'},

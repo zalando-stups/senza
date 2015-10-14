@@ -200,11 +200,11 @@ def get_tag(tags: list, key: str, default=None):
     >>> get_tag(tags, 'notfound') is None
     True
     '''
-    found = [tag['Value'] for tag in tags if tag['Key'] == key]
-    if len(found):
-        return found[0]
-    else:
-        return default
+    if isinstance(tags, list):
+        found = [tag['Value'] for tag in tags if tag['Key'] == key]
+        if len(found):
+            return found[0]
+    return default
 
 
 def get_account_id():

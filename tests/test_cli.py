@@ -71,6 +71,23 @@ def test_expired_credentials(capsys):
     assert 'AWS credentials have expired.' in err
 
 
+def test_print_minimal(monkeypatch):
+    monkeypatch.setattr('boto3.client', lambda *args: MagicMock())
+
+    data = {'SenzaInfo': {'StackName': 'test'}, 'Resources': {'MyQueue': {'Type': 'AWS::SQS::Queue'}}}
+
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123'],
+                               catch_exceptions=False)
+
+    assert 'AWSTemplateFormatVersion' in result.output
+
+
 def test_print_basic(monkeypatch):
     monkeypatch.setattr('boto3.client', lambda *args: MagicMock())
 

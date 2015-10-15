@@ -51,7 +51,7 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
                         ]
                     },
                     'Path': '/',
-                    'Policies': get_merged_policies(roles, args.region)
+                    'Policies': get_merged_policies(roles)
                 }
             }
             instance_profile_roles = [{'Ref': logical_role_id}]

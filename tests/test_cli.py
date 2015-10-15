@@ -1057,10 +1057,10 @@ def test_traffic(monkeypatch):
     monkeypatch.setattr('boto3.resource', my_resource)
 
     stacks = [
-        StackVersion('myapp', 'v1', ['myapp.example.org'], ['some-lb']),
-        StackVersion('myapp', 'v2', ['myapp.example.org'], ['another-elb']),
-        StackVersion('myapp', 'v3', ['myapp.example.org'], ['elb-3']),
-        StackVersion('myapp', 'v4', ['myapp.example.org'], ['elb-4']),
+        StackVersion('myapp', 'v1', ['myapp.example.org'], ['some-lb'], ['some-arn']),
+        StackVersion('myapp', 'v2', ['myapp.example.org'], ['another-elb'], ['some-arn']),
+        StackVersion('myapp', 'v3', ['myapp.example.org'], ['elb-3'], ['some-arn']),
+        StackVersion('myapp', 'v4', ['myapp.example.org'], ['elb-4'], ['some-arn']),
     ]
     monkeypatch.setattr('senza.traffic.get_stack_versions', MagicMock(return_value=stacks))
 

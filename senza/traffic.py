@@ -191,11 +191,14 @@ def dump_traffic_changes(stack_name: str,
         if identifier == r['identifier']:
             r['current'] = '<'
 
-    print_table('stack_name version identifier old_weight% delta compensation new_weight% current'.split(),
-                sorted(rows, key=lambda x: identifier_versions.get(x['identifier'], '')))
+    return sorted(rows, key=lambda x: identifier_versions.get(x['identifier'], ''))
 
 
-class StackVersion(collections.namedtuple('StackVersion', 'name version domain lb_dns_name')):
+def print_traffic_changes(message: list):
+    print_table('stack_name version identifier old_weight% delta compensation new_weight% current'.split(), message)
+
+
+class StackVersion(collections.namedtuple('StackVersion', 'name version domain lb_dns_name notification_arns')):
     @property
     def identifier(self):
         return '{}-{}'.format(self.name, self.version)
@@ -213,6 +216,7 @@ def get_stack_versions(stack_name: str, region: str):
         details = cf.Stack(stack.StackId)
         lb_dns_name = []
         domain = []
+        notification_arns = details.notification_arns
         for res in details.resource_summaries.all():
             if res.resource_type == 'AWS::ElasticLoadBalancing::LoadBalancer':
                 elb = boto3.client('elb', region)
@@ -221,7 +225,7 @@ def get_stack_versions(stack_name: str, region: str):
             elif res.resource_type == 'AWS::Route53::RecordSet':
                 if 'version' not in res.logical_id.lower():
                     domain.append(res.physical_resource_id)
-        yield StackVersion(stack_name, get_tag(details.tags, 'StackVersion'), domain, lb_dns_name)
+        yield StackVersion(stack_name, get_tag(details.tags, 'StackVersion'), domain, lb_dns_name, notification_arns)
 
 
 def get_version(versions: list, version: str):
@@ -304,8 +308,10 @@ def print_version_traffic(stack_ref: StackReference, region):
 
 
 def change_version_traffic(stack_ref: StackReference, percentage: float, region):
-
     versions = list(get_stack_versions(stack_ref.name, region))
+    arns = []
+    for v in versions:
+        arns = arns + v.notification_arns
     identifier_versions = collections.OrderedDict(
         (version.identifier, version.version) for version in versions)
     version = get_version(versions, stack_ref.version)
@@ -322,7 +328,8 @@ def change_version_traffic(stack_ref: StackReference, percentage: float, region)
     if partial_count == 0 and percentage == 0:
         # disable the last remaining version
         new_record_weights = {i: 0 for i in known_record_weights.keys()}
-        ok(msg='DNS record "{dns_name}" will be removed from that stack'.format(dns_name=version.dns_name))
+        message = 'DNS record "{dns_name}" will be removed from that stack'.format(dns_name=version.dns_name)
+        ok(msg=message)
     else:
         with Action('Calculating new weights..'):
             compensations = {}
@@ -341,11 +348,20 @@ def change_version_traffic(stack_ref: StackReference, percentage: float, region)
                 percentage = compensate(calculation_error, compensations, identifier,
                                         new_record_weights, partial_count, percentage, identifier_versions)
             assert sum(new_record_weights.values()) == FULL_PERCENTAGE
-        dump_traffic_changes(stack_ref.name,
-                             identifier,
-                             identifier_versions,
-                             known_record_weights,
-                             new_record_weights,
-                             compensations,
-                             deltas)
+        message = dump_traffic_changes(stack_ref.name,
+                                       identifier,
+                                       identifier_versions,
+                                       known_record_weights,
+                                       new_record_weights,
+                                       compensations,
+                                       deltas)
+        print_traffic_changes(message)
+        inform_sns(arns, message, region)
     set_new_weights(version.dns_name, identifier, version.lb_dns_name, new_record_weights, percentage)
+
+
+def inform_sns(arns: list, message: str, region):
+    sns_topics = set(arns)
+    sns = boto3.client('sns')
+    for sns_topic in sns_topics:
+        sns.publish(TopicArn=sns_topic, Subject="SenzaTrafficRedirect", Message=str(message))

@@ -1,3 +1,4 @@
+from json import JSONEncoder
 import click
 from clickclick import warning, action, ok, print_table, Action
 import collections
@@ -361,7 +362,8 @@ def change_version_traffic(stack_ref: StackReference, percentage: float, region)
 
 
 def inform_sns(arns: list, message: str, region):
+    jsonizer = JSONEncoder()
     sns_topics = set(arns)
     sns = boto3.client('sns')
     for sns_topic in sns_topics:
-        sns.publish(TopicArn=sns_topic, Subject="SenzaTrafficRedirect", Message=str(message))
+        sns.publish(TopicArn=sns_topic, Subject="SenzaTrafficRedirect", Message=jsonizer.encode((message)))

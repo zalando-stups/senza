@@ -28,11 +28,11 @@ def test_get_stack_versions(monkeypatch):
         MagicMock(resource_type='AWS::ElasticLoadBalancing::LoadBalancer'),
         MagicMock(resource_type='AWS::Route53::RecordSet', physical_resource_id='myapp.example.org')
     ]
-    cf.Stack.return_value = MagicMock(tags=[{'Value': '1', 'Key': 'StackVersion'}],
+    cf.Stack.return_value = MagicMock(tags=[{'Value': '1', 'Key': 'StackVersion'}], notification_arns=['some-arn'],
                                       resource_summaries=MagicMock(all=MagicMock(return_value=resource)))
     elb.describe_load_balancers.return_value = {'LoadBalancerDescriptions': [{'DNSName': 'elb-dns-name'}]}
     monkeypatch.setattr('senza.traffic.get_stacks', MagicMock(
         return_value=[SenzaStackSummary(stack), SenzaStackSummary({'StackStatus': 'ROLLBACK_COMPLETE',
                                                                    'StackName': 'my-stack-1'})]))
     stack_version = list(get_stack_versions('my-stack', 'my-region'))
-    assert stack_version == [StackVersion('my-stack', '1', ['myapp.example.org'], ['elb-dns-name'])]
+    assert stack_version == [StackVersion('my-stack', '1', ['myapp.example.org'], ['elb-dns-name'], ['some-arn'])]

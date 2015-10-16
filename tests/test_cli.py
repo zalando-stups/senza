@@ -1059,6 +1059,35 @@ def test_create(monkeypatch):
         assert 'Positional parameters must not follow keywords' in result.output
 
 
+def test_update(monkeypatch):
+    cf = MagicMock()
+
+    def my_client(rtype, *args):
+        if rtype == 'cloudformation':
+            return cf
+        return MagicMock()
+
+    monkeypatch.setattr('boto3.client', my_client)
+
+    runner = CliRunner()
+
+    data = {'SenzaComponents': [{'Config': {'Type': 'Senza::Configuration'}}],
+            'SenzaInfo': {'StackName': 'test'}}
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+
+        result = runner.invoke(cli, ['update', 'myapp.yaml', '--dry-run', '--region=myregion', '1'],
+                               catch_exceptions=False)
+        assert 'DRY-RUN' in result.output
+
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=myregion', '1'],
+                               catch_exceptions=False)
+        assert 'OK' in result.output
+
+
+
 def test_traffic(monkeypatch):
     route53 = MagicMock(name='r53conn')
 

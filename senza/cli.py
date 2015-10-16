@@ -32,6 +32,7 @@ from urllib.request import urlopen
 from urllib.parse import quote
 from .traffic import change_version_traffic, print_version_traffic, get_records
 from .utils import named_value, camel_case_to_underscore, pystache_render, ensure_keys
+from pprint import pformat
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -48,6 +49,13 @@ STYLES = {
     'STOPPED': {'fg': 'red'},
     'SHUTTING_DOWN': {'fg': 'red', 'bold': True},
     'ROLLBACK_IN_PROGRESS': {'fg': 'red', 'bold': True},
+    'UPDATE_COMPLETE': {'fg': 'green'},
+    'UPDATE_ROLLBACK_IN_PROGRESS': {'fg': 'red', 'bold': True},
+    'UPDATE_IN_PROGRESS': {'fg': 'yellow', 'bold': True},
+    'UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS': {'fg': 'red', 'bold': True},
+    'UPDATE_COMPLETE_CLEANUP_IN_PROGRESS': {'fg': 'yellow', 'bold': True},
+    'UPDATE_FAILED': {'fg': 'red'},
+    'UPDATE_ROLLBACK_COMPLETE': {'fg': 'red'},
     'IN_SERVICE': {'fg': 'green'},
     'OUT_OF_SERVICE': {'fg': 'red'},
     'OK': {'fg': 'green'},
@@ -535,6 +543,30 @@ def create(definition, region, version, parameter, disable_rollback, dry_run, fo
                 act.fatal_error('Stack {} already exists. Please choose another version.'.format(data['StackName']))
             else:
                 raise
+
+
+@cli.command()
+@click.argument('definition', type=DEFINITION)
+@click.argument('version', callback=validate_version)
+@click.argument('parameter', nargs=-1)
+@region_option
+@click.option('--disable-rollback', is_flag=True, help='Disable Cloud Formation rollback on failure')
+@click.option('--dry-run', is_flag=True, help='No-op mode: show what would be created')
+@click.option('-f', '--force', is_flag=True, help='Ignore failing validation checks')
+def update(definition, region, version, parameter, disable_rollback, dry_run, force):
+    '''Update an existing Cloud Formation stack from the given Senza definition file'''
+    data = create_cf_template(definition, region, version, parameter, force)
+    cf = boto3.client('cloudformation', region)
+
+    with Action('Updating Cloud Formation stack {}..'.format(data['StackName'])) as act:
+        try:
+            if dry_run:
+                info('**DRY-RUN** {}'.format(data['NotificationARNs']))
+            else:
+                del(data['Tags'])
+                cf.update_stack(**data)
+        except ClientError as e:
+            act.fatal_error('ClientError: {}'.format(pformat(e.response)))
 
 
 @cli.command('print')

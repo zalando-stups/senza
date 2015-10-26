@@ -1,0 +1,62 @@
+
+# this is a senza.yaml describing a Location Service Demo (LSD) backend server.
+# use it as an example for passing a STAGE environment to your application (see
+# NOTEs below). to pass the stage to your application from your deployment, use
+# senza create <application-yaml> <stack-name> <version> Stage=<MYSTAGE>, where
+# <MYSTAGE> should be something like LIVE, STAGING, and so on.
+# example: senza create lsd.yaml 21 0.21 Stage=STAGING.
+
+# NOTE the Stage: section passing a stage parameter to the Taupage AMI.
+
+SenzaInfo:
+  StackName: lsd
+  Parameters:
+    - ImageVersion:
+        Description: "Docker image version of lsd."
+    - Stage:
+        Description: "Stage of the application (live, staging, ...)"
+
+# NOTE the environment: section under TaupageConfig: which passes the
+# <Stage> argument of senza (create) to Taupage which turns it into a
+# runtime UNIX/LINUX environment variable which can be retrieved from
+# within your application, e.g. in scala as sys.env.get("STAGE").
+
+SenzaComponents:
+
+  # this basic configuration is required for the other components
+  - Configuration:
+      Type: Senza::StupsAutoConfiguration # auto-detect network setup
+
+  # will create a launch configuration and auto scaling group with scaling triggers
+  - AppServer:
+      Type: Senza::TaupageAutoScalingGroup
+      Minimum: 0
+      Maximum: 1
+      InstanceType: t2.micro
+      SecurityGroups:
+        - app-lsd
+      IamRoles:
+        - app-lsd
+      ElasticLoadBalancer: AppLoadBalancer
+      AssociatePublicIpAddress: false # change for standalone deployment in default VPC
+      TaupageConfig:
+        application_version: "{{Arguments.ImageVersion}}"
+        runtime: Docker
+        source: "pierone.stups.zalan.do/mentoring/lsd:{{Arguments.ImageVersion}}"
+        health_check_path: /
+        ports:
+          8080: 9000
+        mint_bucket: "zalando-stups-mint-187355903146-eu-west-1"
+        enhanced_cloudwatch_metrics: true
+        # NOTE UNIX/LINUX environment vars created from senza create command line:
+        environment:
+          STAGE: "{{Arguments.Stage}}"
+
+  # creates an ELB entry and Route53 domains to this ELB
+  - AppLoadBalancer:
+      Type: Senza::WeightedDnsElasticLoadBalancer
+      HTTPPort: 8080
+      HealthCheckPath: /
+      SecurityGroups:
+        - app-lsd-lb
+      Scheme: internet-facing

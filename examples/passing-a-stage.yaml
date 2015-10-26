@@ -42,11 +42,13 @@ SenzaComponents:
       TaupageConfig:
         application_version: "{{Arguments.ImageVersion}}"
         runtime: Docker
+        # NOTE change "/mentoring/lsd" to your team/application path
         source: "pierone.stups.zalan.do/mentoring/lsd:{{Arguments.ImageVersion}}"
         health_check_path: /
         ports:
           8080: 9000
-        mint_bucket: "zalando-stups-mint-187355903146-eu-west-1"
+        # NOTE replace <my_mint_bucket> with your real mint bucket name
+        mint_bucket: "<my_mint_bucket>"
         enhanced_cloudwatch_metrics: true
         # NOTE UNIX/LINUX environment vars created from senza create command line:
         environment:

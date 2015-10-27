@@ -152,7 +152,7 @@ def test_component_stups_auto_configuration(monkeypatch):
     sn3.tags = [{'Key': 'Name', 'Value': 'internal-3'}]
     sn3.availability_zone = 'az-1'
     ec2 = MagicMock()
-    ec2.subnets.all.return_value = [sn1, sn2, sn3]
+    ec2.subnets.filter.return_value = [sn1, sn2, sn3]
     image = MagicMock()
     ec2.images.filter.return_value = [image]
     monkeypatch.setattr('boto3.resource', lambda x, y: ec2)

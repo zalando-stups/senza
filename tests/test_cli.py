@@ -230,16 +230,16 @@ def test_print_auto(monkeypatch):
             ec2 = MagicMock()
             ec2.security_groups.filter.return_value = [MagicMock(name='app-sg', id='sg-007')]
             ec2.images.filter.return_value = [MagicMock(name='Taupage-AMI-123', id='ami-123')]
-            ec2.subnets.all.return_value = [MagicMock(tags=[{'Key': 'Name', 'Value': 'internal-myregion-1a'}],
-                                                      id='subnet-abc123',
-                                                      availability_zone='myregion-1a'),
-                                            MagicMock(tags=[{'Key': 'Name', 'Value': 'internal-myregion-1b'}],
-                                                      id='subnet-def456',
-                                                      availability_zone='myregion-1b'),
-                                            MagicMock(tags=[{'Key': 'Name', 'Value': 'dmz-myregion-1a'}],
-                                                      id='subnet-ghi789',
-                                                      availability_zone='myregion-1a')
-                                            ]
+            ec2.subnets.filter.return_value = [MagicMock(tags=[{'Key': 'Name', 'Value': 'internal-myregion-1a'}],
+                                                         id='subnet-abc123',
+                                                         availability_zone='myregion-1a'),
+                                               MagicMock(tags=[{'Key': 'Name', 'Value': 'internal-myregion-1b'}],
+                                                         id='subnet-def456',
+                                                         availability_zone='myregion-1b'),
+                                               MagicMock(tags=[{'Key': 'Name', 'Value': 'dmz-myregion-1a'}],
+                                                         id='subnet-ghi789',
+                                                         availability_zone='myregion-1a')
+                                               ]
             return ec2
         elif rtype == 'iam':
             iam = MagicMock()

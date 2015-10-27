@@ -358,6 +358,27 @@ class AccountArguments:
             return team_id
         return attr
 
+    @property
+    def VpcID(self):
+        attr = getattr(self, '__VpcID', None)
+        if attr is None:
+            ec2 = boto3.resource('ec2', self.Region)
+            for vpc in ec2.vpcs.all():  # don't use the list from blow. .all() use a internal pageing!
+                if vpc.is_default:
+                    setattr(self, '__VpcID', vpc.vpc_id)
+                    return vpc.vpc_id
+            if getattr(self, '__VpcID', None) is None:
+                vpclist = list(ec2.vpcs.all())
+                if len(vpclist) == 1:
+                    # Use the only one VPC if no default VPC found
+                    setattr(self, '__VpcID', vpclist[0].vpc_id)
+                    return vpclist[0].vpc_id
+                elif len(vpclist) > 1:
+                    AttributeError('Multiple VPC only supportet with one default VPC!')
+                else:
+                    AttributeError('Can\'t find any VPC!')
+        return attr
+
 
 def parse_args(input, region, version, parameter, account_info):
     paras = {}

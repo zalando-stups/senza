@@ -33,7 +33,7 @@ def component_stups_auto_configuration(definition, configuration, args, info, fo
     server_subnets = []
     lb_subnets = []
     lb_internal_subnets = []
-    for subnet in ec2.subnets.all():
+    for subnet in ec2.subnets.filter(Filters=[{'Name': 'vpc-id', 'Values': [account_info.VpcID]}]):
         name = get_tag(subnet.tags, 'Name', '')
         if availability_zones and subnet.availability_zone not in availability_zones:
             # skip subnet as it's not in one of the given AZs

@@ -1,0 +1,80 @@
+
+# this is a senza.yaml describing a Location Service Demo (LSD) backend server.
+# use it as an example for scheduled shutdown and startup of your application
+# instances in a well known crontab (http://en.wikipedia.org/wiki/Cron) manner.
+# NOTE that Minimum: and Maximum: in your AppServer: section should conform to
+# the uppper and lower bound of your ScaleDownAction and ScaleUpAction.
+
+# search for NOTE within this document in order to navigate to the important spots
+
+SenzaInfo:
+  StackName: lsd
+  Parameters:
+    - ImageVersion:
+        Description: "Docker image version of lsd."
+
+SenzaComponents:
+
+  # this basic configuration is required for the other components
+  - Configuration:
+      Type: Senza::StupsAutoConfiguration # auto-detect network setup
+
+  # will create a launch configuration and auto scaling group with scaling triggers
+  - AppServer:
+      Type: Senza::TaupageAutoScalingGroup
+      # NOTE to set Minimum and Maximum according to your ScaleUp- and ScaleDownAction
+      Minimum: 0
+      Maximum: 1
+      InstanceType: t2.micro
+      SecurityGroups:
+        - app-lsd
+      IamRoles:
+        - app-lsd
+      ElasticLoadBalancer: AppLoadBalancer
+      AssociatePublicIpAddress: false # change for standalone deployment in default VPC
+      TaupageConfig:
+        application_version: "{{Arguments.ImageVersion}}"
+        runtime: Docker
+        # NOTE replace pierone.stups.zalan.do with your docker registry (if you are
+        # not working at zalando ;-) and /mentoring/lsd with your real team/app path
+        source: "pierone.stups.zalan.do/mentoring/lsd:{{Arguments.ImageVersion}}"
+        health_check_path: /
+        ports:
+          8080: 9000
+        # NOTE replace this mint_bucket value with your real mint bucket
+        mint_bucket: "zalando-stups-mint-123456789012-eu-west-1"
+
+  # creates an ELB entry and Route53 domains to this ELB
+  - AppLoadBalancer:
+      Type: Senza::WeightedDnsElasticLoadBalancer
+      HTTPPort: 8080
+      HealthCheckPath: /
+      SecurityGroups:
+        - app-lsd-lb
+      Scheme: internet-facing
+
+# NOTE this is the interesting part. per default, scale down to 0 instances (i.e., shut down)
+# at 7pm UTC (which is 8pm GMT+1), scale up to 1 instance again at 7am UTC (which is 8am GMT+1),
+# but only from monday till friday (1-5). adjust to your needs and keep in mind to configure a
+# reasonable offset for CET and CEST; the below configuration for example will startup your 
+# instances at 9am and shutdown at 9pm in central european summer, which might still be ok.
+
+Resources:
+
+  OfficeHourScaleDownAction:
+      Type: AWS::AutoScaling::ScheduledAction
+      Properties:
+          AutoScalingGroupName:
+              Ref: AppServer
+          MinSize: 0
+          MaxSize: 0
+          Recurrence: "00 19 * * *"
+
+  OfficeHourScaleUpAction:
+      Type: AWS::AutoScaling::ScheduledAction
+      Properties:
+          AutoScalingGroupName: 
+              Ref: AppServer
+          MinSize: 1
+          MaxSize: 1
+          Recurrence: "00 07 * * 1-5"

@@ -374,9 +374,9 @@ class AccountArguments:
                     setattr(self, '__VpcID', vpclist[0].vpc_id)
                     return vpclist[0].vpc_id
                 elif len(vpclist) > 1:
-                    AttributeError('Multiple VPC only supportet with one default VPC!')
+                    raise AttributeError('Multiple VPC only supportet with one default VPC!')
                 else:
-                    AttributeError('Can\'t find any VPC!')
+                    raise AttributeError('Can\'t find any VPC!')
         return attr
 
 

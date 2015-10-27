@@ -361,12 +361,14 @@ class AccountArguments:
 
 def parse_args(input, region, version, parameter, account_info):
     paras = {}
-    defaults = {}
+    defaults = collections.OrderedDict()
+    parameterlist = []
 
     # process positional parameters first
     seen_keyword = False
     for i, param in enumerate(input['SenzaInfo'].get('Parameters', [])):
         for key, config in param.items():
+            parameterlist.append(key)
             # collect all allowed keys and default values regardless
             paras[key] = None
             defaults[key] = config.get('Default', None)
@@ -381,12 +383,11 @@ def parse_args(input, region, version, parameter, account_info):
                     paras[key] = parameter[i]
 
     if len(paras) < len(parameter):
-        raise click.UsageError('Too many parameters given.')
+        raise click.UsageError('Too many parameters given. Need only: "{}"'.format(' '.join(parameterlist)))
 
     # process keyword parameters separately, if any
     if seen_keyword:
-        for i in range(len(parameter)):
-            param = parameter[i]
+        for param in parameter:
             if '=' in param:
                 key, value = param.split('=', 1)  # split only on first =
                 if key not in paras:
@@ -399,7 +400,7 @@ def parse_args(input, region, version, parameter, account_info):
     for key, defval in defaults.items():
         paras[key] = paras[key] or defval
         if paras[key] is None:
-            raise click.UsageError('Missing parameter "{}"'.format(key))
+            raise click.UsageError('Missing parameter "{}". Need: "{}"'.format(key, ' '.join(parameterlist)))
 
     args = TemplateArguments(region=region, version=version, **paras)
     return args

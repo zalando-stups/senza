@@ -229,6 +229,7 @@ def test_print_auto(monkeypatch):
         if rtype == 'ec2':
             ec2 = MagicMock()
             ec2.security_groups.filter.return_value = [MagicMock(name='app-sg', id='sg-007')]
+            ec2.vpcs.all.return_value = [MagicMock(vpc_id='vpc-123')]
             ec2.images.filter.return_value = [MagicMock(name='Taupage-AMI-123', id='ami-123')]
             ec2.subnets.filter.return_value = [MagicMock(tags=[{'Key': 'Name', 'Value': 'internal-myregion-1a'}],
                                                          id='subnet-abc123',
@@ -310,6 +311,7 @@ def test_print_default_value(monkeypatch):
     def my_resource(rtype, *args):
         if rtype == 'ec2':
             ec2 = MagicMock()
+            ec2.vpcs.all.return_value = [MagicMock(vpc_id='vpc-123')]
             ec2.security_groups.filter.return_value = [MagicMock(name='app-sg', id='sg-007')]
             ec2.images.filter.return_value = [MagicMock(name='Taupage-AMI-123', id='ami-123')]
             return ec2

@@ -29,6 +29,7 @@ from .aws import parse_time, get_required_capabilities, resolve_topic_arn, get_s
 from .components import get_component, evaluate_template
 from .components.stups_auto_configuration import find_taupage_image
 from .patch import patch_auto_scaling_group
+from .respawn import respawn_auto_scaling_group
 import senza
 from urllib.request import urlopen
 from urllib.parse import quote
@@ -1205,6 +1206,17 @@ def dump(stack_ref, region, output):
         print_json(cfjson, output)
 
 
+def get_auto_scaling_groups(stack_refs, region):
+    cf = boto3.client('cloudformation', region)
+    for stack in get_stacks(stack_refs, region):
+        resources = cf.describe_stack_resources(StackName=stack.StackName)['StackResources']
+
+        for resource in resources:
+            if resource['ResourceType'] == 'AWS::AutoScaling::AutoScalingGroup':
+                asg_name = resource['PhysicalResourceId']
+                yield asg_name
+
+
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
 @region_option
@@ -1230,20 +1242,30 @@ def patch(stack_ref, region, image, instance_type):
         raise click.UsageError('Nothing to patch. Please specify at least one patch option (e.g. "--image").')
 
     asg = boto3.client('autoscaling', region)
-    cf = boto3.client('cloudformation', region)
 
-    for stack in get_stacks(stack_refs, region):
-        resources = cf.describe_stack_resources(StackName=stack.StackName)['StackResources']
+    for asg_name in get_auto_scaling_groups(stack_refs, region):
+        with Action('Patching Auto Scaling Group {}..'.format(asg_name)) as act:
+            result = asg.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
+            groups = result['AutoScalingGroups']
+            for group in groups:
+                if not patch_auto_scaling_group(group, region, properties):
+                    act.ok('NO CHANGES')
 
-        for resource in resources:
-            if resource['ResourceType'] == 'AWS::AutoScaling::AutoScalingGroup':
-                asg_name = resource['PhysicalResourceId']
-                with Action('Patching Auto Scaling Group {}..'.format(asg_name)) as act:
-                    result = asg.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
-                    groups = result['AutoScalingGroups']
-                    for group in groups:
-                        if not patch_auto_scaling_group(group, region, properties):
-                            act.ok('NO CHANGES')
+
+@cli.command('respawn-instances')
+@click.argument('stack_ref', nargs=-1)
+@region_option
+def respawn_instances(stack_ref, region):
+    '''Replace all EC2 instances in Auto Scaling Group(s)
+
+    Performs a rolling update to prevent downtimes.'''
+
+    stack_refs = get_stack_refs(stack_ref)
+    region = get_region(region)
+    check_credentials(region)
+
+    for asg_name in get_auto_scaling_groups(stack_refs, region):
+        respawn_auto_scaling_group(asg_name, region)
 
 
 def main():

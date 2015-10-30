@@ -29,7 +29,7 @@ from .aws import parse_time, get_required_capabilities, resolve_topic_arn, get_s
 from .components import get_component, evaluate_template
 from .components.stups_auto_configuration import find_taupage_image
 from .patch import patch_auto_scaling_group
-from .respawn import respawn_auto_scaling_group
+from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
 import senza
 from urllib.request import urlopen
 from urllib.parse import quote
@@ -1266,6 +1266,35 @@ def respawn_instances(stack_ref, region):
 
     for asg_name in get_auto_scaling_groups(stack_refs, region):
         respawn_auto_scaling_group(asg_name, region)
+
+
+@cli.command()
+@click.argument('stack_ref', nargs=-1)
+@click.argument('desired_capacity', type=click.IntRange(0, 100, clamp=True))
+@region_option
+def scale(stack_ref, region, desired_capacity):
+    '''Scale Auto Scaling Group to desired capacity'''
+
+    stack_refs = get_stack_refs(stack_ref)
+    region = get_region(region)
+    check_credentials(region)
+
+    asg = boto3.client('autoscaling', region)
+
+    for asg_name in get_auto_scaling_groups(stack_refs, region):
+        with Action('Scaling {} to {} instances..'.format(asg_name, desired_capacity)) as act:
+            group = get_auto_scaling_group(asg, asg_name)
+            if group['DesiredCapacity'] == desired_capacity:
+                act.ok('NO CHANGES')
+            else:
+                kwargs = {}
+                if desired_capacity < group['MinSize']:
+                    kwargs['MinSize'] = desired_capacity
+                if desired_capacity > group['MaxSize']:
+                    kwargs['MaxSize'] = desired_capacity
+                asg.update_auto_scaling_group(AutoScalingGroupName=asg_name,
+                                              DesiredCapacity=desired_capacity,
+                                              **kwargs)
 
 
 def main():

@@ -1209,7 +1209,8 @@ def dump(stack_ref, region, output):
 @click.argument('stack_ref', nargs=-1)
 @region_option
 @click.option('--image', metavar='AMI_ID_OR_LATEST', help='Use specified image (AMI ID or "latest")')
-def patch(stack_ref, region, image):
+@click.option('--instance-type', metavar='INSTANCE_TYPE', help='Use specified EC2 instance type')
+def patch(stack_ref, region, image, instance_type):
     '''Patch specific properties of existing stack.
 
     Currently only supports patching ASG launch configurations.'''
@@ -1220,7 +1221,8 @@ def patch(stack_ref, region, image):
     if image == 'latest':
         image = find_taupage_image(region).id
 
-    properties = {'ImageId': image}
+    properties = {'ImageId': image,
+                  'InstanceType': instance_type}
     # remove empty values
     properties = {k: v for k, v in properties.items() if v}
 

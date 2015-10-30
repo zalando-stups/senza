@@ -1,6 +1,6 @@
 
 import boto3
-import time
+import datetime
 
 LAUNCH_CONFIGURATION_PROPERTIES = set([
     'AssociatePublicIpAddress',
@@ -36,9 +36,11 @@ def patch_auto_scaling_group(group, region, properties):
             kwargs = {}
             for key in LAUNCH_CONFIGURATION_PROPERTIES:
                 # NOTE: we only take non-empty values (otherwise the parameter validation will complain :-( )
-                if lc.get(key):
+                val = lc.get(key)
+                if val is not None and val != '':
                     kwargs[key] = lc[key]
-            kwargs['LaunchConfigurationName'] = '{}-{}'.format(kwargs['LaunchConfigurationName'], time.time())
+            now = datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%S')
+            kwargs['LaunchConfigurationName'] = '{}-{}'.format(kwargs['LaunchConfigurationName'][:64], now)
             kwargs.update(**properties)
             asg.create_launch_configuration(**kwargs)
             asg.update_auto_scaling_group(AutoScalingGroupName=group['AutoScalingGroupName'],

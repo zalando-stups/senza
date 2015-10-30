@@ -1,5 +1,6 @@
 
 import boto3
+import codecs
 import datetime
 
 LAUNCH_CONFIGURATION_PROPERTIES = set([
@@ -38,7 +39,9 @@ def patch_auto_scaling_group(group, region, properties):
                 # NOTE: we only take non-empty values (otherwise the parameter validation will complain :-( )
                 val = lc.get(key)
                 if val is not None and val != '':
-                    kwargs[key] = lc[key]
+                    if key == 'UserData':
+                        val = codecs.decode(val.encode('utf-8'), 'base64').decode('utf-8')
+                    kwargs[key] = val
             now = datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%S')
             kwargs['LaunchConfigurationName'] = '{}-{}'.format(kwargs['LaunchConfigurationName'][:64], now)
             kwargs.update(**properties)

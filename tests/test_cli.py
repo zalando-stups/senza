@@ -1089,7 +1089,6 @@ def test_update(monkeypatch):
         assert 'OK' in result.output
 
 
-
 def test_traffic(monkeypatch):
     route53 = MagicMock(name='r53conn')
 
@@ -1200,3 +1199,55 @@ def test_AccountArguments(monkeypatch):
     assert test.AccountID == '98741256325'
     assert test.Domain == 'test.example.net'
     assert test.TeamID == 'cli'
+
+
+def test_patch(monkeypatch):
+    boto3 = MagicMock()
+    boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1'}]}
+    boto3.describe_stack_resources.return_value = {'StackResources': [{'ResourceType': 'AWS::AutoScaling::AutoScalingGroup', 'PhysicalResourceId': 'myasg'}]}
+    group = {'AutoScalingGroupName': 'myasg'}
+    boto3.describe_auto_scaling_groups.return_value = {'AutoScalingGroups': [group]}
+    image = MagicMock()
+    image.id = 'latesttaupage-123'
+
+    props = {}
+
+    def patch_auto_scaling_group(group, region, properties):
+        props.update(properties)
+
+
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+    monkeypatch.setattr('senza.cli.find_taupage_image', MagicMock(return_value=image))
+    monkeypatch.setattr('senza.cli.patch_auto_scaling_group', patch_auto_scaling_group)
+    runner = CliRunner()
+    result = runner.invoke(cli, ['patch', 'myapp', '1', '--image=latest', '--region=myregion'],
+                           catch_exceptions=False)
+
+    assert props['ImageId'] == 'latesttaupage-123'
+    assert 'Patching Auto Scaling Group myasg' in result.output
+
+
+def test_respawn(monkeypatch):
+    boto3 = MagicMock()
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+    monkeypatch.setattr('senza.cli.get_auto_scaling_groups', lambda *args: 'myasg')
+    monkeypatch.setattr('senza.cli.respawn_auto_scaling_group', lambda *args: None)
+    runner = CliRunner()
+    result = runner.invoke(cli, ['respawn', 'myapp', '1', '--region=myregion'],
+                           catch_exceptions=False)
+
+
+def test_scale(monkeypatch):
+    boto3 = MagicMock()
+    boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1'}]}
+    boto3.describe_stack_resources.return_value = {'StackResources': [{'ResourceType': 'AWS::AutoScaling::AutoScalingGroup', 'PhysicalResourceId': 'myasg'}]}
+    # NOTE: we are using invalid MinSize (< capacity) here to get one more line covered ;-)
+    group = {'AutoScalingGroupName': 'myasg', 'DesiredCapacity': 1, 'MinSize': 3, 'MaxSize': 1}
+    boto3.describe_auto_scaling_groups.return_value = {'AutoScalingGroups': [group]}
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+    runner = CliRunner()
+    result = runner.invoke(cli, ['scale', 'myapp', '1', '2', '--region=myregion'],
+                           catch_exceptions=False)
+    assert 'Scaling myasg from 1 to 2 instances' in result.output
+
+

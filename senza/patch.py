@@ -25,7 +25,7 @@ LAUNCH_CONFIGURATION_PROPERTIES = set([
 ])
 
 
-def patch_auto_scaling_group(group, region, properties):
+def patch_auto_scaling_group(group: dict, region: str, properties: dict):
     asg = boto3.client('autoscaling', region)
     result = asg.describe_launch_configurations(LaunchConfigurationNames=[group['LaunchConfigurationName']])
     lcs = result['LaunchConfigurations']

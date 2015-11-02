@@ -29,3 +29,33 @@ def test_respawn_auto_scaling_group(monkeypatch):
     monkeypatch.setattr('time.sleep', lambda s: s)
     respawn_auto_scaling_group('myasg', 'myregion')
 
+
+def test_respawn_auto_scaling_group_without_elb(monkeypatch):
+
+    inst = {'InstanceId': 'myinst-1', 'LaunchConfigurationName': 'lc-1', 'LifecycleState': 'InService'}
+    instances = [inst]
+    group = {'AutoScalingGroupName': 'myasg',
+             'LaunchConfigurationName': 'lc-2', 'Instances': instances, 'MinSize': 1, 'MaxSize': 1, 'DesiredCapacity': 1,
+             'LoadBalancerNames': []}
+    groups = {'AutoScalingGroups': [group]}
+    asg = MagicMock()
+    asg.describe_auto_scaling_groups.return_value = groups
+
+    def update_group(**kwargs):
+        instances.append({'InstanceId': 'myinst-2', 'LaunchConfigurationName': 'lc-2', 'LifecycleState': 'InService'})
+
+    def terminate_instance(InstanceId, **kwargs):
+        for i in range(len(instances)):
+            if instances[i]['InstanceId'] == InstanceId:
+                del instances[i]
+                break
+
+    asg.update_auto_scaling_group = update_group
+    asg.terminate_instance_in_auto_scaling_group = terminate_instance
+    services = {'autoscaling': asg}
+    def client(service, *args):
+        return services[service]
+    monkeypatch.setattr('boto3.client', client)
+    monkeypatch.setattr('time.sleep', lambda s: s)
+    respawn_auto_scaling_group('myasg', 'myregion')
+

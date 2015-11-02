@@ -1282,9 +1282,11 @@ def scale(stack_ref, region, desired_capacity):
     asg = boto3.client('autoscaling', region)
 
     for asg_name in get_auto_scaling_groups(stack_refs, region):
-        with Action('Scaling {} to {} instances..'.format(asg_name, desired_capacity)) as act:
-            group = get_auto_scaling_group(asg, asg_name)
-            if group['DesiredCapacity'] == desired_capacity:
+        group = get_auto_scaling_group(asg, asg_name)
+        current_capacity = group['DesiredCapacity']
+        with Action('Scaling {} from {} to {} instances..'.format(
+                    asg_name, current_capacity, desired_capacity)) as act:
+            if current_capacity == desired_capacity:
                 act.ok('NO CHANGES')
             else:
                 kwargs = {}

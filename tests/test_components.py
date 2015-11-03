@@ -1,5 +1,6 @@
 import click
 from unittest.mock import MagicMock
+from senza.cli import AccountArguments
 from senza.components import get_component
 from senza.components.iam_role import component_iam_role, get_merged_policies
 from senza.components.elastic_load_balancer import component_elastic_load_balancer
@@ -229,6 +230,19 @@ def test_component_redis_cluster(monkeypatch):
 
 
 def test_weighted_dns_load_balancer(monkeypatch):
+    def my_client(rtype, *args):
+        if rtype == 'route53':
+            route53 = MagicMock()
+            route53.list_hosted_zones.return_value = {'HostedZones': [{'Id': '/hostedzone/123456',
+                                                                       'Name': 'zo.ne.',
+                                                                       'ResourceRecordSetCount': 23}],
+                                                      'IsTruncated': False,
+                                                      'MaxItems': '100'}
+            return route53
+        return MagicMock()
+
+    monkeypatch.setattr('boto3.client', my_client)
+
     configuration = {
         "Name": "test_lb",
         "SecurityGroups": "",
@@ -247,8 +261,60 @@ def test_weighted_dns_load_balancer(monkeypatch):
     monkeypatch.setattr('senza.components.elastic_load_balancer.find_ssl_certificate_arn', mock_string_result)
     monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
 
-    result = component_weighted_dns_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
+    result = component_weighted_dns_elastic_load_balancer(definition,
+                                                          configuration,
+                                                          args,
+                                                          info,
+                                                          False,
+                                                          AccountArguments('dummyregion'))
+
     assert 'MainDomain' not in result["Resources"]["test_lb"]["Properties"]
+
+
+def test_weighted_dns_load_balancer_with_different_domains(monkeypatch):
+    def my_client(rtype, *args):
+        if rtype == 'route53':
+            route53 = MagicMock()
+            route53.list_hosted_zones.return_value = {'HostedZones': [{'Id': '/hostedzone/123456',
+                                                                       'Name': 'zo.ne.dev.',
+                                                                       'ResourceRecordSetCount': 23},
+                                                                      {'Id': '/hostedzone/123457',
+                                                                       'Name': 'zo.ne.com.',
+                                                                       'ResourceRecordSetCount': 23}],
+                                                      'IsTruncated': False,
+                                                      'MaxItems': '100'}
+            return route53
+        return MagicMock()
+
+    monkeypatch.setattr('boto3.client', my_client)
+
+    configuration = {
+        "Name": "test_lb",
+        "SecurityGroups": "",
+        "HTTPPort": "9999",
+        'MainDomain': 'great.api.zo.ne.com',
+        'VersionDomain': 'version.api.zo.ne.dev'
+    }
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    definition = {"Resources": {}}
+
+    args = MagicMock()
+    args.region = "foo"
+
+    mock_string_result = MagicMock()
+    mock_string_result.return_value = "foo"
+    monkeypatch.setattr('senza.components.elastic_load_balancer.find_ssl_certificate_arn', mock_string_result)
+    monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    result = component_weighted_dns_elastic_load_balancer(definition,
+                                                          configuration,
+                                                          args,
+                                                          info,
+                                                          False,
+                                                          AccountArguments('dummyregion'))
+
+    assert 'zo.ne.com.' == result["Resources"]["test_lbMainDomain"]["Properties"]['HostedZoneName']
+    assert 'zo.ne.dev.' == result["Resources"]["test_lbVersionDomain"]["Properties"]['HostedZoneName']
 
 
 def test_component_taupage_auto_scaling_group_user_data_without_ref():

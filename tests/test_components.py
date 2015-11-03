@@ -9,6 +9,7 @@ from senza.components.stups_auto_configuration import component_stups_auto_confi
 from senza.components.redis_node import component_redis_node
 from senza.components.redis_cluster import component_redis_cluster
 from senza.components.taupage_auto_scaling_group import generate_user_data
+import senza.traffic
 
 
 def test_invalid_component():
@@ -114,7 +115,7 @@ def test_component_load_balancer_namelength(monkeypatch):
         "HTTPPort": "9999",
         "HealthCheckPath": "/healthcheck"
     }
-    info = {'StackName': 'foobar'*5, 'StackVersion': '0.1'}
+    info = {'StackName': 'foobar' * 5, 'StackVersion': '0.1'}
     definition = {"Resources": {}}
 
     args = MagicMock()
@@ -171,7 +172,7 @@ def test_component_redis_node(monkeypatch):
         "Name": mock_string,
         "SecurityGroups": "",
     }
-    info = {'StackName': 'foobar'*5, 'StackVersion': '0.1'}
+    info = {'StackName': 'foobar' * 5, 'StackVersion': '0.1'}
     definition = {"Resources": {}}
 
     args = MagicMock()
@@ -196,6 +197,7 @@ def test_component_redis_node(monkeypatch):
     assert 'RedisSubnetGroup' in result['Resources']
     assert 'SubnetIds' in result['Resources']['RedisSubnetGroup']['Properties']
 
+
 def test_component_redis_cluster(monkeypatch):
     mock_string = "foo"
 
@@ -203,7 +205,7 @@ def test_component_redis_cluster(monkeypatch):
         "Name": mock_string,
         "SecurityGroups": "",
     }
-    info = {'StackName': 'foobar'*5, 'StackVersion': '0.1'}
+    info = {'StackName': 'foobar' * 5, 'StackVersion': '0.1'}
     definition = {"Resources": {}}
 
     args = MagicMock()
@@ -230,11 +232,13 @@ def test_component_redis_cluster(monkeypatch):
 
 
 def test_weighted_dns_load_balancer(monkeypatch):
+    senza.traffic.DNS_ZONE_CACHE = {}
+
     def my_client(rtype, *args):
         if rtype == 'route53':
             route53 = MagicMock()
             route53.list_hosted_zones.return_value = {'HostedZones': [{'Id': '/hostedzone/123456',
-                                                                       'Name': 'zo.ne.',
+                                                                       'Name': 'domain.',
                                                                        'ResourceRecordSetCount': 23}],
                                                       'IsTruncated': False,
                                                       'MaxItems': '100'}
@@ -272,6 +276,8 @@ def test_weighted_dns_load_balancer(monkeypatch):
 
 
 def test_weighted_dns_load_balancer_with_different_domains(monkeypatch):
+    senza.traffic.DNS_ZONE_CACHE = {}
+
     def my_client(rtype, *args):
         if rtype == 'route53':
             route53 = MagicMock()
@@ -315,6 +321,31 @@ def test_weighted_dns_load_balancer_with_different_domains(monkeypatch):
 
     assert 'zo.ne.com.' == result["Resources"]["test_lbMainDomain"]["Properties"]['HostedZoneName']
     assert 'zo.ne.dev.' == result["Resources"]["test_lbVersionDomain"]["Properties"]['HostedZoneName']
+
+    configuration = {
+        "Name": "test_lb",
+        "SecurityGroups": "",
+        "HTTPPort": "9999",
+        'MainDomain': 'this.does.not.exists.com',
+        'VersionDomain': 'this.does.not.exists.com'
+    }
+    senza.traffic.DNS_ZONE_CACHE = {}
+    try:
+        result = component_weighted_dns_elastic_load_balancer(definition,
+                                                              configuration,
+                                                              args,
+                                                              info,
+                                                              False,
+                                                              AccountArguments('dummyregion'))
+    except ValueError:
+        pass
+    except:
+        assert False, 'raise unknown exception'
+    else:
+
+        print(result)
+        print(configuration)
+        assert False, 'doesn\'t raise a ValueError exception'
 
 
 def test_component_taupage_auto_scaling_group_user_data_without_ref():

@@ -8,6 +8,7 @@ import json
 from senza.cli import cli, handle_exceptions, AccountArguments
 import botocore.exceptions
 from senza.traffic import PERCENT_RESOLUTION, StackVersion
+import senza.traffic
 
 
 def test_invalid_definition():
@@ -225,6 +226,8 @@ def test_print_account_info_and_arguments_in_name(monkeypatch):
 
 
 def test_print_auto(monkeypatch):
+    senza.traffic.DNS_ZONE_CACHE = {}
+
     def my_resource(rtype, *args):
         if rtype == 'ec2':
             ec2 = MagicMock()
@@ -308,6 +311,8 @@ def test_print_auto(monkeypatch):
 
 
 def test_print_default_value(monkeypatch):
+    senza.traffic.DNS_ZONE_CACHE = {}
+
     def my_resource(rtype, *args):
         if rtype == 'ec2':
             ec2 = MagicMock()
@@ -419,7 +424,8 @@ def test_print_taupage_config_without_ref(monkeypatch):
 
     expected_user_data = "#taupage-ami-config\napplication_id: test\napplication_version: '123'\n" \
                          "environment:\n  ENV1: v1\n  ENV2: v2\nmint_bucket: zalando-mint-bucket\n" \
-                         "notify_cfn:\n  resource: AppServer\n  stack: test-123\nports:\n  80: 80\nruntime: Docker\nsource: foo/bar\n"
+                         "notify_cfn:\n  resource: AppServer\n  stack: test-123\nports:\n  80: 80\n" \
+                         "runtime: Docker\nsource: foo/bar\n"
 
     assert expected_user_data == awsjson["Resources"]["AppServerConfig"]["Properties"]["UserData"]["Fn::Base64"]
 
@@ -474,7 +480,8 @@ def test_print_taupage_config_with_ref(monkeypatch):
         {"Ref": "resource1"},
         "\n  ENV2: v2\nmint_bucket: ",
         {"Fn::Join": ["-", [{"Ref": "bucket1"}, "master-mind"]]},
-        "\nnotify_cfn:\n  resource: AppServer\n  stack: test-123\nports:\n  80: 80\nruntime: Docker\nsource: foo/bar\n"]]}
+        "\nnotify_cfn:\n  resource: AppServer\n  stack: test-123" +
+        "\nports:\n  80: 80\nruntime: Docker\nsource: foo/bar\n"]]}
 
     assert expected_user_data == awsjson["Resources"]["AppServerConfig"]["Properties"]["UserData"]["Fn::Base64"]
 
@@ -742,6 +749,9 @@ def test_resources(monkeypatch):
 
 
 def test_domains(monkeypatch):
+    senza.traffic.DNS_ZONE_CACHE = {}
+    senza.traffic.DNS_RR_CACHE = {}
+
     def my_resource(rtype, *args):
         if rtype == 'cloudformation':
             res = MagicMock()
@@ -768,7 +778,7 @@ def test_domains(monkeypatch):
             return cf
         elif rtype == 'route53':
             route53 = MagicMock()
-            route53.list_hosted_zones_by_name.return_value = {'HostedZones': [{'Name': 'example.org.',
+            route53.list_hosted_zones.return_value = {'HostedZones': [{'Name': 'example.org.',
                                                                                'Id': '/hostedzone/123'}]}
             route53.list_resource_record_sets.return_value = {
                 'IsTruncated': False,
@@ -1089,7 +1099,6 @@ def test_update(monkeypatch):
         assert 'OK' in result.output
 
 
-
 def test_traffic(monkeypatch):
     route53 = MagicMock(name='r53conn')
 
@@ -1184,6 +1193,7 @@ def test_traffic(monkeypatch):
 
 
 def test_AccountArguments(monkeypatch):
+    senza.traffic.DNS_ZONE_CACHE = {}
     senza_aws = MagicMock()
     senza_aws.get_account_alias.return_value = 'test-cli'
     senza_aws.get_account_id.return_value = '123456'

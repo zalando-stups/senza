@@ -30,7 +30,7 @@ from .components import get_component, evaluate_template
 import senza
 from urllib.request import urlopen
 from urllib.parse import quote
-from .traffic import change_version_traffic, print_version_traffic, get_records
+from .traffic import change_version_traffic, print_version_traffic, get_records, get_zone
 from .utils import named_value, camel_case_to_underscore, pystache_render, ensure_keys
 from pprint import pformat
 
@@ -339,15 +339,7 @@ class AccountArguments:
         return attr.rstrip('.')
 
     def __setDomain(self, domainname=None):
-        conn = boto3.client('route53')
-        domainlist = conn.list_hosted_zones()['HostedZones']
-        if domainname is not None:
-            domainlevel = domainname.split('.')
-            for i in range(len(domainlevel)):
-                domainfound = [d for d in domainlist if d['Name'].rstrip('.') == '.'.join(domainlevel[i:])]
-                if len(domainfound) > 0:
-                    domainlist = domainfound
-                    break
+        domainlist = get_zone(domainname, all=True)
         if len(domainlist) == 0:
             raise AttributeError('No Domain configured')
         elif len(domainlist) > 1:

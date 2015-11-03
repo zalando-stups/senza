@@ -236,17 +236,31 @@ def get_version(versions: list, version: str):
     raise click.UsageError('Stack version {} not found'.format(version))
 
 
-def get_zone(domain: str):
-    domain = '{}.'.format(domain.rstrip('.'))
-    if DNS_ZONE_CACHE.get(domain) is None:
+def get_zone(domainname: str, *args, all=False):
+    if len(DNS_ZONE_CACHE) == 0:
         route53 = boto3.client('route53')
-        zone = list(filter(lambda x: x['Name'] == domain,
-                           route53.list_hosted_zones_by_name(DNSName=domain)['HostedZones'])
-                    )
-        if not zone:
-            raise ValueError('Zone {} not found'.format(domain))
-        DNS_ZONE_CACHE[domain] = zone[0]
-    return DNS_ZONE_CACHE[domain]
+        result = route53.list_hosted_zones()
+        zones = result['HostedZones']
+        while result.get('IsTruncated', False):
+            recordfilter = {'Marker': result['NextMarker']}
+            result = route53.list_hosted_zones(**recordfilter)
+            zones.extend(result['HostedZones'])
+        if len(zones) == 0:
+            raise ValueError('No Zones are configured!')
+        for zone in zones:
+            DNS_ZONE_CACHE[zone['Name']] = zone
+    if domainname is None and all:
+        return list(DNS_ZONE_CACHE.values())
+    elif domainname is not None:
+        domainname = '{}.'.format(domainname.rstrip('.'))
+        domainlevel = domainname.split('.')
+        for i in range(len(domainlevel)):
+            if DNS_ZONE_CACHE.get('.'.join(domainlevel[i:])):
+                if all:
+                    return [DNS_ZONE_CACHE.get('.'.join(domainlevel[i:]))]
+                return DNS_ZONE_CACHE.get('.'.join(domainlevel[i:]))
+        raise ValueError('Zone {} not found'.format(domainname))
+    return None
 
 
 def get_records(domain: str):

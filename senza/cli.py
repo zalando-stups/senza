@@ -27,6 +27,9 @@ from botocore.exceptions import NoCredentialsError, ClientError
 from .aws import parse_time, get_required_capabilities, resolve_topic_arn, get_stacks, StackReference, matches_any, \
     get_account_id, get_account_alias, get_tag
 from .components import get_component, evaluate_template
+from .components.stups_auto_configuration import find_taupage_image
+from .patch import patch_auto_scaling_group
+from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
 import senza
 from urllib.request import urlopen
 from urllib.parse import quote
@@ -1210,6 +1213,100 @@ def dump(stack_ref, region, output):
         data = cf.get_template(StackName=stack.StackName)['TemplateBody']
         cfjson = json.dumps(data, sort_keys=True, indent=4)
         print_json(cfjson, output)
+
+
+def get_auto_scaling_groups(stack_refs, region):
+    cf = boto3.client('cloudformation', region)
+    for stack in get_stacks(stack_refs, region):
+        resources = cf.describe_stack_resources(StackName=stack.StackName)['StackResources']
+
+        for resource in resources:
+            if resource['ResourceType'] == 'AWS::AutoScaling::AutoScalingGroup':
+                asg_name = resource['PhysicalResourceId']
+                yield asg_name
+
+
+@cli.command()
+@click.argument('stack_ref', nargs=-1)
+@region_option
+@click.option('--image', metavar='AMI_ID_OR_LATEST', help='Use specified image (AMI ID or "latest")')
+@click.option('--instance-type', metavar='INSTANCE_TYPE', help='Use specified EC2 instance type')
+def patch(stack_ref, region, image, instance_type):
+    '''Patch specific properties of existing stack.
+
+    Currently only supports patching ASG launch configurations.'''
+    stack_refs = get_stack_refs(stack_ref)
+    region = get_region(region)
+    check_credentials(region)
+
+    if image == 'latest':
+        image = find_taupage_image(region).id
+
+    properties = {'ImageId': image,
+                  'InstanceType': instance_type}
+    # remove empty values
+    properties = {k: v for k, v in properties.items() if v}
+
+    if not properties:
+        raise click.UsageError('Nothing to patch. Please specify at least one patch option (e.g. "--image").')
+
+    asg = boto3.client('autoscaling', region)
+
+    for asg_name in get_auto_scaling_groups(stack_refs, region):
+        with Action('Patching Auto Scaling Group {}..'.format(asg_name)) as act:
+            result = asg.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
+            groups = result['AutoScalingGroups']
+            for group in groups:
+                if not patch_auto_scaling_group(group, region, properties):
+                    act.ok('NO CHANGES')
+
+
+@cli.command('respawn-instances')
+@click.argument('stack_ref', nargs=-1)
+@click.option('--inplace', is_flag=True, help='Perform inplace update, do not scale out')
+@region_option
+def respawn_instances(stack_ref, inplace, region):
+    '''Replace all EC2 instances in Auto Scaling Group(s)
+
+    Performs a rolling update to prevent downtimes.'''
+
+    stack_refs = get_stack_refs(stack_ref)
+    region = get_region(region)
+    check_credentials(region)
+
+    for asg_name in get_auto_scaling_groups(stack_refs, region):
+        respawn_auto_scaling_group(asg_name, region, inplace=inplace)
+
+
+@cli.command()
+@click.argument('stack_ref', nargs=-1)
+@click.argument('desired_capacity', type=click.IntRange(0, 100, clamp=True))
+@region_option
+def scale(stack_ref, region, desired_capacity):
+    '''Scale Auto Scaling Group to desired capacity'''
+
+    stack_refs = get_stack_refs(stack_ref)
+    region = get_region(region)
+    check_credentials(region)
+
+    asg = boto3.client('autoscaling', region)
+
+    for asg_name in get_auto_scaling_groups(stack_refs, region):
+        group = get_auto_scaling_group(asg, asg_name)
+        current_capacity = group['DesiredCapacity']
+        with Action('Scaling {} from {} to {} instances..'.format(
+                    asg_name, current_capacity, desired_capacity)) as act:
+            if current_capacity == desired_capacity:
+                act.ok('NO CHANGES')
+            else:
+                kwargs = {}
+                if desired_capacity < group['MinSize']:
+                    kwargs['MinSize'] = desired_capacity
+                if desired_capacity > group['MaxSize']:
+                    kwargs['MaxSize'] = desired_capacity
+                asg.update_auto_scaling_group(AutoScalingGroupName=asg_name,
+                                              DesiredCapacity=desired_capacity,
+                                              **kwargs)
 
 
 def main():

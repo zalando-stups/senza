@@ -1231,7 +1231,7 @@ def test_respawn(monkeypatch):
     boto3 = MagicMock()
     monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
     monkeypatch.setattr('senza.cli.get_auto_scaling_groups', lambda *args: 'myasg')
-    monkeypatch.setattr('senza.cli.respawn_auto_scaling_group', lambda *args: None)
+    monkeypatch.setattr('senza.cli.respawn_auto_scaling_group', lambda *args, **kwargs: None)
     runner = CliRunner()
     result = runner.invoke(cli, ['respawn', 'myapp', '1', '--region=myregion'],
                            catch_exceptions=False)

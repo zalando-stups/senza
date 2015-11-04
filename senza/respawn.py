@@ -86,13 +86,14 @@ def terminate_instance(asg, region: str, group, instance: str):
 
 
 def do_respawn_auto_scaling_group(asg_name: str, group: dict, region: str,
-                                  instances_to_terminate: set, instances_ok: set):
+                                  instances_to_terminate: set, instances_ok: set, inplace: bool):
     asg = boto3.client('autoscaling', region)
     with Action('Suspending scaling processes for {}..'.format(asg_name)):
         asg.suspend_processes(AutoScalingGroupName=asg_name, ScalingProcesses=SCALING_PROCESSES_TO_SUSPEND)
-    new_min_size = group['MinSize'] + 1
-    new_max_size = group['MaxSize'] + 1
-    new_desired_capacity = group['DesiredCapacity'] + 1
+    extra_capacity = 0 if inplace else 1
+    new_min_size = group['MinSize'] + extra_capacity
+    new_max_size = group['MaxSize'] + extra_capacity
+    new_desired_capacity = group['DesiredCapacity'] + extra_capacity
     # TODO: error handling (rollback in case of exception?)
     while instances_to_terminate:
         current_group = scale_out(asg, asg_name, region, new_min_size, new_max_size, new_desired_capacity)
@@ -111,7 +112,7 @@ def do_respawn_auto_scaling_group(asg_name: str, group: dict, region: str,
         asg.resume_processes(AutoScalingGroupName=asg_name)
 
 
-def respawn_auto_scaling_group(asg_name: str, region: str):
+def respawn_auto_scaling_group(asg_name: str, region: str, inplace: bool=False):
     '''Respawn all EC2 instances in the Auto Scaling Group whose launch configuration is not up-to-date'''
     asg = boto3.client('autoscaling', region)
     group = get_auto_scaling_group(asg, asg_name)
@@ -120,6 +121,6 @@ def respawn_auto_scaling_group(asg_name: str, region: str):
     info('{}/{} instances need to be updated in {}'.format(len(instances_to_terminate),
          len(instances_to_terminate) + len(instances_ok), asg_name))
     if instances_to_terminate:
-        do_respawn_auto_scaling_group(asg_name, group, region, instances_to_terminate, instances_ok)
+        do_respawn_auto_scaling_group(asg_name, group, region, instances_to_terminate, instances_ok, inplace)
     else:
         info('Nothing to do')

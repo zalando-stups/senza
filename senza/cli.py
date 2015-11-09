@@ -905,7 +905,10 @@ def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region, o
         if piu is not None:
             for row in rows:
                 if row['private_ip'] is not None:
-                    call(['piu', 'request-access', row['private_ip'], '{} via senza'.format(piu), '-O', odd_host])
+                    cmd = ['piu', 'request-access', row['private_ip'], '{} via senza'.format(piu)]
+                    if odd_host is not None:
+                        cmd.extend(['-O', odd_host])
+                    call(cmd)
 
 
 @cli.command()

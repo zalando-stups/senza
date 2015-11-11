@@ -812,16 +812,25 @@ def init(definition_file, region, template, user_variable):
 def get_instance_health(elb, stack_name: str) -> dict:
     if stack_name is None:
         return {}
+
+    max_tries = 10
+    sleep_time = 5
     instance_health = {}
-    try:
-        instance_states = elb.describe_instance_health(LoadBalancerName=stack_name)['InstanceStates']
-        for istate in instance_states:
-            instance_health[istate['InstanceId']] = camel_case_to_underscore(istate['State']).upper()
-    except ClientError as e:
-        # ignore non existing ELBs
-        # ignore ValidationError "LoadBalancer name cannot be longer than 32 characters"
-        # ignore rate limit exceeded errors
-        if e.response['Error']['Code'] not in ('LoadBalancerNotFound', 'ValidationError', 'Throttling'):
+    for i in range(max_tries):
+        try:
+            instance_states = elb.describe_instance_health(LoadBalancerName=stack_name)['InstanceStates']
+            for istate in instance_states:
+                instance_health[istate['InstanceId']] = camel_case_to_underscore(istate['State']).upper()
+            break
+        except ClientError as e:
+            if e.response['Error']['Code'] == "Throttling":
+                if i < max_tries - 1:
+                    # Try again
+                    time.sleep(sleep_time)
+                    sleep_time = min(30, sleep_time * 1.5)
+                    continue
+            if e.response['Error']['Code'] in ('LoadBalancerNotFound', 'ValidationError', 'Throttling'):
+                break
             raise
     return instance_health
 
@@ -954,9 +963,23 @@ def status(stack_ref, region, output, w, watch):
                         for answer in answers:
                             if answer.target.to_text().startswith('{}-'.format(stack.StackName)):
                                 main_dns_resolves = True
+            max_tries = 10
+            sleep_time = 5
+            instances = []
+            for i in range(max_tries):
+                try:
+                    instances = list(ec2.instances.filter(Filters=[{'Name': 'tag:aws:cloudformation:stack-id',
+                                                                    'Values': [stack.StackId]}]))
+                    break
+                except ClientError as e:
+                    if e.response['Error']['Code'] == "Throttling":
+                        if i < max_tries - 1:
+                            # Try again
+                            time.sleep(sleep_time)
+                            sleep_time = min(30, sleep_time * 1.5)
+                            continue
+                    raise
 
-            instances = list(ec2.instances.filter(Filters=[{'Name': 'tag:aws:cloudformation:stack-id',
-                                                            'Values': [stack.StackId]}]))
             rows.append({'stack_name': stack.name,
                          'version': stack.version,
                          'status': stack.StackStatus,

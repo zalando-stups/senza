@@ -3,6 +3,7 @@ import datetime
 import functools
 import time
 import boto3
+
 from botocore.exceptions import ClientError
 
 
@@ -155,7 +156,25 @@ def get_stacks(stack_refs: list, region, all=False):
             "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS",
             "UPDATE_ROLLBACK_COMPLETE"
         ]
-    for stack in cf.list_stacks(StackStatusFilter=status_filter)['StackSummaries']:
+
+    max_tries = 10
+    sleep_time = 5
+    stacks = []
+    for i in range(max_tries):
+        try:
+            stacks = cf.list_stacks(StackStatusFilter=status_filter)['StackSummaries']
+            break
+        except ClientError as e:
+            if e.response['Error']['Code'] == "Throttling":
+                if i < max_tries - 1:
+                    # Try again
+                    time.sleep(sleep_time)
+                    sleep_time = min(30, sleep_time * 1.5)
+                    print("DEBUG: " + e.response['Error']['Code'])
+                    continue
+            raise
+
+    for stack in stacks:
         if not stack_refs or matches_any(stack['StackName'], stack_refs):
             yield SenzaStackSummary(stack)
 

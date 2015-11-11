@@ -17,10 +17,10 @@ __location__ = os.path.join(os.getcwd(), os.path.dirname(inspect.getfile(inspect
 
 
 def read_version(package):
-    data = {}
     with open(os.path.join(package, '__init__.py'), 'r') as fd:
-        exec(fd.read(), data)
-    return data['__version__']
+        for line in fd:
+            if line.startswith('__version__ = '):
+                return line.split()[-1].strip().strip("'")
 
 NAME = 'stups-senza'
 MAIN_PACKAGE = 'senza'

@@ -2,11 +2,9 @@
 HTTP app with auto scaling, ELB and DNS
 '''
 
-from clickclick import warning, error, choice
+from clickclick import warning, error
 from senza.utils import pystache_render
-
-from ._helper import prompt, confirm, check_security_group, check_iam_role, get_mint_bucket_name, check_value
-
+from ._helper import prompt, choice, confirm, check_security_group, check_iam_role, get_mint_bucket_name, check_value
 
 TEMPLATE = '''
 # basic information for generating and executing this definition
@@ -68,12 +66,13 @@ def gather_user_variables(variables, region, account_info):
         prompt(variables, 'mint_bucket', 'Mint S3 bucket name', default=lambda: get_mint_bucket_name(region))
     else:
         variables['mint_bucket'] = None
-    variables['loadbalancer_scheme'] = choice(prompt='Please select the load balancer scheme',
-                                              options=[('internal',
-                                                        'internal: only accessible from the own VPC'),
-                                                       ('internet-facing',
-                                                        'internet-facing: accessible from the public internet')],
-                                              default='internal')
+    choice(variables, 'loadbalancer_scheme',
+           prompt='Please select the load balancer scheme',
+           options=[('internal',
+                     'internal: only accessible from the own VPC'),
+                    ('internet-facing',
+                     'internet-facing: accessible from the public internet')],
+           default='internal')
     http_port = variables['http_port']
 
     sg_name = 'app-{}'.format(variables['application_id'])

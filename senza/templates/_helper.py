@@ -1,5 +1,6 @@
 import boto3
 import click
+import clickclick
 import json
 import re
 from clickclick import Action
@@ -17,6 +18,15 @@ def prompt(variables: dict, var_name, *args, **kwargs):
         variables[var_name] = click.prompt(*args, **kwargs)
 
 
+def choice(variables: dict, var_name, *args, **kwargs):
+    if var_name not in variables:
+        if callable(kwargs.get('default')):
+            # evaluate callable
+            kwargs['default'] = kwargs['default']()
+
+        variables[var_name] = clickclick.choice(*args, **kwargs)
+
+
 def confirm(*args, **kwargs):
     return click.confirm(*args, **kwargs)
 
@@ -30,6 +40,7 @@ def check_value(max_length: int, match_regex: str):
                 raise click.UsageError('did not match regex {}.'.format(match_regex))
         else:
             raise click.UsageError('Value is too long! {} > {} chars'.format(len(value), max_length))
+
     return _value_checker
 
 

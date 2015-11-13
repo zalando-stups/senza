@@ -16,6 +16,10 @@ def prompt(variables: dict, var_name, *args, **kwargs):
             kwargs['default'] = kwargs['default']()
 
         variables[var_name] = click.prompt(*args, **kwargs)
+    elif 'type' in kwargs:
+        # ensure the variable as the right type
+        type = kwargs['type']
+        variables[var_name] = type(variables[var_name])
 
 
 def choice(variables: dict, var_name, *args, **kwargs):
@@ -25,6 +29,10 @@ def choice(variables: dict, var_name, *args, **kwargs):
             kwargs['default'] = kwargs['default']()
 
         variables[var_name] = clickclick.choice(*args, **kwargs)
+    elif 'type' in kwargs:
+        # ensure the variable as the right type
+        type = kwargs['type']
+        variables[var_name] = type(variables[var_name])
 
 
 def confirm(*args, **kwargs):

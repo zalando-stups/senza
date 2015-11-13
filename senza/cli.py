@@ -1340,7 +1340,7 @@ def wait(stack_ref, region, deletion, timeout):
                 stacks_nok.add((stack.name, stack.version, stack.StackStatus))
 
         if stacks_nok:
-            info('Waiting {:.0f}s for stack{} {}..'.format(cutoff - time.time(),
+            info('Waiting up to {:.0f} more secs for stack{} {}..'.format(cutoff - time.time(),
                  's' if len(stacks_nok) > 1 else '',
                  ', '.join(['{}-{} ({})'.format(*x) for x in sorted(stacks_nok)])))
         elif stacks_ok:

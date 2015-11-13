@@ -16,7 +16,7 @@ import time
 from subprocess import call
 
 import click
-from clickclick import AliasedGroup, Action, choice, info, FloatRange, OutputFormat, fatal_error
+from clickclick import AliasedGroup, Action, choice, info, FloatRange, OutputFormat, fatal_error, ok
 from clickclick.console import print_table
 import requests
 import yaml
@@ -1310,6 +1310,39 @@ def scale(stack_ref, region, desired_capacity):
                 asg.update_auto_scaling_group(AutoScalingGroupName=asg_name,
                                               DesiredCapacity=desired_capacity,
                                               **kwargs)
+
+
+@cli.command()
+@click.argument('stack_ref', nargs=-1)
+@click.option('-d', '--deletion', is_flag=True, help='Wait for deletion instead of CREATE_COMPLETE')
+@click.option('-t', '--timeout', type=click.IntRange(0, 7200, clamp=True), metavar='SECS', default=1800)
+@region_option
+def wait(stack_ref, region, deletion, timeout):
+    '''Wait for successfull stack creation or deletion'''
+
+    stack_refs = get_stack_refs(stack_ref)
+    region = get_region(region)
+    check_credentials(region)
+
+    cutoff = time.time() + timeout
+
+    while time.time() < cutoff:
+        stacks_ok = set()
+        stacks_nok = set()
+        for stack in get_stacks(stack_refs, region, all=deletion):
+            print(stack.name, stack.version, stack.StackStatus)
+            if stack.StackStatus == 'CREATE_COMPLETE':
+                stacks_ok.add((stack.name, stack.version))
+            else:
+                stacks_nok.add((stack.name, stack.version))
+
+        if stacks_nok:
+            info('Waiting for stacks {}..'.format(sorted(stacks_nok)))
+        else:
+            ok('Stacks created successfully.')
+            return
+        time.sleep(5)
+    raise click.Abort()
 
 
 def main():

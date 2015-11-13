@@ -1326,7 +1326,7 @@ def wait(region, stack_ref, watch, output):
     elif not all_with_version(stack_refs):
         raise click.UsageError('Please specify the stack version')
 
-    stack = stack_refs[0] # type: StackReference
+    stack = stack_refs[0]  # type: StackReference
     cf = boto3.client('cloudformation')
     for _ in watching(True, watch):
         rows = []
@@ -1336,7 +1336,7 @@ def wait(region, stack_ref, watch, output):
 
         rows.append({'stack_name': stack.name,
                      'version': stack.version,
-                     'status': stack_status })
+                     'status': stack_status})
 
         if output == 'text':
             # If outputting the text show every update

@@ -1315,32 +1315,41 @@ def scale(stack_ref, region, desired_capacity):
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
 @click.option('-d', '--deletion', is_flag=True, help='Wait for deletion instead of CREATE_COMPLETE')
-@click.option('-t', '--timeout', type=click.IntRange(0, 7200, clamp=True), metavar='SECS', default=1800)
+@click.option('-t', '--timeout', type=click.IntRange(0, 7200, clamp=True), metavar='SECS', default=1800,
+              help='Maximum wait time (default: 1800s)')
 @region_option
 def wait(stack_ref, region, deletion, timeout):
-    '''Wait for successfull stack creation or deletion'''
+    '''Wait for successfull stack creation or deletion.
+
+    Supports waiting for more than one stack up to timeout seconds.'''
 
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
     check_credentials(region)
 
     cutoff = time.time() + timeout
+    target_status = 'DELETE_COMPLETE' if deletion else 'CREATE_COMPLETE'
 
     while time.time() < cutoff:
         stacks_ok = set()
         stacks_nok = set()
-        for stack in get_stacks(stack_refs, region, all=deletion):
-            print(stack.name, stack.version, stack.StackStatus)
-            if stack.StackStatus == 'CREATE_COMPLETE':
+        for stack in get_stacks(stack_refs, region, all=True):
+            if stack.StackStatus == target_status:
                 stacks_ok.add((stack.name, stack.version))
             else:
-                stacks_nok.add((stack.name, stack.version))
+                stacks_nok.add((stack.name, stack.version, stack.StackStatus))
 
         if stacks_nok:
-            info('Waiting for stacks {}..'.format(sorted(stacks_nok)))
-        else:
-            ok('Stacks created successfully.')
+            info('Waiting {:.0f}s for stack{} {}..'.format(cutoff - time.time(),
+                 's' if len(stacks_nok) > 1 else '',
+                 ', '.join(['{}-{} ({})'.format(*x) for x in sorted(stacks_nok)])))
+        elif stacks_ok:
+            ok('Stack(s) {} {} successfully.'.format(
+               ', '.join(['{}-{}'.format(*x) for x in sorted(stacks_ok)]),
+               'deleted' if deletion else 'created'))
             return
+        else:
+            raise click.UsageError('No matching stack for "{}" found'.format(' '.join(stack_ref)))
         time.sleep(5)
     raise click.Abort()
 

@@ -1312,6 +1312,45 @@ def scale(stack_ref, region, desired_capacity):
                                               **kwargs)
 
 
+@cli.command('wait')
+@region_option
+@output_option
+@watchrefresh_option
+@click.argument('stack_ref', nargs=-1)
+def wait(region, stack_ref, watch, output):
+    stack_refs = get_stack_refs(stack_ref)
+    if not stack_refs:
+        raise click.UsageError('Please specify one stack')
+    elif len(stack_refs) > 1:
+        raise click.UsageError('Please specify only one stack')
+    elif not all_with_version(stack_refs):
+        raise click.UsageError('Please specify the stack version')
+
+    stack = stack_refs[0] # type: StackReference
+    cf = boto3.client('cloudformation')
+    for _ in watching(True, watch):
+        rows = []
+        stacks_description = cf.describe_stacks(StackName=stack.cf_stack_name())
+        stack_description = stacks_description['Stacks'][0]  # type: dict
+        stack_status = stack_description['StackStatus']
+
+        rows.append({'stack_name': stack.name,
+                     'version': stack.version,
+                     'status': stack_status })
+
+        if output == 'text':
+            # If outputting the text show every update
+            print_table('stack_name version status'.split(), rows, styles=STYLES, titles=TITLES)
+
+        if not stack_status == 'CREATE_IN_PROGRESS':
+            break
+
+    if not output == 'text':
+        # if output is not text the table is only printed in the end
+        with OutputFormat(output):
+            print_table('stack_name version status'.split(), rows, styles=STYLES, titles=TITLES)
+
+
 def main():
     handle_exceptions(cli)()
 

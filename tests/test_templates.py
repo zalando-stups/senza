@@ -83,3 +83,15 @@ def test_prompt_callable_default(monkeypatch):
     variables = {}
     prompt(variables, 'test', default=lambda: 'default')
     mock.assert_called_once_with(default='default')
+
+
+def test_choice_type():
+    variables = {'test': '42'}
+    choice(variables, 'test', type=int)
+    assert variables['test'] == 42
+
+
+def test_prompt_type():
+    variables = {'test': '42'}
+    prompt(variables, 'test', type=int)
+    assert variables['test'] == 42

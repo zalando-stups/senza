@@ -1336,6 +1336,8 @@ def wait(stack_ref, region, deletion, timeout):
         for stack in get_stacks(stack_refs, region, all=True):
             if stack.StackStatus == target_status:
                 stacks_ok.add((stack.name, stack.version))
+            elif stack.StackStatus.endswith('_FAILED') or stack.StackStatus.endswith('_COMPLETE'):
+                fatal_error('ERROR: Stack {}-{} has status {}'.format(stack.name, stack.version, stack.StackStatus))
             else:
                 stacks_nok.add((stack.name, stack.version, stack.StackStatus))
 
@@ -1344,7 +1346,7 @@ def wait(stack_ref, region, deletion, timeout):
                  's' if len(stacks_nok) > 1 else '',
                  ', '.join(['{}-{} ({})'.format(*x) for x in sorted(stacks_nok)])))
         elif stacks_ok:
-            ok('Stack(s) {} {} successfully.'.format(
+            ok('OK: Stack(s) {} {} successfully.'.format(
                ', '.join(['{}-{}'.format(*x) for x in sorted(stacks_ok)]),
                'deleted' if deletion else 'created'))
             return

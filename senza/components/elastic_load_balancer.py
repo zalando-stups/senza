@@ -128,6 +128,10 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
                     "LoadBalancerPort": 443
                 }
             ],
+            "ConnectionDrainingPolicy": {
+                "Enabled": True,
+                "Timeout": 60
+            },
             "CrossZone": "true",
             "LoadBalancerName": loadbalancer_name,
             "SecurityGroups": resolve_security_groups(configuration["SecurityGroups"], args.region),

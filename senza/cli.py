@@ -1234,7 +1234,8 @@ def get_auto_scaling_groups(stack_refs, region):
 @region_option
 @click.option('--image', metavar='AMI_ID_OR_LATEST', help='Use specified image (AMI ID or "latest")')
 @click.option('--instance-type', metavar='INSTANCE_TYPE', help='Use specified EC2 instance type')
-def patch(stack_ref, region, image, instance_type):
+@click.option('--user-data', metavar='YAML', help='Patch properties in user data YAML')
+def patch(stack_ref, region, image, instance_type, user_data):
     '''Patch specific properties of existing stack.
 
     Currently only supports patching ASG launch configurations.'''
@@ -1246,7 +1247,8 @@ def patch(stack_ref, region, image, instance_type):
         image = find_taupage_image(region).id
 
     properties = {'ImageId': image,
-                  'InstanceType': instance_type}
+                  'InstanceType': instance_type,
+                  'UserData': yaml.safe_load(user_data) if user_data else None}
     # remove empty values
     properties = {k: v for k, v in properties.items() if v}
 

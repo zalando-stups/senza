@@ -2,6 +2,7 @@
 import boto3
 import codecs
 import datetime
+import yaml
 
 LAUNCH_CONFIGURATION_PROPERTIES = set([
     'AssociatePublicIpAddress',
@@ -25,6 +26,15 @@ LAUNCH_CONFIGURATION_PROPERTIES = set([
 ])
 
 
+def patch_user_data(old: str, new: dict):
+    first_line, sep, data = old.partition('\n')
+    data = yaml.safe_load(data)
+    if not isinstance(data, dict):
+        raise ValueError('Instance user data has invalid YAML: must be key/value pairs')
+    data.update(**new)
+    return first_line + sep + yaml.safe_dump(data, default_flow_style=False)
+
+
 def patch_auto_scaling_group(group: dict, region: str, properties: dict):
     asg = boto3.client('autoscaling', region)
     result = asg.describe_launch_configurations(LaunchConfigurationNames=[group['LaunchConfigurationName']])
@@ -44,7 +54,11 @@ def patch_auto_scaling_group(group: dict, region: str, properties: dict):
                     kwargs[key] = val
             now = datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%S')
             kwargs['LaunchConfigurationName'] = '{}-{}'.format(kwargs['LaunchConfigurationName'][:64], now)
-            kwargs.update(**properties)
+            for key, val in properties.items():
+                if key == 'UserData' and isinstance(val, dict):
+                    kwargs[key] = patch_user_data(kwargs[key], val)
+                else:
+                    kwargs[key] = val
             asg.create_launch_configuration(**kwargs)
             asg.update_auto_scaling_group(AutoScalingGroupName=group['AutoScalingGroupName'],
                                           LaunchConfigurationName=kwargs['LaunchConfigurationName'])

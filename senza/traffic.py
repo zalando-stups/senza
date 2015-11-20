@@ -378,6 +378,6 @@ def change_version_traffic(stack_ref: StackReference, percentage: float, region)
 def inform_sns(arns: list, message: str, region):
     jsonizer = JSONEncoder()
     sns_topics = set(arns)
-    sns = boto3.client('sns')
+    sns = boto3.client('sns', region_name=region)
     for sns_topic in sns_topics:
         sns.publish(TopicArn=sns_topic, Subject="SenzaTrafficRedirect", Message=jsonizer.encode((message)))

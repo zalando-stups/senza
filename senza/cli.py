@@ -16,7 +16,7 @@ import time
 from subprocess import call
 
 import click
-from clickclick import AliasedGroup, Action, choice, info, FloatRange, OutputFormat, fatal_error, ok
+from clickclick import AliasedGroup, Action, choice, info, FloatRange, OutputFormat, error, fatal_error, ok
 from clickclick.console import print_table
 import requests
 import yaml
@@ -1315,6 +1315,11 @@ def scale(stack_ref, region, desired_capacity):
                                               **kwargs)
 
 
+def failure_event(event: dict):
+    status = event.get('ResourceStatus')
+    return event.get('ResourceStatusReason') and ('FAIL' in status or 'ROLLBACK' in status)
+
+
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
 @click.option('-d', '--deletion', is_flag=True, help='Wait for deletion instead of CREATE_COMPLETE')
@@ -1328,7 +1333,7 @@ def wait(stack_ref, region, deletion, timeout):
 
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
-    check_credentials(region)
+    cf = boto3.client('cloudformation', region)
 
     cutoff = time.time() + timeout
     target_status = 'DELETE_COMPLETE' if deletion else 'CREATE_COMPLETE'
@@ -1340,6 +1345,12 @@ def wait(stack_ref, region, deletion, timeout):
             if stack.StackStatus == target_status:
                 stacks_ok.add((stack.name, stack.version))
             elif stack.StackStatus.endswith('_FAILED') or stack.StackStatus.endswith('_COMPLETE'):
+                # output event messages for troubleshooting
+                events = cf.describe_stack_events(StackName=stack.StackId)['StackEvents']
+
+                for event in sorted(events, key=lambda x: x['Timestamp']):
+                    if failure_event(event):
+                        error('ERROR: {LogicalResourceId} {ResourceStatus}: {ResourceStatusReason}'.format(**event))
                 fatal_error('ERROR: Stack {}-{} has status {}'.format(stack.name, stack.version, stack.StackStatus))
             else:
                 stacks_nok.add((stack.name, stack.version, stack.StackStatus))

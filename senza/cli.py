@@ -1269,8 +1269,9 @@ def patch(stack_ref, region, image, instance_type, user_data):
 @cli.command('respawn-instances')
 @click.argument('stack_ref', nargs=-1)
 @click.option('--inplace', is_flag=True, help='Perform inplace update, do not scale out')
+@click.option('-f', '--force', is_flag=True, help='Force respawn even if Launch Configuration is unchanged')
 @region_option
-def respawn_instances(stack_ref, inplace, region):
+def respawn_instances(stack_ref, inplace, force, region):
     '''Replace all EC2 instances in Auto Scaling Group(s)
 
     Performs a rolling update to prevent downtimes.'''
@@ -1280,7 +1281,7 @@ def respawn_instances(stack_ref, inplace, region):
     check_credentials(region)
 
     for asg_name in get_auto_scaling_groups(stack_refs, region):
-        respawn_auto_scaling_group(asg_name, region, inplace=inplace)
+        respawn_auto_scaling_group(asg_name, region, inplace=inplace, force=force)
 
 
 @cli.command()

@@ -17,7 +17,7 @@ def get_auto_scaling_group(asg, asg_name: str):
     return groups[0]
 
 
-def get_instances_to_terminate(group, desired_launch_config: str):
+def get_instances_to_terminate(group, desired_launch_config: str, force: bool):
     '''Return set of instance IDs to terminate for given Auto Scaling Group
 
     Returns all instances where the launch configuration is not up-to-date'''
@@ -26,7 +26,7 @@ def get_instances_to_terminate(group, desired_launch_config: str):
     for instance in group['Instances']:
         if instance['LifecycleState'] in RUNNING_LIFECYCLE_STATES:
             # NOTE: LaunchConfigurationName key might be missing (if config was deleted..)
-            if instance.get('LaunchConfigurationName') == desired_launch_config:
+            if not force and instance.get('LaunchConfigurationName') == desired_launch_config:
                 instances_ok.add(instance['InstanceId'])
             else:
                 instances_to_terminate.add(instance['InstanceId'])
@@ -112,12 +112,12 @@ def do_respawn_auto_scaling_group(asg_name: str, group: dict, region: str,
         asg.resume_processes(AutoScalingGroupName=asg_name)
 
 
-def respawn_auto_scaling_group(asg_name: str, region: str, inplace: bool=False):
+def respawn_auto_scaling_group(asg_name: str, region: str, inplace: bool=False, force: bool=False):
     '''Respawn all EC2 instances in the Auto Scaling Group whose launch configuration is not up-to-date'''
     asg = boto3.client('autoscaling', region)
     group = get_auto_scaling_group(asg, asg_name)
     desired_launch_config = group['LaunchConfigurationName']
-    instances_to_terminate, instances_ok = get_instances_to_terminate(group, desired_launch_config)
+    instances_to_terminate, instances_ok = get_instances_to_terminate(group, desired_launch_config, force)
     info('{}/{} instances need to be updated in {}'.format(len(instances_to_terminate),
          len(instances_to_terminate) + len(instances_ok), asg_name))
     if instances_to_terminate:

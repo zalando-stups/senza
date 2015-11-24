@@ -1316,8 +1316,15 @@ def scale(stack_ref, region, desired_capacity):
 
 
 def failure_event(event: dict):
+    '''
+    >>> failure_event({})
+    False
+
+    >>> failure_event({'ResourceStatusReason': 'foo', 'ResourceStatus': 'FAIL'})
+    True
+    '''
     status = event.get('ResourceStatus')
-    return event.get('ResourceStatusReason') and ('FAIL' in status or 'ROLLBACK' in status)
+    return bool(event.get('ResourceStatusReason') and ('FAIL' in status or 'ROLLBACK' in status))
 
 
 @cli.command()

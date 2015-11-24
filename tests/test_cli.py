@@ -1161,6 +1161,7 @@ def test_traffic(monkeypatch):
 
     def run(opts):
         result = runner.invoke(cli, common_opts + opts, catch_exceptions=False)
+        assert 'Setting weights for myapp.example.org..' in result.output
         return result
 
     def weights():

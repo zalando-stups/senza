@@ -107,7 +107,7 @@ def compensate(calculation_error, compensations, identifier, new_record_weights,
 
 
 def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_weights, percentage):
-    action('Setting weights for {dns_names}..', **vars())
+    action('Setting weights for {dns_names}..', dns_names=', '.join(dns_names))
     dns_changes = {}
     for idx, dns_name in enumerate(dns_names):
         domain = dns_name.split('.', 1)[1]

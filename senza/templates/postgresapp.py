@@ -125,7 +125,7 @@ Resources:
       HealthCheck:
         HealthyThreshold: 2
         Interval: 5
-        Target: HTTP:{{healthcheck_port}}/slave
+        Target: HTTP:{{healthcheck_port}}/replica
         Timeout: 3
         UnhealthyThreshold: 2
       Listeners:

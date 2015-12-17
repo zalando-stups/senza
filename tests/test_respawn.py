@@ -23,7 +23,8 @@ def test_respawn_auto_scaling_group(monkeypatch):
     elb = MagicMock()
     elb.describe_instance_health.return_value = {'InstanceStates': instance_states}
     services = {'autoscaling': asg, 'elb': elb}
-    def client(service, *args):
+    def client(service, region):
+        assert region == 'myregion'
         return services[service]
     monkeypatch.setattr('boto3.client', client)
     monkeypatch.setattr('time.sleep', lambda s: s)

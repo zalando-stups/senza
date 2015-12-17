@@ -40,7 +40,7 @@ def get_instances_in_service(group, region: str):
     lb_names = group['LoadBalancerNames']
     if lb_names:
         # check ELB status
-        elb = boto3.client('elb')
+        elb = boto3.client('elb', region)
         for lb_name in lb_names:
             result = elb.describe_instance_health(LoadBalancerName=lb_name)
             for instance in result['InstanceStates']:
@@ -48,7 +48,7 @@ def get_instances_in_service(group, region: str):
                     instances_in_service.add(instance['InstanceId'])
     else:
         # just use ASG LifecycleState
-        group = get_auto_scaling_group(boto3.client('autoscaling'), group['AutoScalingGroupName'])
+        group = get_auto_scaling_group(boto3.client('autoscaling', region), group['AutoScalingGroupName'])
         for instance in group['Instances']:
             if instance['LifecycleState'] == 'InService':
                 instances_in_service.add(instance['InstanceId'])

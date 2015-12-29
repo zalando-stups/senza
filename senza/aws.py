@@ -3,6 +3,7 @@ import datetime
 import functools
 import time
 import boto3
+import base64
 from botocore.exceptions import ClientError
 
 
@@ -24,9 +25,13 @@ def get_security_group(region: str, sg_name: str):
             raise
 
 
-def encrypt(region: str, KeyId: str, Plaintext: str):
+def encrypt(region: str, KeyId: str, Plaintext: str, encode=False):
     kms = boto3.client('kms', region)
-    return kms.encrypt(KeyId=KeyId, Plaintext=Plaintext)['CiphertextBlob']
+    encrypted = kms.encrypt(KeyId=KeyId, Plaintext=Plaintext)['CiphertextBlob']
+    if encode:
+        return base64.b64encode(encrypted).decode('utf-8')
+
+    return encrypted
 
 
 def list_kms_keys(region: str, describe=False):

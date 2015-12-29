@@ -8,7 +8,6 @@ from senza.aws import get_security_group, encrypt, list_kms_keys
 from senza.utils import pystache_render
 import requests
 import random
-import base64
 import string
 
 from ._helper import prompt, check_security_group, check_s3_bucket, get_account_alias
@@ -269,8 +268,8 @@ def gather_user_variables(variables, region, account_info):
 
         kms_keyid = kms_key.split(':')[0]
         for key in [k for k in variables if k.startswith('pgpassword_')]:
-            encrypted = encrypt(region=region, KeyId=kms_keyid, Plaintext=variables[key])
-            variables[key] = 'aws:kms:{}'.format(base64.b64encode(encrypted))
+            encrypted = encrypt(region=region, KeyId=kms_keyid, Plaintext=variables[key], encode=True)
+            variables[key] = 'aws:kms:{}'.format(encrypted)
 
     variables['postgres_port'] = POSTGRES_PORT
     variables['healthcheck_port'] = HEALTHCHECK_PORT

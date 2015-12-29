@@ -271,19 +271,21 @@ def gather_user_variables(variables, region, account_info):
            default='admin', hide_input=True, confirmation_prompt=True)
 
     variables['kms_arn'] = None
-    if click.confirm('Do you wish to encrypt these passwords using kms?', default=False):
-        kms_keys = [k for k in list_kms_keys(region, True) if k['Description'] !=
-                    'Default master key that protects my EBS volumes when no other key is defined']
+    if click.confirm('Do you wish to encrypt these passwords using KMS?', default=False):
+        kms_keys = [k for k in list_kms_keys(region) if 'alias/aws/ebs' not in k['aliases']]
 
-        kms_key = choice(prompt='Please select the encryption key',
-                         options=['{}: {}'.format(k['KeyId'], k['Description']) for k in kms_keys])
+        if len(kms_keys) == 0:
+            raise click.UsageError('No KMS key is available for encrypting and decrypting. '
+                                   'Ensure you have at least 1 key available.')
 
+        options = ['{}: {}'.format(k['KeyId'], k['Description']) for k in kms_keys]
+        kms_key = choice(prompt='Please select the encryption key', options=options)
         kms_keyid = kms_key.split(':')[0]
 
         variables['kms_arn'] = [k['Arn'] for k in kms_keys if k['KeyId'] == kms_keyid][0]
 
         for key in [k for k in variables if k.startswith('pgpassword_')]:
-            encrypted = encrypt(region=region, KeyId=kms_keyid, Plaintext=variables[key], encode=True)
+            encrypted = encrypt(region=region, KeyId=kms_keyid, Plaintext=variables[key], b64encode=True)
             variables[key] = 'aws:kms:{}'.format(encrypted)
 
     variables['postgres_port'] = POSTGRES_PORT

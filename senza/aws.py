@@ -24,6 +24,20 @@ def get_security_group(region: str, sg_name: str):
             raise
 
 
+def encrypt(region: str, KeyId: str, Plaintext: str):
+    kms = boto3.client('kms', region)
+    return kms.encrypt(KeyId=KeyId, Plaintext=Plaintext)['CiphertextBlob']
+
+
+def list_kms_keys(region: str, describe=False):
+    kms = boto3.client('kms', region)
+    keys = list(kms.list_keys()['Keys'])
+    if describe:
+        for key in keys:
+            key.update(kms.describe_key(KeyId=key['KeyId'])['KeyMetadata'])
+    return keys
+
+
 def resolve_security_groups(security_groups: list, region: str):
     result = []
     for security_group in security_groups:

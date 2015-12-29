@@ -3,10 +3,13 @@ HA Postgres app, which needs an S3 bucket to store WAL files
 '''
 
 import click
-from clickclick import warning, error
-from senza.aws import get_security_group
+from clickclick import warning, error, choice
+from senza.aws import get_security_group, encrypt, list_kms_keys
 from senza.utils import pystache_render
 import requests
+import random
+import base64
+import string
 
 from ._helper import prompt, check_security_group, check_s3_bucket, get_account_alias
 
@@ -85,6 +88,9 @@ SenzaComponents:
           SCOPE: "{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>"
           ETCD_DISCOVERY_DOMAIN: "{{discovery_domain}}"
           WAL_S3_BUCKET: "{{wal_s3_bucket}}"
+          PGPASSWORD_SUPERUSER: "{{pgpassword_superuser}}"
+          PGPASSWORD_ADMIN: "{{pgpassword_admin}}"
+          PGPASSWORD_STANDBY: "{{pgpassword_standby}}"
         root: True
         mounts:
           /home/postgres/pgdata:
@@ -245,6 +251,22 @@ def gather_user_variables(variables, region, account_info):
            default="noatime,nodiratime,nobarrier")
     prompt(variables, "scalyr_account_key", "Account key for your scalyr account", "")
 
+    prompt(variables, 'pgpassword_superuser', "Password for PostgreSQL superuser [random]", show_default=False,
+           default=generate_random_password, hide_input=True, confirmation_prompt=True)
+    prompt(variables, 'pgpassword_standby', "Password for PostgreSQL user standby [random]", show_default=False,
+           default=generate_random_password, hide_input=True, confirmation_prompt=True)
+    prompt(variables, 'pgpassword_admin', "Password for PostgreSQL user admin", show_default=True,
+           default='admin', hide_input=True, confirmation_prompt=True)
+
+    if click.confirm('Do you wish to encrypt these passwords using kms?', default=False):
+        kms_key = choice(prompt='Please select the encryption key',
+                         options=['{}: {}'.format(k['KeyId'], k['Description']) for k in list_kms_keys(region, True)])
+
+        kms_keyid = kms_key.split(':')[0]
+        for key in [k for k in variables if k.startswith('pgpassword_')]:
+            encrypted = encrypt(region=region, KeyId=kms_keyid, Plaintext=variables[key])
+            variables[key] = 'aws:kms:{}'.format(base64.b64encode(encrypted))
+
     variables['postgres_port'] = POSTGRES_PORT
     variables['healthcheck_port'] = HEALTHCHECK_PORT
 
@@ -270,6 +292,10 @@ def gather_user_variables(variables, region, account_info):
     check_s3_bucket(variables['wal_s3_bucket'], region)
 
     return variables
+
+
+def generate_random_password():
+    return ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(64))
 
 
 def generate_definition(variables):

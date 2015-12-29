@@ -28,7 +28,7 @@ def get_security_group(region: str, sg_name: str):
 def encrypt(region: str, KeyId: str, Plaintext: str, b64encode=False):
     kms = boto3.client('kms', region)
     encrypted = kms.encrypt(KeyId=KeyId, Plaintext=Plaintext)['CiphertextBlob']
-    if encode:
+    if b64encode:
         return base64.b64encode(encrypted).decode('utf-8')
 
     return encrypted

@@ -65,7 +65,9 @@ SenzaComponents:
           {{/use_ebs}}
       ElasticLoadBalancer:
         - PostgresLoadBalancer
+        {{#add_replica_loadbalancer}}
         - PostgresReplicaLoadBalancer
+        {{/add_replica_loadbalancer}}
       HealthCheckType: EC2
       SecurityGroups:
         - app-spilo
@@ -102,6 +104,7 @@ SenzaComponents:
         scalyr_account_key: {{scalyr_account_key}}
         {{/scalyr_account_key}}
 Resources:
+  {{#add_replica_loadbalancer}}
   PostgresReplicaRoute53Record:
     Type: AWS::Route53::RecordSet
     Properties:
@@ -112,17 +115,6 @@ Resources:
       ResourceRecords:
         - Fn::GetAtt:
            - PostgresReplicaLoadBalancer
-           - DNSName
-  PostgresRoute53Record:
-    Type: AWS::Route53::RecordSet
-    Properties:
-      Type: CNAME
-      TTL: 20
-      HostedZoneName: {{hosted_zone}}
-      Name: "{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>.{{hosted_zone}}"
-      ResourceRecords:
-        - Fn::GetAtt:
-           - PostgresLoadBalancer
            - DNSName
   PostgresReplicaLoadBalancer:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
@@ -149,6 +141,18 @@ Resources:
           - LoadBalancerSubnets
           - Ref: AWS::Region
           - Subnets
+  {{/add_replica_loadbalancer}}
+  PostgresRoute53Record:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Type: CNAME
+      TTL: 20
+      HostedZoneName: {{hosted_zone}}
+      Name: "{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>.{{hosted_zone}}"
+      ResourceRecords:
+        - Fn::GetAtt:
+           - PostgresLoadBalancer
+           - DNSName
   PostgresLoadBalancer:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Properties:
@@ -224,6 +228,7 @@ def gather_user_variables(variables, region, account_info):
            default='{}-{}-spilo-app'.format(get_account_alias(), region))
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
     variables['hosted_zone'] = account_info.Domain or 'example.com'
+    variables['add_replica_loadbalancer'] = click.confirm('Do you want a replica ELB?', default=False)
     if (variables['hosted_zone'][-1:] != '.'):
         variables['hosted_zone'] += '.'
     prompt(variables, 'discovery_domain', 'ETCD Discovery Domain',

@@ -189,7 +189,7 @@ Resources:
           Action: sts:AssumeRole
       Path: /
       Policies:
-      - PolicyName: SpiloEC2S3Access
+      - PolicyName: SpiloEC2S3KMSAccess
         PolicyDocument:
           Version: "2012-10-17"
           Statement:
@@ -204,6 +204,14 @@ Resources:
           - Effect: Allow
             Action: ec2:Describe*
             Resource: "*"
+          {{#kms_arn}}
+          - Effect: Allow
+            Action:
+              - "kms:Decrypt"
+              - "kms:Encrypt"
+            Resource:
+              - {{kms_arn}}
+          {{/kms_arn}}
 '''
 
 
@@ -262,11 +270,18 @@ def gather_user_variables(variables, region, account_info):
     prompt(variables, 'pgpassword_admin', "Password for PostgreSQL user admin", show_default=True,
            default='admin', hide_input=True, confirmation_prompt=True)
 
+    variables['kms_arn'] = None
     if click.confirm('Do you wish to encrypt these passwords using kms?', default=False):
+        kms_keys = [k for k in list_kms_keys(region, True) if k['Description'] !=
+                    'Default master key that protects my EBS volumes when no other key is defined']
+
         kms_key = choice(prompt='Please select the encryption key',
-                         options=['{}: {}'.format(k['KeyId'], k['Description']) for k in list_kms_keys(region, True)])
+                         options=['{}: {}'.format(k['KeyId'], k['Description']) for k in kms_keys])
 
         kms_keyid = kms_key.split(':')[0]
+
+        variables['kms_arn'] = [k['Arn'] for k in kms_keys if k['KeyId'] == kms_keyid][0]
+
         for key in [k for k in variables if k.startswith('pgpassword_')]:
             encrypted = encrypt(region=region, KeyId=kms_keyid, Plaintext=variables[key], encode=True)
             variables[key] = 'aws:kms:{}'.format(encrypted)

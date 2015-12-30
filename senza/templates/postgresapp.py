@@ -222,30 +222,59 @@ def ebs_optimized_supported(instance_type):
                              'r3.4xlarge')
 
 
+def set_default_variables(variables):
+    variables.setdefault('discovery_domain', 'postgres.example.com')
+    variables.setdefault('docker_image', None)
+    variables.setdefault('ebs_optimized', None)
+    variables.setdefault('fsoptions','noatime,nodiratime,nobarrier')
+    variables.setdefault('fstype', 'ext4')
+    variables.setdefault('healthcheck_port', HEALTHCHECK_PORT)
+    variables.setdefault('hosted_zone', 'example.com')
+    variables.setdefault('instance_type', 't2.micro')
+    variables.setdefault('kms_arn', None)
+    variables.setdefault('pgpassword_admin', 'admin')
+    variables.setdefault('pgpassword_standby', 'standby')
+    variables.setdefault('pgpassword_superuser', 'zalando')
+    variables.setdefault('postgres_port', POSTGRES_PORT)
+    variables.setdefault('scalyr_account_key', None)
+    variables.setdefault('snapshot_id', None)
+    variables.setdefault('spilo_sg_id', None)
+    variables.setdefault('use_ebs', True)
+    variables.setdefault('volume_iops', 300)
+    variables.setdefault('volume_size', 10)
+    variables.setdefault('volume_type', 'gp2')
+    variables.setdefault('wal_s3_bucket', None)
+
+    return variables
+
+
 def gather_user_variables(variables, region, account_info):
+    defaults = set_default_variables(dict())
+
     if click.confirm('Do you want to set the docker image now? [No]'):
         prompt(variables, "docker_image", "Docker Image Version", default=get_latest_spilo_image())
-    else:
-        variables['docker_image'] = None
+
     prompt(variables, 'wal_s3_bucket', 'Postgres WAL S3 bucket to use',
            default='{}-{}-spilo-app'.format(get_account_alias(), region))
+
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
-    variables['hosted_zone'] = account_info.Domain or 'example.com'
+
+    variables['hosted_zone'] = account_info.Domain or defaults['hosted_zone']
     if (variables['hosted_zone'][-1:] != '.'):
         variables['hosted_zone'] += '.'
     prompt(variables, 'discovery_domain', 'ETCD Discovery Domain',
            default='postgres.' + variables['hosted_zone'][:-1])
+
     if variables['instance_type'].lower().split('.')[0] in ('c3', 'g2', 'hi1', 'i2', 'm3', 'r3'):
         variables['use_ebs'] = click.confirm('Do you want database data directory on external (EBS) storage? [Yes]',
-                                             default=True)
+                                             default=defaults['use_ebs'])
     else:
         variables['use_ebs'] = True
-    variables['ebs_optimized'] = None
-    variables['volume_iops'] = None
-    variables['snapshot_id'] = None
+
     if variables['use_ebs']:
-        prompt(variables, 'volume_size', 'Database volume size (GB, 10 or more)', default=10)
-        prompt(variables, 'volume_type', 'Database volume type (gp2, io1 or standard)', default='gp2')
+        prompt(variables, 'volume_size', 'Database volume size (GB, 10 or more)', default=defaults['volume_size'])
+        prompt(variables, 'volume_type', 'Database volume type (gp2, io1 or standard)',
+               default=defaults['volume_type'])
         if variables['volume_type'] == 'io1':
             pio_max = variables['volume_size'] * 30
             prompt(variables, "volume_iops", 'Provisioned I/O operations per second (100 - {0})'.
@@ -253,9 +282,9 @@ def gather_user_variables(variables, region, account_info):
         prompt(variables, "snapshot_id", "ID of the snapshot to populate EBS volume from", default="")
         if ebs_optimized_supported(variables['instance_type']):
             variables['ebs_optimized'] = True
-    prompt(variables, "fstype", "Filesystem for the data partition", default="ext4")
+    prompt(variables, "fstype", "Filesystem for the data partition", default=defaults['fstype'])
     prompt(variables, "fsoptions", "Filesystem mount options (comma-separated)",
-           default="noatime,nodiratime,nobarrier")
+           default=defaults['fsoptions'])
     prompt(variables, "scalyr_account_key", "Account key for your scalyr account", "")
 
     prompt(variables, 'pgpassword_superuser', "Password for PostgreSQL superuser [random]", show_default=False,
@@ -263,9 +292,8 @@ def gather_user_variables(variables, region, account_info):
     prompt(variables, 'pgpassword_standby', "Password for PostgreSQL user standby [random]", show_default=False,
            default=generate_random_password, hide_input=True, confirmation_prompt=True)
     prompt(variables, 'pgpassword_admin', "Password for PostgreSQL user admin", show_default=True,
-           default='admin', hide_input=True, confirmation_prompt=True)
+           default=defaults['pgpassword_admin'], hide_input=True, confirmation_prompt=True)
 
-    variables['kms_arn'] = None
     if click.confirm('Do you wish to encrypt these passwords using KMS?', default=False):
         kms_keys = [k for k in list_kms_keys(region) if 'alias/aws/ebs' not in k['aliases']]
 
@@ -283,8 +311,7 @@ def gather_user_variables(variables, region, account_info):
             encrypted = encrypt(region=region, KeyId=kms_keyid, Plaintext=variables[key], b64encode=True)
             variables[key] = 'aws:kms:{}'.format(encrypted)
 
-    variables['postgres_port'] = POSTGRES_PORT
-    variables['healthcheck_port'] = HEALTHCHECK_PORT
+    set_default_variables(variables)
 
     sg_name = 'app-spilo'
     rules_missing = check_security_group(sg_name,
@@ -315,6 +342,11 @@ def generate_random_password():
 
 
 def generate_definition(variables):
+    """
+    >>> variables = set_default_variables(dict())
+    >>> len(generate_definition(variables)) > 300
+    True
+    """
     definition_yaml = pystache_render(TEMPLATE, variables)
     return definition_yaml
 

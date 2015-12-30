@@ -226,7 +226,7 @@ def set_default_variables(variables):
     variables.setdefault('discovery_domain', 'postgres.example.com')
     variables.setdefault('docker_image', None)
     variables.setdefault('ebs_optimized', None)
-    variables.setdefault('fsoptions','noatime,nodiratime,nobarrier')
+    variables.setdefault('fsoptions', 'noatime,nodiratime,nobarrier')
     variables.setdefault('fstype', 'ext4')
     variables.setdefault('healthcheck_port', HEALTHCHECK_PORT)
     variables.setdefault('hosted_zone', 'example.com')

@@ -5,7 +5,7 @@ from clickclick import fatal_error
 from senza.aws import find_ssl_certificate_arn, resolve_security_groups
 
 SENZA_PROPERTIES = frozenset(['Domains', 'HealthCheckPath', 'HealthCheckPort', 'HealthCheckProtocol',
-                              'HTTPPort', 'Name', 'SecurityGroups', 'SSLCertificateId', 'Type'])
+                              'HTTPPort', 'Name', 'SecurityGroups', 'SSLCertificateId', 'Type', 'Listeners'])
 
 
 def get_load_balancer_name(stack_name: str, stack_version: str):
@@ -19,6 +19,19 @@ def get_load_balancer_name(stack_name: str, stack_version: str):
     # Loadbalancer name cannot exceed 32 characters, try to shorten
     l = 32 - len(stack_version) - 1
     return '{}-{}'.format(stack_name[:l], stack_version)
+
+def generate_listener(protocol: str, instance_port:str, lb_port: str, ssl_cert:str, policy_names = []):
+
+    listener =  {
+        "PolicyNames": policy_names,
+        "Protocol": protocol,
+        "InstancePort": instance_port,
+        "LoadBalancerPort": lb_port
+    }
+    if protocol == "HTTPS":
+        listener["SSLCertificateId"] = ssl_cert
+
+    return listener
 
 
 def component_elastic_load_balancer(definition, configuration, args, info, force, account_info):
@@ -107,6 +120,20 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
     else:
         loadbalancer_subnet_map = "LoadBalancerSubnets"
 
+
+    allowed_listener_protocols = {"HTTP" : 80,
+                                  "HTTPS" : 443}
+    listeners = []
+    if "Listeners" in configuration:
+        for listener_protocol in configuration["Listeners"]:
+            if listener_protocol not in allowed_listener_protocols.keys():
+                continue
+
+            lb_port = allowed_listener_protocols[listener_protocol]
+            listeners.append(generate_listener(listener_protocol, configuration["HTTPPort"], lb_port, ssl_cert, []))
+    else:
+        listeners.append(generate_listener("HTTPS", configuration["HTTPPort"], 443, ssl_cert, []))
+
     # load balancer
     definition["Resources"][lb_name] = {
         "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
@@ -119,15 +146,7 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
                 "Timeout": "5",
                 "Target": health_check_target
             },
-            "Listeners": [
-                {
-                    "PolicyNames": [],
-                    "SSLCertificateId": ssl_cert,
-                    "Protocol": "HTTPS",
-                    "InstancePort": configuration["HTTPPort"],
-                    "LoadBalancerPort": 443
-                }
-            ],
+            "Listeners": listeners,
             "ConnectionDrainingPolicy": {
                 "Enabled": True,
                 "Timeout": 60
@@ -161,3 +180,5 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
             definition['Resources'][lb_name]['Properties'][key] = val
 
     return definition
+
+

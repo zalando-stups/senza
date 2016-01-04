@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 from senza.aws import resolve_topic_arn
-from senza.aws import get_security_group, resolve_security_groups, get_account_id, get_account_alias
+from senza.aws import get_security_group, resolve_security_groups, get_account_id, get_account_alias, list_kms_keys, encrypt
 
 
 def test_resolve_security_groups(monkeypatch):
@@ -28,6 +28,25 @@ def test_create(monkeypatch):
     monkeypatch.setattr('boto3.resource', MagicMock(return_value=sns))
 
     assert 'arn:123:mytopic' == resolve_topic_arn('myregion', 'mytopic')
+
+
+def test_encrypt(monkeypatch):
+    boto3 = MagicMock()
+    boto3.encrypt.return_value = {'CiphertextBlob':b'Hello World'}
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+
+    assert b'Hello World' == encrypt(region=None, KeyId='key_a', Plaintext='Hello World', b64encode=False)
+    assert 'SGVsbG8gV29ybGQ=' == encrypt(region=None, KeyId='key_a', Plaintext='Hello World', b64encode=True)
+
+
+def test_list_kms_keys(monkeypatch):
+    boto3 = MagicMock()
+    boto3.list_keys.return_value = {'Keys': [{'KeyId':'key_a'},{'KeyId':'key_b'}]}
+    boto3.list_aliases.return_value = {'Aliases': [{'AliasName':'a', 'TargetKeyId':'key_a'}]}
+    boto3.describe_key.return_value = {'KeyMetadata':{'Description':'This is key a'}}
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+
+    assert len(list_kms_keys(region=None, details=True)) == 2
 
 
 def test_get_account_id(monkeypatch):

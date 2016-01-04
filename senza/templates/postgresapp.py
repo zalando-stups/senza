@@ -213,6 +213,12 @@ Resources:
 
 def ebs_optimized_supported(instance_type):
     # per http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EBSOptimized.html
+    """
+    >>> ebs_optimized_supported('c3.xlarge')
+    True
+    >>> ebs_optimized_supported('t2.micro')
+    False
+    """
     return instance_type in ('c1.large', 'c3.xlarge', 'c3.2xlarge', 'c3.4xlarge',
                              'c4.large', 'c4.xlarge', 'c4.2xlarge', 'c4.4xlarge', 'c4.8xlarge',
                              'd2.xlarge', 'd2.2xlarge', 'd2.4xlarge', 'd2.8xlarge',
@@ -337,8 +343,12 @@ def gather_user_variables(variables, region, account_info):
     return variables
 
 
-def generate_random_password():
-    return ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(64))
+def generate_random_password(length=64):
+    """
+    >>> len(generate_random_password(61))
+    61
+    """
+    return ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(length))
 
 
 def generate_definition(variables):

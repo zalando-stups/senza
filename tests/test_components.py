@@ -101,9 +101,6 @@ def test_component_load_balancer_default_listeners(monkeypatch):
         'PolicyNames':[]
     }
 
-    print(listeners)
-    print(expected_listener)
-
     assert listeners[0] == expected_listener
 
 

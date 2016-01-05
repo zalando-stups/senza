@@ -39,6 +39,72 @@ def test_get_merged_policies(monkeypatch):
     assert [{'PolicyDocument': {'foo': 'bar'}, 'PolicyName': 'pol1'}] == get_merged_policies(['RoleA'])
 
 
+def test_component_load_balancer_listeners(monkeypatch):
+    configuration = {
+        "Name": "test_lb",
+        "SecurityGroups": "",
+        "HTTPPort": "9999",
+        "Listeners": ["HTTP","HTTPS"]
+    }
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    definition = {"Resources": {}}
+
+    args = MagicMock()
+    args.region = "foo"
+
+    mock_string_result = MagicMock()
+    mock_string_result.return_value = "foo"
+    monkeypatch.setattr('senza.components.elastic_load_balancer.find_ssl_certificate_arn', mock_string_result)
+    monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
+
+    listeners = result["Resources"]["test_lb"]["Properties"]["Listeners"]
+
+    # should be 2 listeners
+    assert len(listeners) == 2
+
+    # should be 2 listeners with 80 and 443 ports
+    assert set([listeners[0]['LoadBalancerPort'], listeners[1]['LoadBalancerPort']]) == set([443, 80])
+
+    # should be 2 listeners with HTTP and HTTPS protocol
+    assert set([listeners[0]['Protocol'], listeners[1]['Protocol']]) == set(["HTTP", "HTTPS"])
+
+def test_component_load_balancer_default_listeners(monkeypatch):
+    configuration = {
+        "Name": "test_lb",
+        "SecurityGroups": "",
+        "HTTPPort": "9999"
+    }
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    definition = {"Resources": {}}
+
+    args = MagicMock()
+    args.region = "foo"
+
+    mock_string_result = MagicMock()
+    mock_string_result.return_value = "foo"
+    monkeypatch.setattr('senza.components.elastic_load_balancer.find_ssl_certificate_arn', mock_string_result)
+    monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    # Default HTTPS listener
+    result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
+
+    listeners = result["Resources"]["test_lb"]["Properties"]["Listeners"]
+
+    assert len(listeners) == 1
+    expected_listener = {
+        'LoadBalancerPort':443,
+        'InstancePort':'9999',
+        'Protocol':'HTTPS',
+        'SSLCertificateId':'foo',
+        'PolicyNames':[]
+    }
+
+    assert listeners[0] == expected_listener
+
+
+
 def test_component_load_balancer_healthcheck(monkeypatch):
     configuration = {
         "Name": "test_lb",

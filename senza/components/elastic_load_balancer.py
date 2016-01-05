@@ -20,9 +20,10 @@ def get_load_balancer_name(stack_name: str, stack_version: str):
     l = 32 - len(stack_version) - 1
     return '{}-{}'.format(stack_name[:l], stack_version)
 
-def generate_listener(protocol: str, instance_port:str, lb_port: str, ssl_cert:str, policy_names = []):
 
-    listener =  {
+def generate_listener(protocol: str, instance_port: str, lb_port: str, ssl_cert: str, policy_names=[]):
+
+    listener = {
         "PolicyNames": policy_names,
         "Protocol": protocol,
         "InstancePort": instance_port,
@@ -120,9 +121,8 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
     else:
         loadbalancer_subnet_map = "LoadBalancerSubnets"
 
+    allowed_listener_protocols = {"HTTP": 80, "HTTPS": 443}
 
-    allowed_listener_protocols = {"HTTP" : 80,
-                                  "HTTPS" : 443}
     listeners = []
     if "Listeners" in configuration:
         for listener_protocol in configuration["Listeners"]:
@@ -180,5 +180,3 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
             definition['Resources'][lb_name]['Properties'][key] = val
 
     return definition
-
-

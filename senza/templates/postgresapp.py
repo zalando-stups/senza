@@ -64,7 +64,9 @@ SenzaComponents:
           {{/use_ebs}}
       ElasticLoadBalancer:
         - PostgresLoadBalancer
+        {{#add_replica_loadbalancer}}
         - PostgresReplicaLoadBalancer
+        {{/add_replica_loadbalancer}}
       HealthCheckType: EC2
       SecurityGroups:
         - app-spilo
@@ -106,6 +108,7 @@ SenzaComponents:
         scalyr_account_key: {{scalyr_account_key}}
         {{/scalyr_account_key}}
 Resources:
+  {{#add_replica_loadbalancer}}
   PostgresReplicaRoute53Record:
     Type: AWS::Route53::RecordSet
     Properties:
@@ -116,17 +119,6 @@ Resources:
       ResourceRecords:
         - Fn::GetAtt:
            - PostgresReplicaLoadBalancer
-           - DNSName
-  PostgresRoute53Record:
-    Type: AWS::Route53::RecordSet
-    Properties:
-      Type: CNAME
-      TTL: 20
-      HostedZoneName: {{hosted_zone}}
-      Name: "{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>.{{hosted_zone}}"
-      ResourceRecords:
-        - Fn::GetAtt:
-           - PostgresLoadBalancer
            - DNSName
   PostgresReplicaLoadBalancer:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
@@ -153,6 +145,18 @@ Resources:
           - LoadBalancerSubnets
           - Ref: AWS::Region
           - Subnets
+  {{/add_replica_loadbalancer}}
+  PostgresRoute53Record:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Type: CNAME
+      TTL: 20
+      HostedZoneName: {{hosted_zone}}
+      Name: "{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>.{{hosted_zone}}"
+      ResourceRecords:
+        - Fn::GetAtt:
+           - PostgresLoadBalancer
+           - DNSName
   PostgresLoadBalancer:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Properties:
@@ -241,6 +245,7 @@ def set_default_variables(variables):
     variables.setdefault('fstype', 'ext4')
     variables.setdefault('healthcheck_port', HEALTHCHECK_PORT)
     variables.setdefault('hosted_zone', 'example.com')
+    variables.setdefault('add_replica_loadbalancer', False)
     variables.setdefault('instance_type', 't2.micro')
     variables.setdefault('kms_arn', None)
     variables.setdefault('pgpassword_admin', 'admin')
@@ -276,6 +281,7 @@ def gather_user_variables(variables, region, account_info):
     prompt(variables, 'discovery_domain', 'ETCD Discovery Domain',
            default='postgres.' + variables['hosted_zone'][:-1])
 
+    variables['add_replica_loadbalancer'] = click.confirm('Do you want a replica ELB?', default=False)
     if variables['instance_type'].lower().split('.')[0] in ('c3', 'g2', 'hi1', 'i2', 'm3', 'r3'):
         variables['use_ebs'] = click.confirm('Do you want database data directory on external (EBS) storage? [Yes]',
                                              default=defaults['use_ebs'])

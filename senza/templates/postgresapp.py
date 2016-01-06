@@ -95,7 +95,12 @@ SenzaComponents:
           /home/postgres/pgdata:
             partition: /dev/xvdk
             filesystem: {{fstype}}
+            {{#snapshot_id}}
+            erase_on_boot: false
+            {{/snapshot_id}}
+            {{^snapshot_id}}
             erase_on_boot: true
+            {{/snapshot_id}}
             options: {{fsoptions}}
         {{#scalyr_account_key}}
         scalyr_account_key: {{scalyr_account_key}}

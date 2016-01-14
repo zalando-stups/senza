@@ -13,7 +13,7 @@ def get_security_group(region: str, sg_name: str):
         sec_groups = list(ec2.security_groups.filter(
             Filters=[{'Name': 'group-name', 'Values': [sg_name]}]
         ))
-        if len(sec_groups) == 0:
+        if not sec_groups:
             return None
         # FIXME: What if we have 2 VPC, with a SG with the same name?!
         return sec_groups[0]

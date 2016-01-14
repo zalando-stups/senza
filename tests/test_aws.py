@@ -3,6 +3,14 @@ from senza.aws import resolve_topic_arn
 from senza.aws import get_security_group, resolve_security_groups, get_account_id, get_account_alias, list_kms_keys, encrypt
 
 
+def test_get_security_group(monkeypatch):
+    ec2 = MagicMock()
+    monkeypatch.setattr('boto3.resource', MagicMock(return_value=ec2))
+
+    results = None
+    assert results == get_security_group('myregion', 'group_inexistant')
+    
+
 def test_resolve_security_groups(monkeypatch):
     ec2 = MagicMock()
     ec2.security_groups.filter.return_value = [MagicMock(name='app-test', id='sg-test')]

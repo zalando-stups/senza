@@ -10,7 +10,13 @@ from botocore.exceptions import ClientError
 def get_security_group(region: str, sg_name: str):
     ec2 = boto3.resource('ec2', region)
     try:
-        return list(ec2.security_groups.filter(GroupNames=[sg_name]))[0]
+        sec_groups = list(ec2.security_groups.filter(
+            Filters=[{'Name': 'group-name', 'Values': [sg_name]}]
+        ))
+        if len(sec_groups) == 0:
+            return None
+        # FIXME: What if we have 2 VPC, with a SG with the same name?!
+        return sec_groups[0]
     except ClientError as e:
         if e.response['Error']['Code'] == 'InvalidGroup.NotFound':
             return None

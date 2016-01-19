@@ -374,6 +374,12 @@ def generate_definition(variables):
 
 def get_latest_spilo_image(registry_url='https://registry.opensource.zalan.do',
                            address='/teams/acid/artifacts/spilo-9.4/tags'):
+    """
+    >>> 'registry.opensource.zalan.do' in get_latest_spilo_image()
+    True
+    >>> get_latest_spilo_image('dont.exist.url')
+    ''
+    """
     try:
         r = requests.get(registry_url + address)
         if r.ok:

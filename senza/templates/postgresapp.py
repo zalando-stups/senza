@@ -3,14 +3,14 @@ HA Postgres app, which needs an S3 bucket to store WAL files
 '''
 
 import click
-from clickclick import warning, error, choice
-from senza.aws import get_security_group, encrypt, list_kms_keys
+from clickclick import choice
+from senza.aws import encrypt, list_kms_keys, get_vpc_attribute
 from senza.utils import pystache_render
 import requests
 import random
 import string
 
-from ._helper import prompt, check_security_group, check_s3_bucket, get_account_alias
+from ._helper import prompt, check_s3_bucket, get_account_alias
 
 POSTGRES_PORT = 5432
 HEALTHCHECK_PORT = 8008
@@ -131,14 +131,16 @@ Resources:
         Timeout: 3
         UnhealthyThreshold: 2
       Listeners:
-        - InstancePort: 5432
-          LoadBalancerPort: 5432
+        - InstancePort: {{postgres_port}}
+          LoadBalancerPort: {{postgres_port}}
           Protocol: TCP
       LoadBalancerName: "spilo-{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>-replica"
       ConnectionSettings:
         IdleTimeout: 3600
       SecurityGroups:
-        - {{spilo_sg_id}}
+        - Fn::GetAtt:
+          - SpiloReplicaSG
+          - GroupId
       Scheme: internal
       Subnets:
         Fn::FindInMap:
@@ -168,14 +170,16 @@ Resources:
         Timeout: 3
         UnhealthyThreshold: 2
       Listeners:
-        - InstancePort: 5432
-          LoadBalancerPort: 5432
+        - InstancePort: {{postgres_port}}
+          LoadBalancerPort: {{postgres_port}}
           Protocol: TCP
       LoadBalancerName: "spilo-{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>"
       ConnectionSettings:
         IdleTimeout: 3600
       SecurityGroups:
-        - {{spilo_sg_id}}
+        - Fn::GetAtt:
+          - SpiloMasterSG
+          - GroupId
       Scheme: internal
       Subnets:
         Fn::FindInMap:
@@ -217,6 +221,81 @@ Resources:
             Resource:
               - {{kms_arn}}
           {{/kms_arn}}
+  SpiloMasterSG:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Security Group for the master ELB"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: {{postgres_port}}
+          ToPort: {{postgres_port}}
+          CidrIp: {{elb_access_cidr}}
+  {{#add_replica_loadbalancer}}
+  SpiloReplicaSG:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Security Group for the replica ELB"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: {{postgres_port}}
+          ToPort: {{postgres_port}}
+          CidrIp: 0.0.0.0/0
+  {{/add_replica_loadbalancer}}
+  SpiloMemberSG:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Security Group for Spilo members"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: {{postgres_port}}
+          ToPort: {{postgres_port}}
+          SourceSecurityGroupId:
+            Fn::GetAtt:
+              - SpiloMasterSG
+              - GroupId
+        - IpProtocol: tcp
+          FromPort: {{healthcheck_port}}
+          ToPort: {{healthcheck_port}}
+          SourceSecurityGroupId:
+            Fn::GetAtt:
+              - SpiloMasterSG
+              - GroupId
+
+        {{#add_replica_loadbalancer}}
+        - IpProtocol: tcp
+          FromPort: {{postgres_port}}
+          ToPort: {{postgres_port}}
+          SourceSecurityGroupId:
+            Fn::GetAtt:
+              - SpiloReplicaSG
+              - GroupId
+        - IpProtocol: tcp
+          FromPort: {{healthcheck_port}}
+          ToPort: {{healthcheck_port}}
+          SourceSecurityGroupId:
+            Fn::GetAtt:
+              - SpiloReplicaSG
+              - GroupId
+        {{/add_replica_loadbalancer}}
+
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          SourceSecurityGroupName: "Odd (SSH Bastion Host)"
+  SpiloMemberIngressMembers:
+    Type: "AWS::EC2::SecurityGroupIngress"
+    Properties:
+      GroupId:
+        Fn::GetAtt:
+          - SpiloMemberSG
+          - GroupId
+      IpProtocol: tcp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+          - SpiloMemberSG
+          - GroupId
 '''
 
 
@@ -241,6 +320,7 @@ def set_default_variables(variables):
     variables.setdefault('discovery_domain', 'postgres.example.com')
     variables.setdefault('docker_image', None)
     variables.setdefault('ebs_optimized', None)
+    variables.setdefault('elb_access_cidr', '0.0.0.0/0')
     variables.setdefault('fsoptions', 'noatime,nodiratime,nobarrier')
     variables.setdefault('fstype', 'ext4')
     variables.setdefault('healthcheck_port', HEALTHCHECK_PORT)
@@ -254,7 +334,6 @@ def set_default_variables(variables):
     variables.setdefault('postgres_port', POSTGRES_PORT)
     variables.setdefault('scalyr_account_key', None)
     variables.setdefault('snapshot_id', None)
-    variables.setdefault('spilo_sg_id', None)
     variables.setdefault('use_ebs', True)
     variables.setdefault('volume_iops', 300)
     variables.setdefault('volume_size', 10)
@@ -282,6 +361,10 @@ def gather_user_variables(variables, region, account_info):
            default='postgres.' + variables['hosted_zone'][:-1])
 
     variables['add_replica_loadbalancer'] = click.confirm('Do you want a replica ELB?', default=False)
+
+    prompt(variables, 'elb_access_cidr', 'Which network should be allowed to access the ELB''s? (default=vpc)',
+           default=get_vpc_attribute(account_info.VpcID, 'cidr_block'))
+
     if variables['instance_type'].lower().split('.')[0] in ('c3', 'g2', 'hi1', 'i2', 'm3', 'r3'):
         variables['use_ebs'] = click.confirm('Do you want database data directory on external (EBS) storage? [Yes]',
                                              default=defaults['use_ebs'])
@@ -329,25 +412,6 @@ def gather_user_variables(variables, region, account_info):
             variables[key] = 'aws:kms:{}'.format(encrypted)
 
     set_default_variables(variables)
-
-    sg_name = 'app-spilo'
-    rules_missing = check_security_group(sg_name,
-                                         [('tcp', 22), ('tcp', POSTGRES_PORT), ('tcp', HEALTHCHECK_PORT)],
-                                         region, allow_from_self=True)
-
-    if ('tcp', 22) in rules_missing:
-        warning('Security group {} does not allow SSH access, you will not be able to ssh into your servers'.
-                format(sg_name))
-
-    if ('tcp', POSTGRES_PORT) in rules_missing:
-        error('Security group {} does not allow inbound TCP traffic on the default postgres port ({})'.format(
-            sg_name, POSTGRES_PORT
-        ))
-
-    if ('tcp', HEALTHCHECK_PORT) in rules_missing:
-        error('Security group {} does not allow inbound TCP traffic on the default health check port ({})'.
-              format(sg_name, HEALTHCHECK_PORT))
-    variables['spilo_sg_id'] = get_security_group(region, sg_name).id
 
     check_s3_bucket(variables['wal_s3_bucket'], region)
 

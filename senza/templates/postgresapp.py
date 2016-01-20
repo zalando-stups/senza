@@ -203,10 +203,10 @@ Resources:
           Version: "2012-10-17"
           Statement:
           - Effect: Allow
-            Action: s3:*
+            Action:
+              - s3:*
             Resource:
-              - arn:aws:s3:::{{wal_s3_bucket}}/spilo/*
-              - arn:aws:s3:::{{wal_s3_bucket}}
+              - "arn:aws:s3:::zalando-acid-eu-west-1-spilo-app/spilo/{{Arguments.version}}/*"
           - Effect: Allow
             Action: ec2:CreateTags
             Resource: "*"

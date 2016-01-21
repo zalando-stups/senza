@@ -76,7 +76,7 @@ SenzaComponents:
         {{/add_replica_loadbalancer}}
       HealthCheckType: EC2
       SecurityGroups:
-        - app-spilo
+        - Ref: SpiloMemberSG
       IamRoles:
         - Ref: PostgresAccessRole
       AssociatePublicIpAddress: false # change for standalone deployment in default VPC
@@ -211,9 +211,15 @@ Resources:
           Statement:
           - Effect: Allow
             Action:
+              - s3:ListBucket
+            Resource:
+              - "arn:aws:s3:::{{wal_s3_bucket}}"
+              - "arn:aws:s3:::{{wal_s3_bucket}}/*"
+          - Effect: Allow
+            Action:
               - s3:*
             Resource:
-              - "arn::aws:s3:::{{wal_s3_bucket}}/spilo/{{version}}/*"
+              - "arn:aws:s3:::{{wal_s3_bucket}}/spilo/{{version}}/*"
           - Effect: Allow
             Action: ec2:CreateTags
             Resource: "*"
@@ -389,10 +395,11 @@ def gather_user_variables(variables, region, account_info):
 
     odd_sg_name = 'Odd (SSH Bastion Host)'
     odd_sg = get_security_group(region, odd_sg_name)
-    if odd_sg and click.confirm('Do you want to allow access to the nodes from {}?'.format(odd_sg_name), default=True):
+    if odd_sg and click.confirm('Do you want to allow access to the Spilo nodes from {}?'.format(odd_sg_name),
+                                default=True):
         variables['odd_sg_id'] = odd_sg.group_id
 
-    ## Find all Security Groups attached to the zmon worker with 'zmon' in their name
+    # Find all Security Groups attached to the zmon worker with 'zmon' in their name
     ec2 = boto3.client('ec2')
     filters = [{'Name': 'tag-key', 'Values': ['StackName']}, {'Name': 'tag-value', 'Values': ['zmon-worker']}]
     zmon_sgs = list()
@@ -408,7 +415,6 @@ def gather_user_variables(variables, region, account_info):
             prompt(variables, 'zmon_sg_id', 'Which Security Group should we allow access from? {}'.format(zmon_sgs))
         else:
             variables['zmon_sg_id'] = zmon_sgs[0]
-
 
     if variables['instance_type'].lower().split('.')[0] in ('c3', 'g2', 'hi1', 'i2', 'm3', 'r3'):
         variables['use_ebs'] = click.confirm('Do you want database data directory on external (EBS) storage? [Yes]',

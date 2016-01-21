@@ -282,10 +282,12 @@ Resources:
               - SpiloReplicaSG
               - GroupId
         {{/add_replica_loadbalancer}}
+        {{#odd_sg_id}}
         - IpProtocol: tcp
           FromPort: 0
           ToPort: 65535
-          SourceSecurityGroupName: "Odd (SSH Bastion Host)"
+          SourceSecurityGroupId: "{{odd_sg_id}}"
+        {{/odd_sg_id}}
   SpiloMemberIngressMembers:
     Type: "AWS::EC2::SecurityGroupIngress"
     Properties:
@@ -334,6 +336,7 @@ def set_default_variables(variables):
     variables.setdefault('add_replica_loadbalancer', False)
     variables.setdefault('instance_type', 't2.micro')
     variables.setdefault('kms_arn', None)
+    variables.setdefault('odd_sg_id', None)
     variables.setdefault('pgpassword_admin', 'admin')
     variables.setdefault('pgpassword_standby', 'standby')
     variables.setdefault('pgpassword_superuser', 'zalando')
@@ -370,6 +373,11 @@ def gather_user_variables(variables, region, account_info):
 
     prompt(variables, 'elb_access_cidr', 'Which network should be allowed to access the ELB''s? (default=vpc)',
            default=get_vpc_attribute(account_info.VpcID, 'cidr_block'))
+
+    odd_sg_name = 'Odd (SSH Bastion Host)'
+    odd_sg = get_security_group(region, odd_sg_name)
+    if odd_sg and click.confirm('Do you want to allow access to the nodes from {}?'.format(odd_sg_name), default=True):
+        variables['odd_sg_id'] = odd_sg.group_id
 
     if variables['instance_type'].lower().split('.')[0] in ('c3', 'g2', 'hi1', 'i2', 'm3', 'r3'):
         variables['use_ebs'] = click.confirm('Do you want database data directory on external (EBS) storage? [Yes]',

@@ -31,6 +31,13 @@ def get_security_group(region: str, sg_name: str):
             raise
 
 
+def get_vpc_attribute(vpc_id: str, attribute: str):
+    ec2 = boto3.resource('ec2')
+    vpc = ec2.Vpc(vpc_id)
+
+    return getattr(vpc, attribute, None)
+
+
 def encrypt(region: str, KeyId: str, Plaintext: str, b64encode=False):
     kms = boto3.client('kms', region)
     encrypted = kms.encrypt(KeyId=KeyId, Plaintext=Plaintext)['CiphertextBlob']

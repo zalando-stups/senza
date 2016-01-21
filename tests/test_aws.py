@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 from senza.aws import resolve_topic_arn
-from senza.aws import get_security_group, resolve_security_groups, get_account_id, get_account_alias, list_kms_keys, encrypt
+from senza.aws import get_security_group, resolve_security_groups, get_account_id, get_account_alias, list_kms_keys, encrypt, get_vpc_attribute
 
 
 def test_get_security_group(monkeypatch):
@@ -55,6 +55,19 @@ def test_list_kms_keys(monkeypatch):
     monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
 
     assert len(list_kms_keys(region=None, details=True)) == 2
+
+
+def test_get_vpc_attribute(monkeypatch):
+    from collections import namedtuple
+
+    ec2 = MagicMock()
+    ec2.Vpc.return_value = namedtuple('a','VpcId')('dummy')
+
+    boto3 = MagicMock()
+    monkeypatch.setattr('boto3.resource', MagicMock(return_value=ec2))
+
+    assert get_vpc_attribute('a', 'VpcId') == 'dummy'
+    assert get_vpc_attribute('a', 'nonexistent') is None
 
 
 def test_get_account_id(monkeypatch):

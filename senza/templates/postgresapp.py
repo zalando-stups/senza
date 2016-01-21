@@ -3,19 +3,26 @@ HA Postgres app, which needs an S3 bucket to store WAL files
 '''
 
 import click
-from clickclick import warning, error, choice
-from senza.aws import get_security_group, encrypt, list_kms_keys
+from clickclick import choice
+from senza.aws import encrypt, list_kms_keys, get_vpc_attribute, get_security_group
 from senza.utils import pystache_render
 import requests
 import random
 import string
+import boto3
 
-from ._helper import prompt, check_security_group, check_s3_bucket, get_account_alias
+
+from ._helper import prompt, check_s3_bucket, get_account_alias
 
 POSTGRES_PORT = 5432
 HEALTHCHECK_PORT = 8008
 SPILO_IMAGE_ADDRESS = "registry.opensource.zalan.do/acid/spilo-9.4"
 
+# This template goes through 2 formatting phases. Once during the init phase and once during
+# the create phase of senza. Some placeholders should be evaluated during create.
+# This creates some ugly placeholder formatting, therefore some placeholders are placeholders for placeholders
+# - version
+# - ImageVersion
 TEMPLATE = '''
 # basic information for generating and executing this definition
 SenzaInfo:
@@ -26,7 +33,7 @@ SenzaInfo:
         Description: "Docker image version of spilo."
   {{/docker_image}}
   Tags:
-    - SpiloCluster: "{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>"
+    - SpiloCluster: "{{version}}"
 
 # a list of senza components to apply to the definition
 SenzaComponents:
@@ -64,10 +71,14 @@ SenzaComponents:
           {{/use_ebs}}
       ElasticLoadBalancer:
         - PostgresLoadBalancer
+        {{#add_replica_loadbalancer}}
         - PostgresReplicaLoadBalancer
+        {{/add_replica_loadbalancer}}
       HealthCheckType: EC2
       SecurityGroups:
-        - app-spilo
+        - Fn::GetAtt:
+          - SpiloMemberSG
+          - GroupId
       IamRoles:
         - Ref: PostgresAccessRole
       AssociatePublicIpAddress: false # change for standalone deployment in default VPC
@@ -77,14 +88,14 @@ SenzaComponents:
         source: {{docker_image}}
         {{/docker_image}}
         {{^docker_image}}
-        source: "{{=<% %>=}}{{Arguments.ImageVersion}}<%={{ }}=%>"
+        source: "{{ImageVersion}}"
         {{/docker_image}}
         ports:
           {{postgres_port}}: {{postgres_port}}
           {{healthcheck_port}}: {{healthcheck_port}}
         etcd_discovery_domain: "{{discovery_domain}}"
         environment:
-          SCOPE: "{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>"
+          SCOPE: "{{version}}"
           ETCD_DISCOVERY_DOMAIN: "{{discovery_domain}}"
           WAL_S3_BUCKET: "{{wal_s3_bucket}}"
           PGPASSWORD_SUPERUSER: "{{pgpassword_superuser}}"
@@ -95,33 +106,28 @@ SenzaComponents:
           /home/postgres/pgdata:
             partition: /dev/xvdk
             filesystem: {{fstype}}
+            {{#snapshot_id}}
+            erase_on_boot: false
+            {{/snapshot_id}}
+            {{^snapshot_id}}
             erase_on_boot: true
+            {{/snapshot_id}}
             options: {{fsoptions}}
         {{#scalyr_account_key}}
         scalyr_account_key: {{scalyr_account_key}}
         {{/scalyr_account_key}}
 Resources:
+  {{#add_replica_loadbalancer}}
   PostgresReplicaRoute53Record:
     Type: AWS::Route53::RecordSet
     Properties:
       Type: CNAME
       TTL: 20
       HostedZoneName: {{hosted_zone}}
-      Name: "{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>-replica.{{hosted_zone}}"
+      Name: "{{version}}-replica.{{hosted_zone}}"
       ResourceRecords:
         - Fn::GetAtt:
            - PostgresReplicaLoadBalancer
-           - DNSName
-  PostgresRoute53Record:
-    Type: AWS::Route53::RecordSet
-    Properties:
-      Type: CNAME
-      TTL: 20
-      HostedZoneName: {{hosted_zone}}
-      Name: "{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>.{{hosted_zone}}"
-      ResourceRecords:
-        - Fn::GetAtt:
-           - PostgresLoadBalancer
            - DNSName
   PostgresReplicaLoadBalancer:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
@@ -134,20 +140,34 @@ Resources:
         Timeout: 3
         UnhealthyThreshold: 2
       Listeners:
-        - InstancePort: 5432
-          LoadBalancerPort: 5432
+        - InstancePort: {{postgres_port}}
+          LoadBalancerPort: {{postgres_port}}
           Protocol: TCP
-      LoadBalancerName: "spilo-{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>-replica"
+      LoadBalancerName: "spilo-{{version}}-replica"
       ConnectionSettings:
         IdleTimeout: 3600
       SecurityGroups:
-        - {{spilo_sg_id}}
+        - Fn::GetAtt:
+          - SpiloReplicaSG
+          - GroupId
       Scheme: internal
       Subnets:
         Fn::FindInMap:
           - LoadBalancerSubnets
           - Ref: AWS::Region
           - Subnets
+  {{/add_replica_loadbalancer}}
+  PostgresRoute53Record:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Type: CNAME
+      TTL: 20
+      HostedZoneName: {{hosted_zone}}
+      Name: "{{version}}.{{hosted_zone}}"
+      ResourceRecords:
+        - Fn::GetAtt:
+           - PostgresLoadBalancer
+           - DNSName
   PostgresLoadBalancer:
     Type: AWS::ElasticLoadBalancing::LoadBalancer
     Properties:
@@ -159,14 +179,16 @@ Resources:
         Timeout: 3
         UnhealthyThreshold: 2
       Listeners:
-        - InstancePort: 5432
-          LoadBalancerPort: 5432
+        - InstancePort: {{postgres_port}}
+          LoadBalancerPort: {{postgres_port}}
           Protocol: TCP
-      LoadBalancerName: "spilo-{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>"
+      LoadBalancerName: "spilo-{{version}}"
       ConnectionSettings:
         IdleTimeout: 3600
       SecurityGroups:
-        - {{spilo_sg_id}}
+        - Fn::GetAtt:
+          - SpiloMasterSG
+          - GroupId
       Scheme: internal
       Subnets:
         Fn::FindInMap:
@@ -190,10 +212,16 @@ Resources:
           Version: "2012-10-17"
           Statement:
           - Effect: Allow
-            Action: s3:*
+            Action:
+              - s3:ListBucket
             Resource:
-              - arn:aws:s3:::{{wal_s3_bucket}}/spilo/*
-              - arn:aws:s3:::{{wal_s3_bucket}}
+              - "arn:aws:s3:::{{wal_s3_bucket}}"
+              - "arn:aws:s3:::{{wal_s3_bucket}}/*"
+          - Effect: Allow
+            Action:
+              - s3:*
+            Resource:
+              - "arn:aws:s3:::{{wal_s3_bucket}}/spilo/{{version}}/*"
           - Effect: Allow
             Action: ec2:CreateTags
             Resource: "*"
@@ -208,6 +236,92 @@ Resources:
             Resource:
               - {{kms_arn}}
           {{/kms_arn}}
+  SpiloMasterSG:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Security Group for the master ELB of Spilo: {{version}}"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: {{postgres_port}}
+          ToPort: {{postgres_port}}
+          CidrIp: {{elb_access_cidr}}
+  {{#add_replica_loadbalancer}}
+  SpiloReplicaSG:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Security Group for the replica ELB of Spilo: {{version}}"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: {{postgres_port}}
+          ToPort: {{postgres_port}}
+          CidrIp: {{elb_access_cidr}}
+  {{/add_replica_loadbalancer}}
+  SpiloMemberSG:
+    Type: "AWS::EC2::SecurityGroup"
+    Properties:
+      GroupDescription: "Security Group for members of Spilo: {{version}}"
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: {{postgres_port}}
+          ToPort: {{postgres_port}}
+          SourceSecurityGroupId:
+            Fn::GetAtt:
+              - SpiloMasterSG
+              - GroupId
+        - IpProtocol: tcp
+          FromPort: {{healthcheck_port}}
+          ToPort: {{healthcheck_port}}
+          SourceSecurityGroupId:
+            Fn::GetAtt:
+              - SpiloMasterSG
+              - GroupId
+
+        {{#add_replica_loadbalancer}}
+        - IpProtocol: tcp
+          FromPort: {{postgres_port}}
+          ToPort: {{postgres_port}}
+          SourceSecurityGroupId:
+            Fn::GetAtt:
+              - SpiloReplicaSG
+              - GroupId
+        - IpProtocol: tcp
+          FromPort: {{healthcheck_port}}
+          ToPort: {{healthcheck_port}}
+          SourceSecurityGroupId:
+            Fn::GetAtt:
+              - SpiloReplicaSG
+              - GroupId
+        {{/add_replica_loadbalancer}}
+        {{#zmon_sg_id}}
+        - IpProtocol: tcp
+          FromPort: {{postgres_port}}
+          ToPort: {{postgres_port}}
+          SourceSecurityGroupId: "{{zmon_sg_id}}"
+        - IpProtocol: tcp
+          FromPort: {{healthcheck_port}}
+          ToPort: {{healthcheck_port}}
+          SourceSecurityGroupId: "{{zmon_sg_id}}"
+        {{/zmon_sg_id}}
+        {{#odd_sg_id}}
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          SourceSecurityGroupId: "{{odd_sg_id}}"
+        {{/odd_sg_id}}
+  SpiloMemberIngressMembers:
+    Type: "AWS::EC2::SecurityGroupIngress"
+    Properties:
+      GroupId:
+        Fn::GetAtt:
+          - SpiloMemberSG
+          - GroupId
+      IpProtocol: tcp
+      FromPort: 0
+      ToPort: 65535
+      SourceSecurityGroupId:
+        Fn::GetAtt:
+          - SpiloMemberSG
+          - GroupId
 '''
 
 
@@ -229,27 +343,32 @@ def ebs_optimized_supported(instance_type):
 
 
 def set_default_variables(variables):
+    variables.setdefault('version', '{{Arguments.version}}')
+    variables.setdefault('ImageVersion', '{{Arguments.ImageVersion}}')
     variables.setdefault('discovery_domain', 'postgres.example.com')
     variables.setdefault('docker_image', None)
     variables.setdefault('ebs_optimized', None)
+    variables.setdefault('elb_access_cidr', '0.0.0.0/0')
     variables.setdefault('fsoptions', 'noatime,nodiratime,nobarrier')
     variables.setdefault('fstype', 'ext4')
     variables.setdefault('healthcheck_port', HEALTHCHECK_PORT)
     variables.setdefault('hosted_zone', 'example.com')
+    variables.setdefault('add_replica_loadbalancer', False)
     variables.setdefault('instance_type', 't2.micro')
     variables.setdefault('kms_arn', None)
+    variables.setdefault('odd_sg_id', None)
     variables.setdefault('pgpassword_admin', 'admin')
     variables.setdefault('pgpassword_standby', 'standby')
     variables.setdefault('pgpassword_superuser', 'zalando')
     variables.setdefault('postgres_port', POSTGRES_PORT)
     variables.setdefault('scalyr_account_key', None)
     variables.setdefault('snapshot_id', None)
-    variables.setdefault('spilo_sg_id', None)
     variables.setdefault('use_ebs', True)
     variables.setdefault('volume_iops', 300)
     variables.setdefault('volume_size', 10)
     variables.setdefault('volume_type', 'gp2')
     variables.setdefault('wal_s3_bucket', None)
+    variables.setdefault('zmon_sg_id', None)
 
     return variables
 
@@ -270,6 +389,34 @@ def gather_user_variables(variables, region, account_info):
         variables['hosted_zone'] += '.'
     prompt(variables, 'discovery_domain', 'ETCD Discovery Domain',
            default='postgres.' + variables['hosted_zone'][:-1])
+
+    variables['add_replica_loadbalancer'] = click.confirm('Do you want a replica ELB?', default=False)
+
+    prompt(variables, 'elb_access_cidr', 'Which network should be allowed to access the ELB''s? (default=vpc)',
+           default=get_vpc_attribute(account_info.VpcID, 'cidr_block'))
+
+    odd_sg_name = 'Odd (SSH Bastion Host)'
+    odd_sg = get_security_group(region, odd_sg_name)
+    if odd_sg and click.confirm('Do you want to allow access to the Spilo nodes from {}?'.format(odd_sg_name),
+                                default=True):
+        variables['odd_sg_id'] = odd_sg.group_id
+
+    # Find all Security Groups attached to the zmon worker with 'zmon' in their name
+    ec2 = boto3.client('ec2')
+    filters = [{'Name': 'tag-key', 'Values': ['StackName']}, {'Name': 'tag-value', 'Values': ['zmon-worker']}]
+    zmon_sgs = list()
+    for reservation in ec2.describe_instances(Filters=filters).get('Reservations', []):
+        for instance in reservation.get('Instances', []):
+            zmon_sgs += [sg['GroupId'] for sg in instance.get('SecurityGroups', []) if 'zmon' in sg['GroupName']]
+
+    if len(zmon_sgs) == 0:
+        click.warning('Could not find zmon security group')
+    else:
+        click.confirm('Do you want to allow access to the Spilo nodes from zmon?', default=True)
+        if len(zmon_sgs) > 1:
+            prompt(variables, 'zmon_sg_id', 'Which Security Group should we allow access from? {}'.format(zmon_sgs))
+        else:
+            variables['zmon_sg_id'] = zmon_sgs[0]
 
     if variables['instance_type'].lower().split('.')[0] in ('c3', 'g2', 'hi1', 'i2', 'm3', 'r3'):
         variables['use_ebs'] = click.confirm('Do you want database data directory on external (EBS) storage? [Yes]',
@@ -319,25 +466,6 @@ def gather_user_variables(variables, region, account_info):
 
     set_default_variables(variables)
 
-    sg_name = 'app-spilo'
-    rules_missing = check_security_group(sg_name,
-                                         [('tcp', 22), ('tcp', POSTGRES_PORT), ('tcp', HEALTHCHECK_PORT)],
-                                         region, allow_from_self=True)
-
-    if ('tcp', 22) in rules_missing:
-        warning('Security group {} does not allow SSH access, you will not be able to ssh into your servers'.
-                format(sg_name))
-
-    if ('tcp', POSTGRES_PORT) in rules_missing:
-        error('Security group {} does not allow inbound TCP traffic on the default postgres port ({})'.format(
-            sg_name, POSTGRES_PORT
-        ))
-
-    if ('tcp', HEALTHCHECK_PORT) in rules_missing:
-        error('Security group {} does not allow inbound TCP traffic on the default health check port ({})'.
-              format(sg_name, HEALTHCHECK_PORT))
-    variables['spilo_sg_id'] = get_security_group(region, sg_name).id
-
     check_s3_bucket(variables['wal_s3_bucket'], region)
 
     return variables
@@ -363,6 +491,12 @@ def generate_definition(variables):
 
 def get_latest_spilo_image(registry_url='https://registry.opensource.zalan.do',
                            address='/teams/acid/artifacts/spilo-9.4/tags'):
+    """
+    >>> 'registry.opensource.zalan.do' in get_latest_spilo_image()
+    True
+    >>> get_latest_spilo_image('dont.exist.url')
+    ''
+    """
     try:
         r = requests.get(registry_url + address)
         if r.ok:

@@ -76,7 +76,9 @@ SenzaComponents:
         {{/add_replica_loadbalancer}}
       HealthCheckType: EC2
       SecurityGroups:
-        - Ref: SpiloMemberSG
+        - Fn::GetAtt:
+          - SpiloMemberSG
+          - GroupId
       IamRoles:
         - Ref: PostgresAccessRole
       AssociatePublicIpAddress: false # change for standalone deployment in default VPC

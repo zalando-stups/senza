@@ -4,7 +4,7 @@ HA Postgres app, which needs an S3 bucket to store WAL files
 
 import click
 from clickclick import choice
-from senza.aws import encrypt, list_kms_keys, get_vpc_attribute
+from senza.aws import encrypt, list_kms_keys, get_vpc_attribute, get_security_group
 from senza.utils import pystache_render
 import requests
 import random
@@ -16,6 +16,11 @@ POSTGRES_PORT = 5432
 HEALTHCHECK_PORT = 8008
 SPILO_IMAGE_ADDRESS = "registry.opensource.zalan.do/acid/spilo-9.4"
 
+# This template goes through 2 formatting phases. Once during the init phase and once during
+# the create phase of senza. Some placeholders should be evalauted during create.
+# This creates some ugly placeholder formatting, therefore some placeholders are placeholders for placeholders
+# - version
+# - ImageVersion
 TEMPLATE = '''
 # basic information for generating and executing this definition
 SenzaInfo:
@@ -26,7 +31,7 @@ SenzaInfo:
         Description: "Docker image version of spilo."
   {{/docker_image}}
   Tags:
-    - SpiloCluster: "{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>"
+    - SpiloCluster: "{{version}}"
 
 # a list of senza components to apply to the definition
 SenzaComponents:
@@ -79,14 +84,14 @@ SenzaComponents:
         source: {{docker_image}}
         {{/docker_image}}
         {{^docker_image}}
-        source: "{{=<% %>=}}{{Arguments.ImageVersion}}<%={{ }}=%>"
+        source: {{ImageVersion}}
         {{/docker_image}}
         ports:
           {{postgres_port}}: {{postgres_port}}
           {{healthcheck_port}}: {{healthcheck_port}}
         etcd_discovery_domain: "{{discovery_domain}}"
         environment:
-          SCOPE: "{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>"
+          SCOPE: "{{version}}"
           ETCD_DISCOVERY_DOMAIN: "{{discovery_domain}}"
           WAL_S3_BUCKET: "{{wal_s3_bucket}}"
           PGPASSWORD_SUPERUSER: "{{pgpassword_superuser}}"
@@ -115,7 +120,7 @@ Resources:
       Type: CNAME
       TTL: 20
       HostedZoneName: {{hosted_zone}}
-      Name: "{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>-replica.{{hosted_zone}}"
+      Name: "{{version}}-replica.{{hosted_zone}}"
       ResourceRecords:
         - Fn::GetAtt:
            - PostgresReplicaLoadBalancer
@@ -134,7 +139,7 @@ Resources:
         - InstancePort: {{postgres_port}}
           LoadBalancerPort: {{postgres_port}}
           Protocol: TCP
-      LoadBalancerName: "spilo-{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>-replica"
+      LoadBalancerName: "spilo-{{version}}-replica"
       ConnectionSettings:
         IdleTimeout: 3600
       SecurityGroups:
@@ -154,7 +159,7 @@ Resources:
       Type: CNAME
       TTL: 20
       HostedZoneName: {{hosted_zone}}
-      Name: "{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>.{{hosted_zone}}"
+      Name: "{{version}}.{{hosted_zone}}"
       ResourceRecords:
         - Fn::GetAtt:
            - PostgresLoadBalancer
@@ -173,7 +178,7 @@ Resources:
         - InstancePort: {{postgres_port}}
           LoadBalancerPort: {{postgres_port}}
           Protocol: TCP
-      LoadBalancerName: "spilo-{{=<% %>=}}{{Arguments.version}}<%={{ }}=%>"
+      LoadBalancerName: "spilo-{{version}}"
       ConnectionSettings:
         IdleTimeout: 3600
       SecurityGroups:
@@ -206,7 +211,7 @@ Resources:
             Action:
               - s3:*
             Resource:
-              - "arn:aws:s3:::zalando-acid-eu-west-1-spilo-app/spilo/{{Arguments.version}}/*"
+              - "arn::aws:s3:::{{wal_s3_bucket}}/spilo/{{version}}/*"
           - Effect: Allow
             Action: ec2:CreateTags
             Resource: "*"
@@ -224,7 +229,7 @@ Resources:
   SpiloMasterSG:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
-      GroupDescription: "Security Group for the master ELB"
+      GroupDescription: "Security Group for the master ELB of Spilo: {{version}}"
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: {{postgres_port}}
@@ -234,7 +239,7 @@ Resources:
   SpiloReplicaSG:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
-      GroupDescription: "Security Group for the replica ELB"
+      GroupDescription: "Security Group for the replica ELB of Spilo: {{version}}"
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: {{postgres_port}}
@@ -244,7 +249,7 @@ Resources:
   SpiloMemberSG:
     Type: "AWS::EC2::SecurityGroup"
     Properties:
-      GroupDescription: "Security Group for Spilo members"
+      GroupDescription: "Security Group for members of Spilo: {{version}}"
       SecurityGroupIngress:
         - IpProtocol: tcp
           FromPort: {{postgres_port}}
@@ -277,7 +282,6 @@ Resources:
               - SpiloReplicaSG
               - GroupId
         {{/add_replica_loadbalancer}}
-
         - IpProtocol: tcp
           FromPort: 0
           ToPort: 65535
@@ -317,6 +321,8 @@ def ebs_optimized_supported(instance_type):
 
 
 def set_default_variables(variables):
+    variables.setdefault('version','{{Arguments.version}}')
+    variables.setdefault('ImageVersion','{{Arguments.ImageVersion}}')
     variables.setdefault('discovery_domain', 'postgres.example.com')
     variables.setdefault('docker_image', None)
     variables.setdefault('ebs_optimized', None)

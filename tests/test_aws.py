@@ -50,14 +50,16 @@ def test_list_kms_keys(monkeypatch):
 
 
 def test_get_vpc_attribute(monkeypatch):
+    from collections import namedtuple
+
     ec2 = MagicMock()
-    ec2.Vpc.return_value = 'a'
+    ec2.Vpc.return_value = namedtuple('a','VpcId')('dummy')
 
     boto3 = MagicMock()
-    boto3.resource.return_value = ec2
+    monkeypatch.setattr('boto3.resource', MagicMock(return_value=ec2))
 
-    assert get_vpc_attribute('a','dummy') is None
-
+    assert get_vpc_attribute('a', 'VpcId') == 'dummy'
+    assert get_vpc_attribute('a', 'nonexistent') is None
 
 
 def test_get_account_id(monkeypatch):

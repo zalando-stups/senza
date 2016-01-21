@@ -323,8 +323,8 @@ def ebs_optimized_supported(instance_type):
 
 
 def set_default_variables(variables):
-    variables.setdefault('version','{{Arguments.version}}')
-    variables.setdefault('ImageVersion','{{Arguments.ImageVersion}}')
+    variables.setdefault('version', '{{Arguments.version}}')
+    variables.setdefault('ImageVersion', '{{Arguments.ImageVersion}}')
     variables.setdefault('discovery_domain', 'postgres.example.com')
     variables.setdefault('docker_image', None)
     variables.setdefault('ebs_optimized', None)

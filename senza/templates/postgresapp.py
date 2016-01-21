@@ -9,6 +9,8 @@ from senza.utils import pystache_render
 import requests
 import random
 import string
+import boto3
+
 
 from ._helper import prompt, check_s3_bucket, get_account_alias
 
@@ -282,6 +284,16 @@ Resources:
               - SpiloReplicaSG
               - GroupId
         {{/add_replica_loadbalancer}}
+        {{#zmon_sg_id}}
+        - IpProtocol: tcp
+          FromPort: {{postgres_port}}
+          ToPort: {{postgres_port}}
+          SourceSecurityGroupId: "{{zmon_sg_id}}"
+        - IpProtocol: tcp
+          FromPort: {{healthcheck_port}}
+          ToPort: {{healthcheck_port}}
+          SourceSecurityGroupId: "{{zmon_sg_id}}"
+        {{/zmon_sg_id}}
         {{#odd_sg_id}}
         - IpProtocol: tcp
           FromPort: 0
@@ -348,6 +360,7 @@ def set_default_variables(variables):
     variables.setdefault('volume_size', 10)
     variables.setdefault('volume_type', 'gp2')
     variables.setdefault('wal_s3_bucket', None)
+    variables.setdefault('zmon_sg_id', None)
 
     return variables
 
@@ -378,6 +391,24 @@ def gather_user_variables(variables, region, account_info):
     odd_sg = get_security_group(region, odd_sg_name)
     if odd_sg and click.confirm('Do you want to allow access to the nodes from {}?'.format(odd_sg_name), default=True):
         variables['odd_sg_id'] = odd_sg.group_id
+
+    ## Find all Security Groups attached to the zmon worker with 'zmon' in their name
+    ec2 = boto3.client('ec2')
+    filters = [{'Name': 'tag-key', 'Values': ['StackName']}, {'Name': 'tag-value', 'Values': ['zmon-worker']}]
+    zmon_sgs = list()
+    for reservation in ec2.describe_instances(Filters=filters).get('Reservations', []):
+        for instance in reservation.get('Instances', []):
+            zmon_sgs += [sg['GroupId'] for sg in instance.get('SecurityGroups', []) if 'zmon' in sg['GroupName']]
+
+    if len(zmon_sgs) == 0:
+        click.warning('Could not find zmon security group')
+    else:
+        click.confirm('Do you want to allow access to the Spilo nodes from zmon?', default=True)
+        if len(zmon_sgs) > 1:
+            prompt(variables, 'zmon_sg_id', 'Which Security Group should we allow access from? {}'.format(zmon_sgs))
+        else:
+            variables['zmon_sg_id'] = zmon_sgs[0]
+
 
     if variables['instance_type'].lower().split('.')[0] in ('c3', 'g2', 'hi1', 'i2', 'm3', 'r3'):
         variables['use_ebs'] = click.confirm('Do you want database data directory on external (EBS) storage? [Yes]',

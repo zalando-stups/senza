@@ -252,7 +252,7 @@ Resources:
         - IpProtocol: tcp
           FromPort: {{postgres_port}}
           ToPort: {{postgres_port}}
-          CidrIp: 0.0.0.0/0
+          CidrIp: {{elb_access_cidr}}
   {{/add_replica_loadbalancer}}
   SpiloMemberSG:
     Type: "AWS::EC2::SecurityGroup"

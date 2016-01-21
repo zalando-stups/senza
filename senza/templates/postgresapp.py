@@ -17,7 +17,7 @@ HEALTHCHECK_PORT = 8008
 SPILO_IMAGE_ADDRESS = "registry.opensource.zalan.do/acid/spilo-9.4"
 
 # This template goes through 2 formatting phases. Once during the init phase and once during
-# the create phase of senza. Some placeholders should be evalauted during create.
+# the create phase of senza. Some placeholders should be evaluated during create.
 # This creates some ugly placeholder formatting, therefore some placeholders are placeholders for placeholders
 # - version
 # - ImageVersion
@@ -84,7 +84,7 @@ SenzaComponents:
         source: {{docker_image}}
         {{/docker_image}}
         {{^docker_image}}
-        source: {{ImageVersion}}
+        source: "{{ImageVersion}}"
         {{/docker_image}}
         ports:
           {{postgres_port}}: {{postgres_port}}

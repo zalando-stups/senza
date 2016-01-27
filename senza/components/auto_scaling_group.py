@@ -146,6 +146,8 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         definition["Resources"][asg_name]["Properties"]["MaxSize"] = configuration["AutoScaling"]["Maximum"]
         definition["Resources"][asg_name]["Properties"]["MinSize"] = configuration["AutoScaling"]["Minimum"]
 
+        definition["Resources"][asg_name]["Properties"]["DesiredCapacity"] = max(configuration["AutoScaling"]["Minimum"], 1)
+
         # ScaleUp policy
         definition["Resources"][asg_name + "ScaleUp"] = {
             "Type": "AWS::AutoScaling::ScalingPolicy",

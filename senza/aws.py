@@ -191,9 +191,13 @@ def get_stacks(stack_refs: list, region, all=False):
             "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS",
             "UPDATE_ROLLBACK_COMPLETE"
         ]
-    for stack in cf.list_stacks(StackStatusFilter=status_filter)['StackSummaries']:
-        if not stack_refs or matches_any(stack['StackName'], stack_refs):
-            yield SenzaStackSummary(stack)
+    kwargs = {'StackStatusFilter': status_filter}
+    while 'NextToken' not in kwargs or kwargs['NextToken']:
+        results = cf.list_stacks(**kwargs)
+        for stack in results['StackSummaries']:
+            if not stack_refs or matches_any(stack['StackName'], stack_refs):
+                yield SenzaStackSummary(stack)
+        kwargs['NextToken'] = results.get('NextToken')
 
 
 def matches_any(cf_stack_name: str, stack_refs: list):

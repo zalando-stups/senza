@@ -143,10 +143,11 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         configuration.get('HealthCheckGracePeriod', 300)
 
     if "AutoScaling" in configuration:
-        definition["Resources"][asg_name]["Properties"]["MaxSize"] = configuration["AutoScaling"]["Maximum"]
-        definition["Resources"][asg_name]["Properties"]["MinSize"] = configuration["AutoScaling"]["Minimum"]
-
-        definition["Resources"][asg_name]["Properties"]["DesiredCapacity"] = max(configuration["AutoScaling"]["Minimum"], 1)
+        as_conf = configuration["AutoScaling"]
+        definition["Resources"][asg_name]["Properties"]["MaxSize"] = as_conf["Maximum"]
+        definition["Resources"][asg_name]["Properties"]["MinSize"] = as_conf["Minimum"]
+        definition["Resources"][asg_name]["Properties"]["DesiredCapacity"] = max(as_conf["Minimum"],
+                                                                                 as_conf.get('DesiredCapacity', 1))
 
         # ScaleUp policy
         definition["Resources"][asg_name + "ScaleUp"] = {
@@ -174,11 +175,11 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
             }
         }
 
-        metric_type = configuration["AutoScaling"]["MetricType"]
+        metric_type = as_conf["MetricType"]
         metricfn = globals().get('metric_{}'.format(metric_type.lower()))
         if not metricfn:
             raise click.UsageError('Auto scaling MetricType "{}" not supported.'.format(metric_type))
-        definition = metricfn(asg_name, definition, configuration["AutoScaling"], args, info, force)
+        definition = metricfn(asg_name, definition, as_conf, args, info, force)
     else:
         definition["Resources"][asg_name]["Properties"]["MaxSize"] = 1
         definition["Resources"][asg_name]["Properties"]["MinSize"] = 1

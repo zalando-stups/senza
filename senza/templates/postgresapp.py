@@ -3,7 +3,7 @@ HA Postgres app, which needs an S3 bucket to store WAL files
 '''
 
 import click
-from clickclick import choice
+from clickclick import choice, warning
 from senza.aws import encrypt, list_kms_keys, get_vpc_attribute, get_security_group
 from senza.utils import pystache_render
 import requests
@@ -410,7 +410,7 @@ def gather_user_variables(variables, region, account_info):
             zmon_sgs += [sg['GroupId'] for sg in instance.get('SecurityGroups', []) if 'zmon' in sg['GroupName']]
 
     if len(zmon_sgs) == 0:
-        click.warning('Could not find zmon security group')
+        warning('Could not find zmon security group')
     else:
         click.confirm('Do you want to allow access to the Spilo nodes from zmon?', default=True)
         if len(zmon_sgs) > 1:

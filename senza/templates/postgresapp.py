@@ -393,7 +393,7 @@ def gather_user_variables(variables, region, account_info):
     variables['add_replica_loadbalancer'] = click.confirm('Do you want a replica ELB?', default=False)
 
     prompt(variables, 'elb_access_cidr', 'Which network should be allowed to access the ELB''s? (default=vpc)',
-           default=get_vpc_attribute(account_info.VpcID, 'cidr_block'))
+           default=get_vpc_attribute(region=region, vpc_id=account_info.VpcID, attribute='cidr_block'))
 
     odd_sg_name = 'Odd (SSH Bastion Host)'
     odd_sg = get_security_group(region, odd_sg_name)
@@ -402,7 +402,7 @@ def gather_user_variables(variables, region, account_info):
         variables['odd_sg_id'] = odd_sg.group_id
 
     # Find all Security Groups attached to the zmon worker with 'zmon' in their name
-    ec2 = boto3.client('ec2')
+    ec2 = boto3.client('ec2', region)
     filters = [{'Name': 'tag-key', 'Values': ['StackName']}, {'Name': 'tag-value', 'Values': ['zmon-worker']}]
     zmon_sgs = list()
     for reservation in ec2.describe_instances(Filters=filters).get('Reservations', []):

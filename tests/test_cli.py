@@ -536,6 +536,38 @@ def test_init(monkeypatch):
             == '{{Arguments.ImageVersion}}')
 
 
+def test_init_opt2(monkeypatch):
+    def my_resource(rtype, *args):
+        if rtype == 'ec2':
+            ec2 = MagicMock()
+            ec2.vpcs.all.return_value = [MagicMock(vpc_id='vpc-123')]
+            vpc = dict()
+            ec2.Vpc.return_value=vpc
+            return ec2
+        elif rtype == 'route53':
+            route53 = MagicMock()
+            route53.list_hosted_zones.return_value = {'HostedZones': [{'Name': 'example.org.', 'Id': '/hostedzone/123'}]}
+            return route53
+        return MagicMock()
+
+    monkeypatch.setattr('boto3.client', lambda *args: MagicMock())
+    monkeypatch.setattr('boto3.resource', my_resource)
+
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+
+        input = ['2'] + ['Y']*30
+        result = runner.invoke(cli, ['init', 'spilo.yaml', '--region=myregion'], input='\n'.join(input))
+        assert 'Generating Senza definition file' in  result.output
+        assert 'Do you wish to encrypt these passwords using KMS' in result.output
+
+        input = ['2'] + ['N']*30
+        result = runner.invoke(cli, ['init', 'spilo.yaml', '--region=myregion'], input='\n'.join(input))
+        assert 'Generating Senza definition file' in  result.output
+        assert 'Do you wish to encrypt these passwords using KMS' in result.output
+
+
 def test_init_opt5(monkeypatch):
     def my_resource(rtype, *args):
         if rtype == 'ec2':

@@ -31,8 +31,8 @@ def get_security_group(region: str, sg_name: str):
             raise
 
 
-def get_vpc_attribute(vpc_id: str, attribute: str):
-    ec2 = boto3.resource('ec2')
+def get_vpc_attribute(region: str, vpc_id: str, attribute: str):
+    ec2 = boto3.resource('ec2', region)
     vpc = ec2.Vpc(vpc_id)
 
     return getattr(vpc, attribute, None)

@@ -66,8 +66,8 @@ def test_get_vpc_attribute(monkeypatch):
     boto3 = MagicMock()
     monkeypatch.setattr('boto3.resource', MagicMock(return_value=ec2))
 
-    assert get_vpc_attribute('a', 'VpcId') == 'dummy'
-    assert get_vpc_attribute('a', 'nonexistent') is None
+    assert get_vpc_attribute('r', 'a', 'VpcId') == 'dummy'
+    assert get_vpc_attribute('r', 'a', 'nonexistent') is None
 
 
 def test_get_account_id(monkeypatch):

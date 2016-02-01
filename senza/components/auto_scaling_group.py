@@ -113,8 +113,10 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         }
     }
 
+    asg_properties = definition["Resources"][asg_name]["Properties"]
+
     if "OperatorTopicId" in info:
-        definition["Resources"][asg_name]["Properties"]["NotificationConfiguration"] = {
+        asg_properties["NotificationConfiguration"] = {
             "NotificationTypes": [
                 "autoscaling:EC2_INSTANCE_LAUNCH",
                 "autoscaling:EC2_INSTANCE_LAUNCH_ERROR",
@@ -128,26 +130,20 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
 
     if "ElasticLoadBalancer" in configuration:
         if isinstance(configuration["ElasticLoadBalancer"], str):
-            definition["Resources"][asg_name]["Properties"]["LoadBalancerNames"] = [
-                {"Ref": configuration["ElasticLoadBalancer"]}]
+            asg_properties["LoadBalancerNames"] = [{"Ref": configuration["ElasticLoadBalancer"]}]
         elif isinstance(configuration["ElasticLoadBalancer"], list):
-            definition["Resources"][asg_name]["Properties"]["LoadBalancerNames"] = []
-            for ref in configuration["ElasticLoadBalancer"]:
-                definition["Resources"][asg_name]["Properties"]["LoadBalancerNames"].append({'Ref': ref})
+            asg_properties["LoadBalancerNames"] = [{'Ref': ref} for ref in configuration["ElasticLoadBalancer"]]
         # use ELB health check by default
         default_health_check_type = 'ELB'
 
-    definition["Resources"][asg_name]['Properties']['HealthCheckType'] = \
-        configuration.get('HealthCheckType', default_health_check_type)
-    definition["Resources"][asg_name]['Properties']['HealthCheckGracePeriod'] = \
-        configuration.get('HealthCheckGracePeriod', 300)
+    asg_properties['HealthCheckType'] = configuration.get('HealthCheckType', default_health_check_type)
+    asg_properties['HealthCheckGracePeriod'] = configuration.get('HealthCheckGracePeriod', 300)
 
     if "AutoScaling" in configuration:
         as_conf = configuration["AutoScaling"]
-        definition["Resources"][asg_name]["Properties"]["MaxSize"] = as_conf["Maximum"]
-        definition["Resources"][asg_name]["Properties"]["MinSize"] = as_conf["Minimum"]
-        definition["Resources"][asg_name]["Properties"]["DesiredCapacity"] = max(as_conf["Minimum"],
-                                                                                 as_conf.get('DesiredCapacity', 1))
+        asg_properties["MaxSize"] = as_conf["Maximum"]
+        asg_properties["MinSize"] = as_conf["Minimum"]
+        asg_properties["DesiredCapacity"] = max(int(as_conf["Minimum"]), int(as_conf.get('DesiredCapacity', 1)))
 
         # ScaleUp policy
         definition["Resources"][asg_name + "ScaleUp"] = {
@@ -181,8 +177,8 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
             raise click.UsageError('Auto scaling MetricType "{}" not supported.'.format(metric_type))
         definition = metricfn(asg_name, definition, as_conf, args, info, force)
     else:
-        definition["Resources"][asg_name]["Properties"]["MaxSize"] = 1
-        definition["Resources"][asg_name]["Properties"]["MinSize"] = 1
+        asg_properties["MaxSize"] = 1
+        asg_properties["MinSize"] = 1
 
     return definition
 

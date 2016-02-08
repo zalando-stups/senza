@@ -564,15 +564,26 @@ def list_stacks(region, stack_ref, all, output, w, watch):
 @click.option('--disable-rollback', is_flag=True, help='Disable Cloud Formation rollback on failure')
 @click.option('--dry-run', is_flag=True, help='No-op mode: show what would be created')
 @click.option('-f', '--force', is_flag=True, help='Ignore failing validation checks')
-def create(definition, region, version, parameter, disable_rollback, dry_run, force):
+@click.option('-t', '--tag', help='Tags to associate with the stack.', multiple=True)
+def create(definition, region, version, parameter, disable_rollback, dry_run, force, tag):
     '''Create a new Cloud Formation stack from the given Senza definition file'''
+
     data = create_cf_template(definition, region, version, parameter, force)
+
+    for tag_kv in tag:
+        try:
+            key, value = tag_kv.split('=')
+        except ValueError:
+            fatal_error('Invalid tag {}. Tags should be in the form of key=value'.format(tag_kv))
+        data['Tags'].append({'Key': key, 'Value': value})
+
     cf = boto3.client('cloudformation', region)
 
     with Action('Creating Cloud Formation stack {}..'.format(data['StackName'])) as act:
         try:
             if dry_run:
                 info('**DRY-RUN** {}'.format(data['NotificationARNs']))
+                info(' Tags: {}'.format(data['Tags']))
             else:
                 cf.create_stack(DisableRollback=disable_rollback, **data)
         except ClientError as e:

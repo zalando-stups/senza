@@ -1076,6 +1076,21 @@ def test_create(monkeypatch):
                                catch_exceptions=True)
         assert 'OK' in result.output
 
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--tag', 'key=tag_value',
+                                     '--region=myregion', '2', 'my-param-value', 'ExtraParam=extra-param-value'],
+                               catch_exceptions=True)
+        assert 'OK' in result.output
+        assert "'Key': 'key'" in result.output
+        assert "'Value': 'tag_value'" in result.output
+
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--tag', 'key=tag_value', '--tag',
+                                     'key2=value2', '--region=myregion', '2', 'my-param-value',
+                                     'ExtraParam=extra-param-value'],
+                               catch_exceptions=True)
+        assert 'OK' in result.output
+        assert "'Key': 'key'" in result.output
+        assert "'Key': 'key2'" in result.output
+
         # checks that equal signs are OK in the keyword param value
         result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '2', 'my-param-value',
                                      'ExtraParam=extra=param=value'],
@@ -1101,6 +1116,11 @@ def test_create(monkeypatch):
                                      'MyParam=my-param-value', 'positional'],
                                catch_exceptions=True)
         assert 'Positional parameters must not follow keywords' in result.output
+
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--tag', 'key=value', '--tag', 'badtag',
+                                     '--region=myregion', '2', 'my-param-value', 'ExtraParam=extra-param-value'],
+                               catch_exceptions=True)
+        assert 'Invalid tag badtag. Tags should be in the form of key=value' in result.output
 
 
 def test_update(monkeypatch):

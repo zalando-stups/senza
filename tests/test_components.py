@@ -448,11 +448,14 @@ def test_component_auto_scaling_group_metric_type():
 
 
 def test_normalize_network_threshold():
+    assert normalize_network_threshold(None) == []
     assert normalize_network_threshold("10") == ["10", "Bytes"]
     assert normalize_network_threshold(10) == ["10", "Bytes"]
     assert normalize_network_threshold("10 B") == ["10", "Bytes"]
+    assert normalize_network_threshold("10 KB") == ["10", "Kilobytes"]
+    assert normalize_network_threshold("10 MB") == ["10", "Megabytes"]
     assert normalize_network_threshold("10 GB") == ["10", "Gigabytes"]
-    assert normalize_network_threshold("5.7 GB") == ["5.7", "Gigabytes"]
+    assert normalize_network_threshold("5.7 TB") == ["5.7", "Terabytes"]
 
     try:
         normalize_network_threshold("5.7GB")
@@ -463,7 +466,7 @@ def test_normalize_network_threshold():
         raise e
 
     try:
-        assert normalize_network_threshold("5 Donkeys") == ["5", "Donkeys"]
+        normalize_network_threshold("5 Donkeys")
         raise BaseException("normalize_network_threshold did not throw")
     except click.UsageError as e:
         pass

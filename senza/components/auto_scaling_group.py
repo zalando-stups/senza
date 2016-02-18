@@ -206,7 +206,7 @@ def metric_cpu(asg_name, definition, configuration, args, info, force):
                 ],
                 "AlarmDescription": "Scale-up if CPU > {}% for {} minutes ({})".format(
                     configuration["ScaleUpThreshold"],
-                    (period / 60 ) * evaluation_periods,
+                    (period / 60) * evaluation_periods,
                     statistic
                 ),
                 "AlarmActions": [
@@ -234,7 +234,7 @@ def metric_cpu(asg_name, definition, configuration, args, info, force):
                 ],
                 "AlarmDescription": "Scale-down if CPU < {}% for {} minutes ({})".format(
                     configuration["ScaleDownThreshold"],
-                    (period / 60 ) * evaluation_periods,
+                    (period / 60) * evaluation_periods,
                     statistic
                 ),
                 "AlarmActions": [

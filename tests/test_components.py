@@ -395,6 +395,7 @@ def test_component_taupage_auto_scaling_group_user_data_with_lists_and_empty_dic
 
     assert expected_user_data == generate_user_data(configuration)
 
+
 def test_component_auto_scaling_group_configurable_properties():
     definition = {"Resources": {}}
     configuration = {
@@ -441,10 +442,8 @@ def test_component_auto_scaling_group_configurable_properties():
     assert result["Resources"]["Foo"]["Properties"]["DesiredCapacity"] == 2
     assert result["Resources"]["Foo"]["Properties"]["MaxSize"] == 10
 
+    expected_desc = "Scale-down if CPU < 20% for 1.0 minutes (Average)"
     assert result["Resources"]["FooCPUAlarmHigh"]["Properties"]["Statistic"] == "Average"
     assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["Period"] == 60
     assert result["Resources"]["FooCPUAlarmHigh"]["Properties"]["EvaluationPeriods"] == 1
-    assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["AlarmDescription"] == "Scale-down if CPU < 20% for 1.0 minutes (Average)"
-
-    print(result)
-
+    assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["AlarmDescription"] == expected_desc

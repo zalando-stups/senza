@@ -172,13 +172,125 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         }
 
         metric_type = as_conf["MetricType"]
-        metricfn = globals().get('metric_{}'.format(metric_type.lower()))
-        if not metricfn:
+        # ADVICE_NEEDED: to my understanding this change breaks existing
+        # senzafiles with MetricType: cpu (lowercase) in it.
+        if metric_type not in ["CPU", "NetworkIn", "NetworkOut"]:
             raise click.UsageError('Auto scaling MetricType "{}" not supported.'.format(metric_type))
+        metricfns = {
+            "CPU": metric_cpu,
+            "NetworkIn": metric_network,
+            "NetworkOut": metric_network
+        }
+        metricfn = metricfns[metric_type]
         definition = metricfn(asg_name, definition, as_conf, args, info, force)
     else:
         asg_properties["MaxSize"] = 1
         asg_properties["MinSize"] = 1
+
+    return definition
+
+
+def normalize_network_threshold(threshold):
+    unit = "Bytes"
+    if threshold is None:
+        return []
+    if isinstance(threshold, int):
+        return [str(threshold), unit]
+    amount = 1024
+    shortcuts = {
+        "B": "Bytes",
+        "KB": "Kilobytes",
+        "MB": "Megabytes",
+        "GB": "Gigabytes",
+        "TB": "Terabytes"
+    }
+    try:
+        # if someone write just Threshold: 10
+        amount = int(threshold)
+        return [threshold, unit]
+    except ValueError:
+        # check if there is a space as if somebody wrote Threshold: 20 GB
+        if " " in threshold:
+            # okay, so split it
+            [amount, unit] = threshold.split(" ")
+            if unit in shortcuts:
+                unit = shortcuts[unit]
+            allowed_units = shortcuts.values()
+            if unit not in allowed_units:
+                raise click.UsageError("Network threshold unit must be one of {}".format(list(allowed_units)))
+        else:
+            raise click.UsageError('Unknown network threshold "{}". Use something like "20 GB".'.format(threshold))
+    return [amount, unit]
+
+
+def metric_network(asg_name, definition, configuration, args, info, force):
+    period = int(configuration.get("Period", 300))
+    evaluation_periods = int(configuration.get("EvaluationPeriods", 2))
+    statistic = configuration.get("Statistic", "Average")
+    scale_up_threshold = normalize_network_threshold(configuration["ScaleUpThreshold"])
+    scale_down_threshold = normalize_network_threshold(configuration["ScaleDownThreshold"])
+
+    if "ScaleUpThreshold" in configuration:
+        definition["Resources"][asg_name + "NetworkAlarmHigh"] = {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "MetricName": configuration["MetricType"],
+                "Namespace": "AWS/EC2",
+                "Period": str(period),
+                "Threshold": scale_up_threshold[0],
+                "Unit": scale_up_threshold[1],
+                "EvaluationPeriods": str(evaluation_periods),
+                "Statistic": statistic,
+                "ComparisonOperator": "GreaterThanThreshold",
+                "Dimensions": [
+                    {
+                        "Name": "AutoScalingGroupName",
+                        "Value": {"Ref": asg_name}
+                    }
+                ],
+                "AlarmDescription": "Scale-up if {} > {} {} for {} minutes ({})".format(
+                    configuration["MetricType"],
+                    scale_up_threshold[0],
+                    scale_up_threshold[1],
+                    (period / 60) * evaluation_periods,
+                    statistic
+                ),
+                "AlarmActions": [
+                    {"Ref": asg_name + "ScaleUp"}
+                ]
+            }
+        }
+
+    if "ScaleDownThreshold" in configuration:
+        definition["Resources"][asg_name + "NetworkAlarmLow"] = {
+            "Type": "AWS::CloudWatch::Alarm",
+            "Properties": {
+                "MetricName": configuration["MetricType"],
+                "Namespace": "AWS/EC2",
+                "Threshold": scale_down_threshold[0],
+                "Unit": scale_down_threshold[1],
+                "Period": str(period),
+                "EvaluationPeriods": str(evaluation_periods),
+                "Statistic": statistic,
+                "ComparisonOperator": "LessThanThreshold",
+                "Dimensions": [
+                    {
+                        "Name": "AutoScalingGroupName",
+                        "Value": {"Ref": asg_name}
+                    }
+                ],
+                "AlarmDescription": "Scale-down if {} < {} {} for {} minutes ({})".format(
+                    configuration["MetricType"],
+                    scale_down_threshold[0],
+                    scale_down_threshold[1],
+                    (period / 60) * evaluation_periods,
+                    statistic
+                ),
+                "AlarmActions": [
+                    {"Ref": asg_name + "ScaleDown"}
+                ]
+            }
+        }
 
     return definition
 

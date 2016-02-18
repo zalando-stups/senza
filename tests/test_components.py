@@ -8,6 +8,7 @@ from senza.components.weighted_dns_elastic_load_balancer import component_weight
 from senza.components.stups_auto_configuration import component_stups_auto_configuration
 from senza.components.redis_node import component_redis_node
 from senza.components.redis_cluster import component_redis_cluster
+from senza.components.auto_scaling_group import component_auto_scaling_group
 from senza.components.taupage_auto_scaling_group import generate_user_data
 import senza.traffic
 
@@ -393,3 +394,57 @@ def test_component_taupage_auto_scaling_group_user_data_with_lists_and_empty_dic
         '#taupage-ami-config\nports: {}\nresources:\n- A\n- ', {'Ref': 'Res1'}, '\n']]}
 
     assert expected_user_data == generate_user_data(configuration)
+
+def test_component_auto_scaling_group_configurable_properties():
+    definition = {"Resources": {}}
+    configuration = {
+        'Name': 'Foo',
+        'InstanceType': 't2.micro',
+        'Image': 'foo',
+        'AutoScaling': {
+            'Minimum': 2,
+            'Maximum': 10,
+            'MetricType': 'CPU',
+            'Period': 60,
+            'ScaleUpThreshold': 50,
+            'ScaleDownThreshold': 20,
+            'EvaluationPeriods': 1,
+            'Cooldown': 30,
+            'ScalingAdjustment': 3
+        }
+    }
+
+    args = MagicMock()
+    args.region = "foo"
+
+    info = {
+        'StackName': 'FooStack',
+        'StackVersion': 'FooVersion'
+    }
+
+    result = component_auto_scaling_group(definition, configuration, args, info, False, MagicMock())
+
+    assert result["Resources"]["FooScaleUp"] is not None
+    assert result["Resources"]["FooScaleUp"]["Properties"] is not None
+    assert result["Resources"]["FooScaleUp"]["Properties"]["ScalingAdjustment"] == 3
+    assert result["Resources"]["FooScaleUp"]["Properties"]["Cooldown"] == 30
+
+    assert result["Resources"]["FooScaleDown"] is not None
+    assert result["Resources"]["FooScaleDown"]["Properties"] is not None
+    assert result["Resources"]["FooScaleDown"]["Properties"]["Cooldown"] == 30
+    assert result["Resources"]["FooScaleDown"]["Properties"]["ScalingAdjustment"] == -3
+
+    assert result["Resources"]["Foo"] is not None
+    assert result["Resources"]["Foo"]["Properties"] is not None
+    assert result["Resources"]["Foo"]["Properties"]["HealthCheckType"] == "EC2"
+    assert result["Resources"]["Foo"]["Properties"]["MinSize"] == 2
+    assert result["Resources"]["Foo"]["Properties"]["DesiredCapacity"] == 2
+    assert result["Resources"]["Foo"]["Properties"]["MaxSize"] == 10
+
+    assert result["Resources"]["FooCPUAlarmHigh"]["Properties"]["Statistic"] == "Average"
+    assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["Period"] == 60
+    assert result["Resources"]["FooCPUAlarmHigh"]["Properties"]["EvaluationPeriods"] == 1
+    assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["AlarmDescription"] == "Scale-down if CPU < 20% for 1.0 minutes (Average)"
+
+    print(result)
+

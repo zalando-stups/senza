@@ -411,6 +411,7 @@ def test_component_auto_scaling_group_configurable_properties():
             'ScaleDownThreshold': 20,
             'EvaluationPeriods': 1,
             'Cooldown': 30,
+            'Statistic': 'Maximum',
             'ScalingAdjustment': 3
         }
     }
@@ -442,8 +443,8 @@ def test_component_auto_scaling_group_configurable_properties():
     assert result["Resources"]["Foo"]["Properties"]["DesiredCapacity"] == 2
     assert result["Resources"]["Foo"]["Properties"]["MaxSize"] == 10
 
-    expected_desc = "Scale-down if CPU < 20% for 1.0 minutes (Average)"
-    assert result["Resources"]["FooCPUAlarmHigh"]["Properties"]["Statistic"] == "Average"
+    expected_desc = "Scale-down if CPU < 20% for 1.0 minutes (Maximum)"
+    assert result["Resources"]["FooCPUAlarmHigh"]["Properties"]["Statistic"] == "Maximum"
     assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["Period"] == "60"
     assert result["Resources"]["FooCPUAlarmHigh"]["Properties"]["EvaluationPeriods"] == "1"
     assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["AlarmDescription"] == expected_desc

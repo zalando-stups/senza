@@ -150,8 +150,8 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
             "Type": "AWS::AutoScaling::ScalingPolicy",
             "Properties": {
                 "AdjustmentType": "ChangeInCapacity",
-                "ScalingAdjustment": as_conf.get("ScalingAdjustment", 1),
-                "Cooldown": as_conf.get("Cooldown", 60),
+                "ScalingAdjustment": str(as_conf.get("ScalingAdjustment", "1")),
+                "Cooldown": str(as_conf.get("Cooldown", "60")),
                 "AutoScalingGroupName": {
                     "Ref": asg_name
                 }
@@ -163,8 +163,8 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
             "Type": "AWS::AutoScaling::ScalingPolicy",
             "Properties": {
                 "AdjustmentType": "ChangeInCapacity",
-                "ScalingAdjustment": (-1) * as_conf.get("ScalingAdjustment", 1),
-                "Cooldown": as_conf.get("Cooldown", 60),
+                "ScalingAdjustment": str((-1) * as_conf.get("ScalingAdjustment", "1")),
+                "Cooldown": str(as_conf.get("Cooldown", "60")),
                 "AutoScalingGroupName": {
                     "Ref": asg_name
                 }

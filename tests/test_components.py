@@ -427,13 +427,13 @@ def test_component_auto_scaling_group_configurable_properties():
 
     assert result["Resources"]["FooScaleUp"] is not None
     assert result["Resources"]["FooScaleUp"]["Properties"] is not None
-    assert result["Resources"]["FooScaleUp"]["Properties"]["ScalingAdjustment"] == 3
-    assert result["Resources"]["FooScaleUp"]["Properties"]["Cooldown"] == 30
+    assert result["Resources"]["FooScaleUp"]["Properties"]["ScalingAdjustment"] == "3"
+    assert result["Resources"]["FooScaleUp"]["Properties"]["Cooldown"] == "30"
 
     assert result["Resources"]["FooScaleDown"] is not None
     assert result["Resources"]["FooScaleDown"]["Properties"] is not None
-    assert result["Resources"]["FooScaleDown"]["Properties"]["Cooldown"] == 30
-    assert result["Resources"]["FooScaleDown"]["Properties"]["ScalingAdjustment"] == -3
+    assert result["Resources"]["FooScaleDown"]["Properties"]["Cooldown"] == "30"
+    assert result["Resources"]["FooScaleDown"]["Properties"]["ScalingAdjustment"] == "-3"
 
     assert result["Resources"]["Foo"] is not None
     assert result["Resources"]["Foo"]["Properties"] is not None

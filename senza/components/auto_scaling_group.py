@@ -193,8 +193,8 @@ def metric_cpu(asg_name, definition, configuration, args, info, force):
             "Properties": {
                 "MetricName": "CPUUtilization",
                 "Namespace": "AWS/EC2",
-                "Period": period,
-                "EvaluationPeriods": evaluation_periods,
+                "Period": str(period),
+                "EvaluationPeriods": str(evaluation_periods),
                 "Statistic": statistic,
                 "Threshold": configuration["ScaleUpThreshold"],
                 "ComparisonOperator": "GreaterThanThreshold",
@@ -221,8 +221,8 @@ def metric_cpu(asg_name, definition, configuration, args, info, force):
             "Properties": {
                 "MetricName": "CPUUtilization",
                 "Namespace": "AWS/EC2",
-                "Period": period,
-                "EvaluationPeriods": evaluation_periods,
+                "Period": str(period),
+                "EvaluationPeriods": str(evaluation_periods),
                 "Statistic": statistic,
                 "Threshold": configuration["ScaleDownThreshold"],
                 "ComparisonOperator": "LessThanThreshold",

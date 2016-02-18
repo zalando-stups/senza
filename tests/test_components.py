@@ -444,6 +444,6 @@ def test_component_auto_scaling_group_configurable_properties():
 
     expected_desc = "Scale-down if CPU < 20% for 1.0 minutes (Average)"
     assert result["Resources"]["FooCPUAlarmHigh"]["Properties"]["Statistic"] == "Average"
-    assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["Period"] == 60
-    assert result["Resources"]["FooCPUAlarmHigh"]["Properties"]["EvaluationPeriods"] == 1
+    assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["Period"] == "60"
+    assert result["Resources"]["FooCPUAlarmHigh"]["Properties"]["EvaluationPeriods"] == "1"
     assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["AlarmDescription"] == expected_desc

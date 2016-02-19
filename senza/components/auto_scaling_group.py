@@ -1,5 +1,5 @@
 import click
-
+import re
 from senza.aws import resolve_security_groups, resolve_topic_arn
 from senza.utils import ensure_keys
 from senza.components.iam_role import get_merged_policies
@@ -77,13 +77,18 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
 
     # auto scaling group
     asg_name = configuration["Name"]
+    asg_success = ["1", "PT15M"]
+    if "AutoScaling" in configuration:
+        if "SuccessRequires" in configuration["AutoScaling"]:
+            asg_success = normalize_asg_success(configuration["AutoScaling"]["SuccessRequires"])
+
     definition["Resources"][asg_name] = {
         "Type": "AWS::AutoScaling::AutoScalingGroup",
-        # wait up to 15 minutes to get a signal from at least one server that it booted
+        # wait to get a signal from an amount of servers to signal that it booted
         "CreationPolicy": {
             "ResourceSignal": {
-                "Count": "1",
-                "Timeout": "PT15M"
+                "Count": asg_success[0],
+                "Timeout": asg_success[1]
             }
         },
         "Properties": {
@@ -188,6 +193,44 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         asg_properties["MinSize"] = 1
 
     return definition
+
+duration_regex = r'^(?:\d+[hH])?(?:\d+[mM])?(?:\d+[sS])?$'
+duration_split_regex = r'(\d+[hHmMsS])'
+
+
+def to_iso8601_duration(duration):
+    if duration and re.match(duration_regex, duration):
+        durations = [d.upper() for d in re.split(duration_split_regex, duration)]
+        return "PT" + "".join(durations)
+    else:
+        raise click.UsageError("Unknown duration {}. Use something like 15m.".format(duration))
+
+
+def normalize_asg_success(success):
+    count = "1"
+    duration = "PT15M"
+
+    # if it's falsy, return defaults
+    if not success:
+        return [count, duration]
+
+    # if it's int, use as instance count
+    if isinstance(success, int):
+        return [str(success), duration]
+
+    try:
+        # try to parse as int
+        count = int(success)
+        # if it works, use as instance count
+        return [success, duration]
+    except ValueError:
+        # ok did not work, try to parse
+        if "within" in success:
+            instance, time = success.split("within")
+            return [instance.strip(), to_iso8601_duration(time.strip())]
+        else:
+            msg = 'Unknown ASG success requirement "{}". Use something like "1 within 10m".'
+            raise click.UsageError(msg.format(success))
 
 
 def normalize_network_threshold(threshold):

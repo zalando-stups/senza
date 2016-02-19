@@ -1,4 +1,5 @@
 import click
+import pytest
 from unittest.mock import MagicMock
 from senza.cli import AccountArguments
 from senza.components import get_component
@@ -8,10 +9,9 @@ from senza.components.weighted_dns_elastic_load_balancer import component_weight
 from senza.components.stups_auto_configuration import component_stups_auto_configuration
 from senza.components.redis_node import component_redis_node
 from senza.components.redis_cluster import component_redis_cluster
-from senza.components.auto_scaling_group import component_auto_scaling_group
+from senza.components.auto_scaling_group import component_auto_scaling_group, normalize_network_threshold
 from senza.components.taupage_auto_scaling_group import generate_user_data
 import senza.traffic
-
 
 def test_invalid_component():
     assert get_component('Foobar') is None
@@ -447,3 +447,72 @@ def test_component_auto_scaling_group_configurable_properties():
     assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["Period"] == "60"
     assert result["Resources"]["FooCPUAlarmHigh"]["Properties"]["EvaluationPeriods"] == "1"
     assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["AlarmDescription"] == expected_desc
+
+
+def test_component_auto_scaling_group_metric_type():
+    definition = {"Resources": {}}
+    configuration = {
+        'Name': 'Foo',
+        'InstanceType': 't2.micro',
+        'Image': 'foo',
+        'AutoScaling': {
+            'Minimum': 2,
+            'Maximum': 10,
+            'MetricType': 'NetworkIn',
+            'Period': 60,
+            'EvaluationPeriods': 10,
+            'ScaleUpThreshold': '50 TB',
+            'ScaleDownThreshold': '10',
+            'Statistic': 'Maximum'
+        }
+    }
+
+    args = MagicMock()
+    args.region = "foo"
+
+    info = {
+        'StackName': 'FooStack',
+        'StackVersion': 'FooVersion'
+    }
+
+    result = component_auto_scaling_group(definition, configuration, args, info, False, MagicMock())
+
+    expected_high_desc = "Scale-up if NetworkIn > 50 Terabytes for 10.0 minutes (Maximum)"
+    assert result["Resources"]["FooNetworkAlarmHigh"] is not None
+    assert result["Resources"]["FooNetworkAlarmHigh"]["Properties"] is not None
+    assert result["Resources"]["FooNetworkAlarmHigh"]["Properties"]["MetricName"] == "NetworkIn"
+    assert result["Resources"]["FooNetworkAlarmHigh"]["Properties"]["Unit"] == "Terabytes"
+    assert result["Resources"]["FooNetworkAlarmHigh"]["Properties"]["Threshold"] == "50"
+    assert result["Resources"]["FooNetworkAlarmHigh"]["Properties"]["Statistic"] == "Maximum"
+    assert result["Resources"]["FooNetworkAlarmHigh"]["Properties"]["Period"] == "60"
+    assert result["Resources"]["FooNetworkAlarmHigh"]["Properties"]["EvaluationPeriods"] == "10"
+    assert result["Resources"]["FooNetworkAlarmHigh"]["Properties"]["AlarmDescription"] == expected_high_desc
+
+    expected_low_desc = "Scale-down if NetworkIn < 10 Bytes for 10.0 minutes (Maximum)"
+    assert result["Resources"]["FooNetworkAlarmLow"]is not None
+    assert result["Resources"]["FooNetworkAlarmLow"]["Properties"] is not None
+    assert result["Resources"]["FooNetworkAlarmLow"]["Properties"]["MetricName"] == "NetworkIn"
+    assert result["Resources"]["FooNetworkAlarmLow"]["Properties"]["Unit"] == "Bytes"
+    assert result["Resources"]["FooNetworkAlarmLow"]["Properties"]["Threshold"] == "10"
+    assert result["Resources"]["FooNetworkAlarmLow"]["Properties"]["Statistic"] == "Maximum"
+    assert result["Resources"]["FooNetworkAlarmLow"]["Properties"]["Period"] == "60"
+    assert result["Resources"]["FooNetworkAlarmLow"]["Properties"]["EvaluationPeriods"] == "10"
+    assert result["Resources"]["FooNetworkAlarmLow"]["Properties"]["AlarmDescription"] == expected_low_desc
+
+
+def test_normalize_network_threshold():
+    assert normalize_network_threshold(None) == []
+    assert normalize_network_threshold("10") == ["10", "Bytes"]
+    assert normalize_network_threshold(10) == ["10", "Bytes"]
+    assert normalize_network_threshold("10   Gigabytes") == ["10", "Gigabytes"]
+    assert normalize_network_threshold("10 B") == ["10", "Bytes"]
+    assert normalize_network_threshold("10 KB") == ["10", "Kilobytes"]
+    assert normalize_network_threshold("10 MB") == ["10", "Megabytes"]
+    assert normalize_network_threshold("10 GB") == ["10", "Gigabytes"]
+    assert normalize_network_threshold("5.7 TB") == ["5.7", "Terabytes"]
+
+    with pytest.raises(click.UsageError):
+        normalize_network_threshold("5.7GB")
+
+    with pytest.raises(click.UsageError):
+        normalize_network_threshold("5 Donkeys")

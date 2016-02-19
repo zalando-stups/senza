@@ -1,0 +1,50 @@
+SenzaInfo:
+  StackName: hello-world
+  StackVersion: one
+
+SenzaComponents:
+  - Configuration:
+      Type: Senza::StupsAutoConfiguration # auto-detect network setup
+
+  - AppServer:
+      Type: Senza::TaupageAutoScalingGroup
+      InstanceType: t2.micro
+      IamRoles:
+        - app-hello-world
+      TaupageConfig:
+        ports:
+          8080: 8080
+        application_version: "one"
+        runtime: Docker
+        source: "stups/hello-world:one"
+      AssociatePublicIpAddress: true
+      AutoScaling:
+        # also possible: CPU, NetworkOut
+        MetricType: NetworkIn
+        # at least two instances
+        Minimum: 2
+        # at most sixteen instances
+        Maximum: 16
+        # successful startup requirement for the ASG:
+        # if there are not at least two healthy instances
+        # within 5 minutes timeout, the ASG creation is
+        # considered failed.
+        # default instance count is 1
+        # default timeout is 15 minutes
+        SuccessRequires: "2 within 5m"
+        # scale two instances up/down at a time
+        ScalingAdjustment: 2
+        # after scaling, suspend further scaling activities
+        # for 30 minutes (1800 seconds)
+        Cooldown: 1800
+        # time over which the threshold is measured in seconds
+        Period: 300
+        # how many periods the threshold must be hit before scaling
+        # this will not scale earlier than 10 mins (2 * 300s)
+        EvaluationPeriods: 2
+        # will scale up once >= 20 GB inbound traffic
+        # are hit over 10 mins on average (evaluation periods * period)
+        ScaleUpThreshold: "20 GB"
+        # will scale down once <= 1 GB inbound traffic
+        # is hit over 10 mins on average (evaluation periods * period)
+        ScaleDownThreshold: "1 GB"

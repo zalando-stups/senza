@@ -1,0 +1,26 @@
+SenzaInfo:
+  StackName: hello-world
+  StackVersion: one
+
+SenzaComponents:
+  - Configuration:
+      Type: Senza::StupsAutoConfiguration # auto-detect network setup
+
+  - AppServer:
+      Type: Senza::TaupageAutoScalingGroup
+      InstanceType: t2.micro
+      IamRoles:
+        - app-hello-world
+      TaupageConfig:
+        ports:
+          8080: 8080
+        application_version: "one"
+        runtime: Docker
+        source: "stups/hello-world:one"
+      AssociatePublicIpAddress: true
+      AutoScaling:
+        MetricType: NetworkIn
+        Minimum: 2
+        Maximum: 4
+        ScaleUpThreshold: "20 GB"
+        ScaleDownThreshold: "1 GB"

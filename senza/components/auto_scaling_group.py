@@ -172,15 +172,14 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         }
 
         metric_type = as_conf["MetricType"]
-        # ADVICE_NEEDED: to my understanding this change breaks existing
-        # senzafiles with MetricType: cpu (lowercase) in it.
-        if metric_type not in ["CPU", "NetworkIn", "NetworkOut"]:
-            raise click.UsageError('Auto scaling MetricType "{}" not supported.'.format(metric_type))
         metricfns = {
             "CPU": metric_cpu,
             "NetworkIn": metric_network,
             "NetworkOut": metric_network
         }
+        # lowercase cpu is an acceptable metric, be compatible
+        if metric_type.lower() not in map(lambda t: t.lower(), metricfns.keys()):
+            raise click.UsageError('Auto scaling MetricType "{}" not supported.'.format(metric_type))
         metricfn = metricfns[metric_type]
         definition = metricfn(asg_name, definition, as_conf, args, info, force)
     else:
@@ -212,7 +211,7 @@ def normalize_network_threshold(threshold):
         # check if there is a space as if somebody wrote Threshold: 20 GB
         if " " in threshold:
             # okay, so split it
-            [amount, unit] = threshold.split(" ")
+            amount, unit = threshold.split()
             if unit in shortcuts:
                 unit = shortcuts[unit]
             allowed_units = shortcuts.values()

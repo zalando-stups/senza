@@ -1,4 +1,5 @@
 import click
+import pytest
 from unittest.mock import MagicMock
 from senza.cli import AccountArguments
 from senza.components import get_component
@@ -11,7 +12,6 @@ from senza.components.redis_cluster import component_redis_cluster
 from senza.components.auto_scaling_group import component_auto_scaling_group, normalize_network_threshold
 from senza.components.taupage_auto_scaling_group import generate_user_data
 import senza.traffic
-
 
 def test_invalid_component():
     assert get_component('Foobar') is None
@@ -451,24 +451,15 @@ def test_normalize_network_threshold():
     assert normalize_network_threshold(None) == []
     assert normalize_network_threshold("10") == ["10", "Bytes"]
     assert normalize_network_threshold(10) == ["10", "Bytes"]
+    assert normalize_network_threshold("10   Gigabytes") == ["10", "Gigabytes"]
     assert normalize_network_threshold("10 B") == ["10", "Bytes"]
     assert normalize_network_threshold("10 KB") == ["10", "Kilobytes"]
     assert normalize_network_threshold("10 MB") == ["10", "Megabytes"]
     assert normalize_network_threshold("10 GB") == ["10", "Gigabytes"]
     assert normalize_network_threshold("5.7 TB") == ["5.7", "Terabytes"]
 
-    try:
+    with pytest.raises(click.UsageError):
         normalize_network_threshold("5.7GB")
-        raise BaseException("normalize_network_threshold did not throw")
-    except click.UsageError as e:
-        pass
-    except BaseException as e:
-        raise e
 
-    try:
+    with pytest.raises(click.UsageError):
         normalize_network_threshold("5 Donkeys")
-        raise BaseException("normalize_network_threshold did not throw")
-    except click.UsageError as e:
-        pass
-    except BaseException as e:
-        raise e

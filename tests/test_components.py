@@ -9,9 +9,11 @@ from senza.components.weighted_dns_elastic_load_balancer import component_weight
 from senza.components.stups_auto_configuration import component_stups_auto_configuration
 from senza.components.redis_node import component_redis_node
 from senza.components.redis_cluster import component_redis_cluster
-from senza.components.auto_scaling_group import component_auto_scaling_group, normalize_network_threshold
+from senza.components.auto_scaling_group \
+    import component_auto_scaling_group, normalize_network_threshold, to_iso8601_duration, normalize_asg_success
 from senza.components.taupage_auto_scaling_group import generate_user_data
 import senza.traffic
+
 
 def test_invalid_component():
     assert get_component('Foobar') is None
@@ -405,6 +407,7 @@ def test_component_auto_scaling_group_configurable_properties():
         'AutoScaling': {
             'Minimum': 2,
             'Maximum': 10,
+            'SuccessRequires': '4 within 30m',
             'MetricType': 'CPU',
             'Period': 60,
             'ScaleUpThreshold': 50,
@@ -436,6 +439,12 @@ def test_component_auto_scaling_group_configurable_properties():
     assert result["Resources"]["FooScaleDown"]["Properties"]["ScalingAdjustment"] == "-1"
 
     assert result["Resources"]["Foo"] is not None
+
+    assert result["Resources"]["Foo"]["CreationPolicy"] is not None
+    assert result["Resources"]["Foo"]["CreationPolicy"]["ResourceSignal"] is not None
+    assert result["Resources"]["Foo"]["CreationPolicy"]["ResourceSignal"]["Timeout"] == "PT30M"
+    assert result["Resources"]["Foo"]["CreationPolicy"]["ResourceSignal"]["Count"] == "4"
+
     assert result["Resources"]["Foo"]["Properties"] is not None
     assert result["Resources"]["Foo"]["Properties"]["HealthCheckType"] == "EC2"
     assert result["Resources"]["Foo"]["Properties"]["MinSize"] == 2
@@ -498,6 +507,45 @@ def test_component_auto_scaling_group_metric_type():
     assert result["Resources"]["FooNetworkAlarmLow"]["Properties"]["Period"] == "60"
     assert result["Resources"]["FooNetworkAlarmLow"]["Properties"]["EvaluationPeriods"] == "10"
     assert result["Resources"]["FooNetworkAlarmLow"]["Properties"]["AlarmDescription"] == expected_low_desc
+
+
+def test_to_iso8601_duration():
+    with pytest.raises(click.UsageError):
+        to_iso8601_duration("")
+
+    with pytest.raises(click.UsageError):
+        to_iso8601_duration(None)
+
+    with pytest.raises(click.UsageError):
+        to_iso8601_duration("foo")
+
+    with pytest.raises(click.UsageError):
+        to_iso8601_duration("5s16h")
+
+    assert to_iso8601_duration("5m") == "PT5M"
+    assert to_iso8601_duration("5H4s") == "PT5H4S"
+
+
+def test_normalize_asg_success():
+    default = "PT15M"
+    assert normalize_asg_success(10) == ["10", default]
+    assert normalize_asg_success("10") == ["10", default]
+    assert normalize_asg_success("1 within 4h5s") == ["1", "PT4H5S"]
+    assert normalize_asg_success("4 within 30m") == ["4", "PT30M"]
+    assert normalize_asg_success("1 within 4h0m5s") == ["1", "PT4H0M5S"]
+    assert normalize_asg_success("-1 within 5s") == ["-1", "PT5S"]  # i just don't care about this
+
+    with pytest.raises(click.UsageError):
+        # no within keyword
+        normalize_asg_success("1 in 5m")
+
+    with pytest.raises(click.UsageError):
+        # unparseable duration
+        normalize_asg_success("1 within 5y")
+
+    with pytest.raises(click.UsageError):
+        # duration in wrong order
+        normalize_asg_success("1 within 5s4h")
 
 
 def test_normalize_network_threshold():

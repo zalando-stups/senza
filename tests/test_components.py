@@ -396,6 +396,59 @@ def test_component_taupage_auto_scaling_group_user_data_with_lists_and_empty_dic
     assert expected_user_data == generate_user_data(configuration)
 
 
+def test_component_auto_scaling_group_configurable_properties():
+    definition = {"Resources": {}}
+    configuration = {
+        'Name': 'Foo',
+        'InstanceType': 't2.micro',
+        'Image': 'foo',
+        'AutoScaling': {
+            'Minimum': 2,
+            'Maximum': 10,
+            'MetricType': 'CPU',
+            'Period': 60,
+            'ScaleUpThreshold': 50,
+            'ScaleDownThreshold': 20,
+            'EvaluationPeriods': 1,
+            'Cooldown': 30,
+            'Statistic': 'Maximum'
+        }
+    }
+
+    args = MagicMock()
+    args.region = "foo"
+
+    info = {
+        'StackName': 'FooStack',
+        'StackVersion': 'FooVersion'
+    }
+
+    result = component_auto_scaling_group(definition, configuration, args, info, False, MagicMock())
+
+    assert result["Resources"]["FooScaleUp"] is not None
+    assert result["Resources"]["FooScaleUp"]["Properties"] is not None
+    assert result["Resources"]["FooScaleUp"]["Properties"]["ScalingAdjustment"] == "1"
+    assert result["Resources"]["FooScaleUp"]["Properties"]["Cooldown"] == "30"
+
+    assert result["Resources"]["FooScaleDown"] is not None
+    assert result["Resources"]["FooScaleDown"]["Properties"] is not None
+    assert result["Resources"]["FooScaleDown"]["Properties"]["Cooldown"] == "30"
+    assert result["Resources"]["FooScaleDown"]["Properties"]["ScalingAdjustment"] == "-1"
+
+    assert result["Resources"]["Foo"] is not None
+    assert result["Resources"]["Foo"]["Properties"] is not None
+    assert result["Resources"]["Foo"]["Properties"]["HealthCheckType"] == "EC2"
+    assert result["Resources"]["Foo"]["Properties"]["MinSize"] == 2
+    assert result["Resources"]["Foo"]["Properties"]["DesiredCapacity"] == 2
+    assert result["Resources"]["Foo"]["Properties"]["MaxSize"] == 10
+
+    expected_desc = "Scale-down if CPU < 20% for 1.0 minutes (Maximum)"
+    assert result["Resources"]["FooCPUAlarmHigh"]["Properties"]["Statistic"] == "Maximum"
+    assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["Period"] == "60"
+    assert result["Resources"]["FooCPUAlarmHigh"]["Properties"]["EvaluationPeriods"] == "1"
+    assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["AlarmDescription"] == expected_desc
+
+
 def test_component_auto_scaling_group_metric_type():
     definition = {"Resources": {}}
     configuration = {
@@ -410,7 +463,7 @@ def test_component_auto_scaling_group_metric_type():
             'EvaluationPeriods': 10,
             'ScaleUpThreshold': '50 TB',
             'ScaleDownThreshold': '10',
-            'Statistic': 'Maximum',
+            'Statistic': 'Maximum'
         }
     }
 

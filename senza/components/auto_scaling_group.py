@@ -145,13 +145,14 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         asg_properties["MinSize"] = as_conf["Minimum"]
         asg_properties["DesiredCapacity"] = max(int(as_conf["Minimum"]), int(as_conf.get('DesiredCapacity', 1)))
 
+        scaling_adjustment = int(as_conf.get("ScalingAdjustment", 1))
         # ScaleUp policy
         definition["Resources"][asg_name + "ScaleUp"] = {
             "Type": "AWS::AutoScaling::ScalingPolicy",
             "Properties": {
                 "AdjustmentType": "ChangeInCapacity",
-                "ScalingAdjustment": "1",
-                "Cooldown": "60",
+                "ScalingAdjustment": str(scaling_adjustment),
+                "Cooldown": str(as_conf.get("Cooldown", "60")),
                 "AutoScalingGroupName": {
                     "Ref": asg_name
                 }
@@ -163,8 +164,8 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
             "Type": "AWS::AutoScaling::ScalingPolicy",
             "Properties": {
                 "AdjustmentType": "ChangeInCapacity",
-                "ScalingAdjustment": "-1",
-                "Cooldown": "60",
+                "ScalingAdjustment": str((-1) * scaling_adjustment),
+                "Cooldown": str(as_conf.get("Cooldown", "60")),
                 "AutoScalingGroupName": {
                     "Ref": asg_name
                 }
@@ -295,15 +296,18 @@ def metric_network(asg_name, definition, configuration, args, info, force):
 
 
 def metric_cpu(asg_name, definition, configuration, args, info, force):
+    period = int(configuration.get("Period", 300))
+    evaluation_periods = int(configuration.get("EvaluationPeriods", 2))
+    statistic = configuration.get("Statistic", "Average")
     if "ScaleUpThreshold" in configuration:
         definition["Resources"][asg_name + "CPUAlarmHigh"] = {
             "Type": "AWS::CloudWatch::Alarm",
             "Properties": {
                 "MetricName": "CPUUtilization",
                 "Namespace": "AWS/EC2",
-                "Period": "300",
-                "EvaluationPeriods": "2",
-                "Statistic": "Average",
+                "Period": str(period),
+                "EvaluationPeriods": str(evaluation_periods),
+                "Statistic": statistic,
                 "Threshold": configuration["ScaleUpThreshold"],
                 "ComparisonOperator": "GreaterThanThreshold",
                 "Dimensions": [
@@ -312,7 +316,11 @@ def metric_cpu(asg_name, definition, configuration, args, info, force):
                         "Value": {"Ref": asg_name}
                     }
                 ],
-                "AlarmDescription": "Scale-up if CPU > {0}% for 10 minutes".format(configuration["ScaleUpThreshold"]),
+                "AlarmDescription": "Scale-up if CPU > {}% for {} minutes ({})".format(
+                    configuration["ScaleUpThreshold"],
+                    (period / 60) * evaluation_periods,
+                    statistic
+                ),
                 "AlarmActions": [
                     {"Ref": asg_name + "ScaleUp"}
                 ]
@@ -325,9 +333,9 @@ def metric_cpu(asg_name, definition, configuration, args, info, force):
             "Properties": {
                 "MetricName": "CPUUtilization",
                 "Namespace": "AWS/EC2",
-                "Period": "300",
-                "EvaluationPeriods": "2",
-                "Statistic": "Average",
+                "Period": str(period),
+                "EvaluationPeriods": str(evaluation_periods),
+                "Statistic": statistic,
                 "Threshold": configuration["ScaleDownThreshold"],
                 "ComparisonOperator": "LessThanThreshold",
                 "Dimensions": [
@@ -336,8 +344,11 @@ def metric_cpu(asg_name, definition, configuration, args, info, force):
                         "Value": {"Ref": asg_name}
                     }
                 ],
-                "AlarmDescription": "Scale-down if CPU < {0}% for 10 minutes".format(
-                    configuration["ScaleDownThreshold"]),
+                "AlarmDescription": "Scale-down if CPU < {}% for {} minutes ({})".format(
+                    configuration["ScaleDownThreshold"],
+                    (period / 60) * evaluation_periods,
+                    statistic
+                ),
                 "AlarmActions": [
                     {"Ref": asg_name + "ScaleDown"}
                 ]

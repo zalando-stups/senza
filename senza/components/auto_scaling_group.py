@@ -1,6 +1,6 @@
 import click
 import re
-from senza.aws import resolve_security_groups, resolve_topic_arn
+from senza.aws import resolve_security_groups, resolve_topic_arn, resolve_referenced_resource
 from senza.utils import ensure_keys
 from senza.components.iam_role import get_merged_policies
 
@@ -55,6 +55,8 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
                 }
             }
             instance_profile_roles = [{'Ref': logical_role_id}]
+        elif isinstance(roles[0], dict):
+            instance_profile_roles = [resolve_referenced_resource(roles[0], args.region)]
         else:
             instance_profile_roles = roles
         definition['Resources'][logical_id] = {

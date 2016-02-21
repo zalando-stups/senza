@@ -1,6 +1,6 @@
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, Mock
 from senza.aws import resolve_topic_arn
-from senza.aws import get_security_group, resolve_security_groups, get_account_id, get_account_alias, list_kms_keys, encrypt, get_vpc_attribute
+from senza.aws import get_security_group, resolve_security_groups, get_account_id, get_account_alias, list_kms_keys, encrypt, get_vpc_attribute, resolve_referenced_resource
 
 
 def test_get_security_group(monkeypatch):
@@ -13,18 +13,41 @@ def test_get_security_group(monkeypatch):
 
 def test_resolve_security_groups(monkeypatch):
     ec2 = MagicMock()
-    ec2.security_groups.filter.return_value = [MagicMock(name='app-test', id='sg-test')]
-    monkeypatch.setattr('boto3.resource', MagicMock(return_value=ec2))
+    ec2.security_groups.filter = MagicMock(side_effect=[
+        [MagicMock(name='app-test', id='sg-test')],
+        [MagicMock(name='physical-resource-id', id='sg-resource')]])
+
+    def my_resource(rtype, *args):
+        if rtype == 'ec2':
+            return ec2
+        else:
+            return MagicMock()
+
+    def my_client(rtype, *args):
+        if rtype == 'cloudformation':
+            cf = MagicMock()
+            resource = {'StackResourceDetail': {'ResourceStatus': 'CREATE_COMPLETE', 
+                'ResourceType': 'AWS::EC2::SecurityGroup',
+                'PhysicalResourceId': 'physical-resource-id'}}
+            cf.describe_stack_resource.return_value = resource
+            return cf
+        else:
+            return MagicMock()
+
+    monkeypatch.setattr('boto3.resource', my_resource)
+    monkeypatch.setattr('boto3.client', my_client)
 
     security_groups = []
     security_groups.append({'Fn::GetAtt': ['RefSecGroup', 'GroupId']})
     security_groups.append('sg-007')
     security_groups.append('app-test')
+    security_groups.append({'Stack': 'stack', 'LogicalId': 'id'})
 
     result = []
     result.append({'Fn::GetAtt': ['RefSecGroup', 'GroupId']})
     result.append('sg-007')
     result.append('sg-test')
+    result.append('sg-resource')
 
     assert result == resolve_security_groups(security_groups, 'myregion')
 
@@ -117,3 +140,25 @@ def test_get_account_alias(monkeypatch):
     monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
 
     assert 'org-dummy' == get_account_alias()
+
+def test_resolve_referenced_resource(monkeypatch):
+    boto3 = MagicMock()
+    resource = {'StackResourceDetail': {'ResourceStatus':'CREATE_COMPLETE', 
+        'ResourceType': 'AWS::EC2::Something',
+        'PhysicalResourceId':'some-resource'}}
+    boto3.describe_stack_resource.return_value = resource
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+    
+    ref = {'Fn::GetAtt': ['RefSecGroup', 'GroupId']}
+    assert ref == resolve_referenced_resource(ref, 'region')
+
+    ref = {'Stack': 'stack', 'LogicalId': 'id'}
+    assert 'some-resource' == resolve_referenced_resource(ref, 'region')
+
+    resource['StackResourceDetail']['ResourceStatus'] = 'CREATE_IN_PROGRESS'
+    try:
+        resolve_referenced_resource(ref, 'region')
+    except ValueError:
+        pass
+    else:
+        assert False, "resolving referenced resource failed"

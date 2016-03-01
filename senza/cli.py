@@ -573,6 +573,7 @@ def list_stacks(region, stack_ref, all, output, w, watch):
 def create(definition, region, version, parameter, disable_rollback, dry_run, force, tag):
     '''Create a new Cloud Formation stack from the given Senza definition file'''
 
+    region = get_region(region)
     data = create_cf_template(definition, region, version, parameter, force)
 
     for tag_kv in tag:
@@ -608,6 +609,7 @@ def create(definition, region, version, parameter, disable_rollback, dry_run, fo
 @click.option('-f', '--force', is_flag=True, help='Ignore failing validation checks')
 def update(definition, region, version, parameter, disable_rollback, dry_run, force):
     '''Update an existing Cloud Formation stack from the given Senza definition file'''
+    region = get_region(region)
     data = create_cf_template(definition, region, version, parameter, force)
     cf = boto3.client('cloudformation', region)
 
@@ -631,6 +633,7 @@ def update(definition, region, version, parameter, disable_rollback, dry_run, fo
 @click.option('-f', '--force', is_flag=True, help='Ignore failing validation checks')
 def print_cfjson(definition, region, version, parameter, output, force):
     '''Print the generated Cloud Formation template'''
+    region = get_region(region)
     data = create_cf_template(definition, region, version, parameter, force)
     print_json(data['TemplateBody'], output)
 

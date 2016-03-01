@@ -98,6 +98,8 @@ MAX_COLUMN_WIDTHS = {
     'ResourceStatusReason': 50
 }
 
+GLOBAL_OPTIONS = {}
+
 
 def print_json(data, output=None):
     if output == 'yaml':
@@ -277,8 +279,9 @@ def is_credentials_expired_error(e: ClientError) -> bool:
 @click.group(cls=AliasedGroup, context_settings=CONTEXT_SETTINGS)
 @click.option('-V', '--version', is_flag=True, callback=print_version, expose_value=False, is_eager=True,
               help='Print the current version number and exit.')
-def cli():
-    pass
+@region_option
+def cli(region):
+    GLOBAL_OPTIONS['region'] = region
 
 
 class TemplateArguments:
@@ -442,6 +445,8 @@ def parse_args(input, region, version, parameter, account_info):
 
 
 def get_region(region):
+    if not region:
+        region = GLOBAL_OPTIONS.get('region')
     if not region:
         config = configparser.ConfigParser()
         try:

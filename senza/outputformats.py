@@ -39,17 +39,5 @@ def row_data(stack, output_format):
             else:
                 row_col = column['col']
             row_dict[row_col] = getattr(stack, column['col'])
-            # if 'max-length' in column:
-            #     value_length = len(row_dict[row_col])
-            #     row_dict[row_col] = row_dict[row_col][0:column['max-length']]
-            #     if value_length > column['max-length']:
-            #         row_dict[row_col] = row_dict[row_col] + '...'
     return row_dict
 
-
-# rows.append({'stack_name': stack.name,
-#                          'stack_name': stack.name,
-#                          'version': stack.version,
-#                          'status': stack.StackStatus,
-#                          'creation_time': calendar.timegm(stack.CreationTime.timetuple()),
-#                          'description': stack.TemplateDescription})

@@ -1,9 +1,11 @@
+import base64
 import collections
 import datetime
 import functools
 import time
+
 import boto3
-import base64
+
 from botocore.exceptions import ClientError
 
 

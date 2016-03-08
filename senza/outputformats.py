@@ -40,4 +40,3 @@ def row_data(stack, output_format):
                 row_col = column['col']
             row_dict[row_col] = getattr(stack, column['col'])
     return row_dict
-

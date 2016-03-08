@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import base64
 import calendar
 import collections
 import configparser
@@ -6,37 +7,43 @@ import datetime
 import functools
 import importlib
 import ipaddress
+import json
 import os
 import re
 import sys
-import json
-from urllib.error import URLError
-import dns.resolver
 import time
+from pprint import pformat
 from subprocess import call
+from urllib.error import URLError
+from urllib.parse import quote
+from urllib.request import urlopen
+
+import boto3
+
+from botocore.exceptions import ClientError, NoCredentialsError
 
 import click
-from clickclick import AliasedGroup, Action, choice, info, FloatRange, OutputFormat, error, fatal_error, ok
-from clickclick.console import print_table
-import requests
-import yaml
-import base64
-import boto3
-from botocore.exceptions import NoCredentialsError, ClientError
 
-from .aws import parse_time, get_required_capabilities, resolve_topic_arn, get_stacks, StackReference, matches_any, \
-    get_account_id, get_account_alias, get_tag
-from .components import get_component, evaluate_template
+from clickclick import Action, AliasedGroup, FloatRange, OutputFormat, choice, error, fatal_error, info, ok
+from clickclick.console import print_table
+
+import dns.resolver
+
+import requests
+
+import senza
+
+import yaml
+
+from .aws import StackReference, get_account_alias, get_account_id, get_required_capabilities, get_stacks, \
+    get_tag, matches_any, parse_time, resolve_topic_arn
+from .components import evaluate_template, get_component
 from .components.stups_auto_configuration import find_taupage_image
+from .outputformats import load_output_format, row_data
 from .patch import patch_auto_scaling_group
 from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
-import senza
-from urllib.request import urlopen
-from urllib.parse import quote
-from .traffic import change_version_traffic, print_version_traffic, get_records, get_zone
-from .utils import named_value, camel_case_to_underscore, pystache_render, ensure_keys
-from pprint import pformat
-from .outputformats import load_output_format, row_data
+from .traffic import change_version_traffic, get_records, get_zone, print_version_traffic
+from .utils import camel_case_to_underscore, ensure_keys, named_value, pystache_render
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 

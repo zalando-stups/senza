@@ -36,6 +36,7 @@ from urllib.parse import quote
 from .traffic import change_version_traffic, print_version_traffic, get_records, get_zone
 from .utils import named_value, camel_case_to_underscore, pystache_render, ensure_keys
 from pprint import pformat
+from .outputformats import load_output_format, row_data
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -547,18 +548,21 @@ def list_stacks(region, stack_ref, all, output, w, watch):
 
     for _ in watching(w, watch):
         rows = []
+        output_format = load_output_format('list')
         for stack in get_stacks(stack_refs, region, all=all):
-            rows.append({'stack_name': stack.name,
-                         'version': stack.version,
-                         'status': stack.StackStatus,
-                         'creation_time': calendar.timegm(stack.CreationTime.timetuple()),
-                         'description': stack.TemplateDescription})
+            rows.append(row_data(stack, output_format['columns']))
 
-        rows.sort(key=lambda x: (x['stack_name'], x['version']))
+        rows.sort(key=lambda row: list(map(lambda f: row[f], output_format['sort_by'])))
+
+        col_list = list(map(lambda x: x['alias'] if 'alias' in x else x['col'], output_format['columns']))
+
+        max_column_widths = {}
+        for col in output_format['columns']:
+            if 'max-length' in col:
+                max_column_widths[col['alias'] if 'alias' in col else col['col']] = col['max-length']
 
         with OutputFormat(output):
-            print_table('stack_name version status creation_time description'.split(), rows,
-                        styles=STYLES, titles=TITLES)
+            print_table(col_list, rows, styles=STYLES, titles=None, max_column_widths=max_column_widths)
 
 
 @cli.command()

@@ -294,6 +294,10 @@ Resources:
         {{/add_replica_loadbalancer}}
         {{#zmon_sg_id}}
         - IpProtocol: tcp
+          FromPort: {{promotheus_port}}
+          ToPort: {{promotheus_port}}
+          SourceSecurityGroupId: "{{zmon_sg_id}}"
+        - IpProtocol: tcp
           FromPort: {{postgres_port}}
           ToPort: {{postgres_port}}
           SourceSecurityGroupId: "{{zmon_sg_id}}"
@@ -361,6 +365,7 @@ def set_default_variables(variables):
     variables.setdefault('pgpassword_standby', 'standby')
     variables.setdefault('pgpassword_superuser', 'zalando')
     variables.setdefault('postgres_port', POSTGRES_PORT)
+    variables.setdefault('promotheus_port', '9100')
     variables.setdefault('scalyr_account_key', None)
     variables.setdefault('snapshot_id', None)
     variables.setdefault('use_ebs', True)

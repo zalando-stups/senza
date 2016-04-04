@@ -101,6 +101,11 @@ SenzaComponents:
           PGPASSWORD_SUPERUSER: "{{pgpassword_superuser}}"
           PGPASSWORD_ADMIN: "{{pgpassword_admin}}"
           PGPASSWORD_STANDBY: "{{pgpassword_standby}}"
+          PATRONI_CONFIGURATION: | ## https://github.com/zalando/patroni#yaml-configuration
+            # postgresql:
+            #   pg_hba:
+            #   - hostnossl all all all reject
+            #   - hostssl   all all all md5
         root: True
         mounts:
           /home/postgres/pgdata:

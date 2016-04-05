@@ -7,6 +7,27 @@ import base64
 from botocore.exceptions import ClientError
 
 
+def resolve_referenced_resource(ref: dict, region: str):
+    if 'Stack' in ref and 'LogicalId' in ref:
+        cf = boto3.client('cloudformation', region)
+        resource = cf.describe_stack_resource(
+            StackName=ref['Stack'],
+            LogicalResourceId=ref['LogicalId'])['StackResourceDetail']
+        if resource['ResourceStatus'] != 'CREATE_COMPLETE':
+            raise ValueError('Resource "{}" is not ready ("{}")'.format(ref['LogicalId'], resource['ResourceStatus']))
+
+        resource_id = resource['PhysicalResourceId']
+
+        # sg is referenced by its name not its id
+        if resource['ResourceType'] == 'AWS::EC2::SecurityGroup':
+            sg = get_security_group(region, resource_id)
+            return sg.id if sg is not None else None
+        else:
+            return resource_id
+    else:
+        return ref
+
+
 def get_security_group(region: str, sg_name: str):
     ec2 = boto3.resource('ec2', region)
     try:
@@ -60,19 +81,25 @@ def list_kms_keys(region: str, details=True):
     return keys
 
 
+def resolve_security_group(security_group, region: str):
+    if isinstance(security_group, dict):
+        sg = resolve_referenced_resource(security_group, region)
+        if not sg:
+            raise ValueError('Referenced Security Group "{}" does not exist'.format(security_group))
+        return sg
+    elif security_group.startswith('sg-'):
+        return security_group
+    else:
+        sg = get_security_group(region, security_group)
+        if not sg:
+            raise ValueError('Security Group "{}" does not exist'.format(security_group))
+        return sg.id
+
+
 def resolve_security_groups(security_groups: list, region: str):
     result = []
     for security_group in security_groups:
-        if isinstance(security_group, dict):
-            result.append(security_group)
-        elif security_group.startswith('sg-'):
-            result.append(security_group)
-        else:
-            sg = get_security_group(region, security_group)
-            if not sg:
-                raise ValueError('Security Group "{}" does not exist'.format(security_group))
-            result.append(sg.id)
-
+        result.append(resolve_security_group(security_group, region))
     return result
 
 

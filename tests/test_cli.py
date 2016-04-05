@@ -266,6 +266,14 @@ def test_print_auto(monkeypatch):
                                                       'IsTruncated': False,
                                                       'MaxItems': '100'}
             return route53
+        elif rtype == 'cloudformation':
+            cf = MagicMock()
+            resource = {'StackResourceDetail': {'ResourceStatus':'CREATE_COMPLETE',
+              'ResourceType': 'AWS::IAM::Role',
+              'PhysicalResourceId':'my-referenced-role'}}
+            cf.describe_stack_resource.return_value = resource
+            return cf
+
         return MagicMock()
 
     monkeypatch.setattr('boto3.client', my_client)
@@ -280,7 +288,7 @@ def test_print_auto(monkeypatch):
                                                'InstanceType': 't2.micro',
                                                'TaupageConfig': {'runtime': 'Docker',
                                                                  'source': 'foo/bar:{{Arguments.ImageVersion}}'},
-                                               'IamRoles': ['app-myrole'],
+                                               'IamRoles': [{'Stack': 'stack1', 'LogicalId': 'ReferencedRole'}],
                                                'SecurityGroups': ['app-sg', 'sg-123'],
                                                'AutoScaling':
                                                    {'Minimum': 1,
@@ -308,6 +316,7 @@ def test_print_auto(monkeypatch):
     assert 'subnet-ghi789' in data['Mappings']['LoadBalancerSubnets']['myregion']['Subnets']
     assert 'source: foo/bar:1.0-SNAPSHO' in data['Resources']['AppServerConfig']['Properties']['UserData']['Fn::Base64']
     assert 'ELB' == data['Resources']['AppServer']['Properties']['HealthCheckType']
+    assert 'my-referenced-role' in data['Resources']['AppServerInstanceProfile']['Properties']['Roles']
 
 
 def test_print_default_value(monkeypatch):

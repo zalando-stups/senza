@@ -6,6 +6,7 @@ import boto3
 import base64
 from botocore.exceptions import ClientError
 
+
 def resolve_referenced_resource(ref: dict, region: str):
     if 'Stack' in ref and 'LogicalId' in ref:
         cf = boto3.client('cloudformation', region)

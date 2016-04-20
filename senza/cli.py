@@ -36,6 +36,7 @@ from urllib.parse import quote
 from .traffic import change_version_traffic, print_version_traffic, get_records, get_zone
 from .utils import named_value, camel_case_to_underscore, pystache_render, ensure_keys
 from pprint import pformat
+from senza.templates._helper import get_mint_bucket_name
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -394,6 +395,15 @@ class AccountArguments:
                     raise AttributeError('Multiple VPC only supported with one default VPC!')
                 else:
                     raise AttributeError('Can\'t find any VPC!')
+        return attr
+
+    @property
+    def MintBucket(self):
+        attr = getattr(self, '__MintBucket', None)
+        if attr is None:
+            mint_bucket = get_mint_bucket_name(self.Region)
+            setattr(self, '__MintBucket', mint_bucket)
+            return mint_bucket
         return attr
 
 

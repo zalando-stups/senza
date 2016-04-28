@@ -31,10 +31,7 @@ def resolve_referenced_resource(ref: dict, region: str):
         if stack['StackStatus'] != 'CREATE_COMPLETE':
             raise ValueError('Stack "{}" is not ready ("{}")'.format(ref['Stack'], stack['StackStatus']))
 
-        if 'Outputs' not in stack:
-            return None
-
-        for output in stack['Outputs']:
+        for output in stack.get('Outputs', []):
             if output['OutputKey'] == ref['Output']:
                 return output['OutputValue']
 

@@ -182,3 +182,6 @@ def test_resolve_referenced_resource(monkeypatch):
     del stack['Outputs']
     assert resolve_referenced_resource(ref, 'region') is None
 
+    stack['Outputs'] = []
+    assert resolve_referenced_resource(ref, 'region') is None
+

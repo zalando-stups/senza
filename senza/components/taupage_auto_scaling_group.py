@@ -7,6 +7,7 @@ import json
 import sys
 import re
 
+from senza.aws import resolve_referenced_resource
 from senza.components.auto_scaling_group import component_auto_scaling_group
 from senza.docker import docker_image_exists
 from senza.utils import ensure_keys
@@ -64,7 +65,7 @@ def component_taupage_auto_scaling_group(definition, configuration, args, info, 
     if not force and docker_image.registry:
         check_docker_image_exists(docker_image)
 
-    userdata = generate_user_data(taupage_config)
+    userdata = generate_user_data(taupage_config, args.region)
 
     config_name = configuration["Name"] + "Config"
     ensure_keys(definition, "Resources", config_name, "Properties", "UserData")
@@ -73,7 +74,7 @@ def component_taupage_auto_scaling_group(definition, configuration, args, info, 
     return definition
 
 
-def generate_user_data(taupage_config):
+def generate_user_data(taupage_config, region):
     """
     Generates the CloudFormation "UserData" field.
     It looks for AWS functions such as Fn:: and Ref and generates the appropriate UserData json field,
@@ -101,6 +102,8 @@ def generate_user_data(taupage_config):
 
         if isinstance(node, dict):
             num_keys = len(node)
+            if 'Stack' in node and 'Output' in node:
+                return resolve_referenced_resource(node, region)
             if num_keys > 0:
                 key = next(iter(node.keys()))
                 if num_keys == 1 and is_aws_fn(key):

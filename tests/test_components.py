@@ -361,7 +361,7 @@ def test_component_taupage_auto_scaling_group_user_data_without_ref():
 
     expected_user_data = '#taupage-ami-config\nenvironment:\n  ENV3: r3\nruntime: Docker\n'
 
-    assert expected_user_data == generate_user_data(configuration)
+    assert expected_user_data == generate_user_data(configuration, 'region')
 
 
 def test_component_taupage_auto_scaling_group_user_data_with_ref():
@@ -383,7 +383,7 @@ def test_component_taupage_auto_scaling_group_user_data_with_ref():
             '\nruntime: Docker\nsource: ', {'Fn::Join': ['/', ['pierone.stups.zalan.do', 'cool',
                                                          {'Fn::GetAtt': ['Obj1', 'Attr1']}]]}, '\n']]}
 
-    assert expected_user_data == generate_user_data(configuration)
+    assert expected_user_data == generate_user_data(configuration, 'region')
 
 
 def test_component_taupage_auto_scaling_group_user_data_with_lists_and_empty_dict():
@@ -395,7 +395,7 @@ def test_component_taupage_auto_scaling_group_user_data_with_lists_and_empty_dic
     expected_user_data = {'Fn::Join': ['', [
         '#taupage-ami-config\nports: {}\nresources:\n- A\n- ', {'Ref': 'Res1'}, '\n']]}
 
-    assert expected_user_data == generate_user_data(configuration)
+    assert expected_user_data == generate_user_data(configuration, 'region')
 
 
 def test_component_auto_scaling_group_configurable_properties():

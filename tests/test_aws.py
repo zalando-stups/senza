@@ -147,6 +147,10 @@ def test_resolve_referenced_resource(monkeypatch):
         'ResourceType': 'AWS::EC2::Something',
         'PhysicalResourceId':'some-resource'}}
     boto3.describe_stack_resource.return_value = resource
+    stack = {'StackStatus': 'CREATE_COMPLETE', 'Outputs': [{'OutputKey':'DatabaseHost',
+                                                            'OutputValue': 'localhost'}]}
+    boto3.describe_stacks.return_value = {'Stacks': [stack]}
+
     monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
     
     ref = {'Fn::GetAtt': ['RefSecGroup', 'GroupId']}
@@ -162,3 +166,19 @@ def test_resolve_referenced_resource(monkeypatch):
         pass
     else:
         assert False, "resolving referenced resource failed"
+
+    ref = {'Stack': 'stack', 'Output': 'DatabaseHost'}
+    assert 'localhost' == resolve_referenced_resource(ref, 'region')
+
+    stack['StackStatus'] = 'CREATE_IN_PROGRESS'
+    try:
+        resolve_referenced_resource(ref, 'region')
+    except ValueError:
+        pass
+    else:
+        assert False, "resolving referenced resource failed"
+
+    stack['StackStatus'] = 'CREATE_COMPLETE'
+    del stack['Outputs']
+    assert resolve_referenced_resource(ref, 'region') is None
+

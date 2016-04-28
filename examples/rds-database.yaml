@@ -1,0 +1,16 @@
+SenzaInfo:
+  StackName: hello-world-database
+Resources:
+  Database:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBName: hello_world_db
+      Engine: postgres
+      EngineVersion: 9.4.7
+      MasterUsername: postgres
+      MasterUserPassword: postgres
+    DeletionPolicy: Snapshot
+Outputs:
+  DatabaseHost:
+    Value:
+      "Fn::GetAtt": [Database, Endpoint.Address]

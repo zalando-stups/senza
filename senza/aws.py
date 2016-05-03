@@ -24,6 +24,18 @@ def resolve_referenced_resource(ref: dict, region: str):
             return sg.id if sg is not None else None
         else:
             return resource_id
+    elif 'Stack' in ref and 'Output' in ref:
+        cf = boto3.client('cloudformation', region)
+        stack = cf.describe_stacks(
+            StackName=ref['Stack'])['Stacks'][0]
+        if stack['StackStatus'] != 'CREATE_COMPLETE':
+            raise ValueError('Stack "{}" is not ready ("{}")'.format(ref['Stack'], stack['StackStatus']))
+
+        for output in stack.get('Outputs', []):
+            if output['OutputKey'] == ref['Output']:
+                return output['OutputValue']
+
+        return None
     else:
         return ref
 

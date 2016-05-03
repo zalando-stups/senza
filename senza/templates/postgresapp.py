@@ -16,7 +16,6 @@ from ._helper import prompt, check_s3_bucket, get_account_alias
 
 POSTGRES_PORT = 5432
 HEALTHCHECK_PORT = 8008
-SPILO_IMAGE_ADDRESS = "registry.opensource.zalan.do/acid/spilo-9.5"
 
 # This template goes through 2 formatting phases. Once during the init phase and once during
 # the create phase of senza. Some placeholders should be evaluated during create.

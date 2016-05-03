@@ -101,6 +101,7 @@ SenzaComponents:
           PGPASSWORD_SUPERUSER: "{{pgpassword_superuser}}"
           PGPASSWORD_ADMIN: "{{pgpassword_admin}}"
           PGPASSWORD_STANDBY: "{{pgpassword_standby}}"
+          BACKUP_SCHEDULE: "00 01 * * *"
           PATRONI_CONFIGURATION: | ## https://github.com/zalando/patroni#yaml-configuration
             # postgresql:
             #   pg_hba:

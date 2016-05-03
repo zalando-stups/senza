@@ -16,7 +16,6 @@ from ._helper import prompt, check_s3_bucket, get_account_alias
 
 POSTGRES_PORT = 5432
 HEALTHCHECK_PORT = 8008
-SPILO_IMAGE_ADDRESS = "registry.opensource.zalan.do/acid/spilo-9.4"
 
 # This template goes through 2 formatting phases. Once during the init phase and once during
 # the create phase of senza. Some placeholders should be evaluated during create.
@@ -101,6 +100,7 @@ SenzaComponents:
           PGPASSWORD_SUPERUSER: "{{pgpassword_superuser}}"
           PGPASSWORD_ADMIN: "{{pgpassword_admin}}"
           PGPASSWORD_STANDBY: "{{pgpassword_standby}}"
+          BACKUP_SCHEDULE: "00 01 * * *"
           PATRONI_CONFIGURATION: | ## https://github.com/zalando/patroni#yaml-configuration
             # postgresql:
             #   pg_hba:
@@ -125,7 +125,7 @@ SenzaComponents:
             {{/snapshot_id}}
             options: {{fsoptions}}
         {{#scalyr_account_key}}
-        scalyr_account_key: {{scalyr_account_key}}
+        scalyr_account_key: "{{scalyr_account_key}}"
         {{/scalyr_account_key}}
 Resources:
   {{#add_replica_loadbalancer}}
@@ -393,7 +393,7 @@ def gather_user_variables(variables, region, account_info):
     defaults = set_default_variables(dict())
 
     if click.confirm('Do you want to set the docker image now? [No]'):
-        prompt(variables, "docker_image", "Docker Image Version", default=get_latest_spilo_image())
+        prompt(variables, "docker_image", "Docker Image Version", default=get_latest_image())
 
     prompt(variables, 'wal_s3_bucket', 'Postgres WAL S3 bucket to use',
            default='{}-{}-spilo-app'.format(get_account_alias(), region))
@@ -476,7 +476,7 @@ def gather_user_variables(variables, region, account_info):
 
         variables['kms_arn'] = [k['Arn'] for k in kms_keys if k['KeyId'] == kms_keyid][0]
 
-        for key in [k for k in variables if k.startswith('pgpassword_')]:
+        for key in [k for k in variables if k.startswith('pgpassword_') or k == 'scalyr_account_key']:
             encrypted = encrypt(region=region, KeyId=kms_keyid, Plaintext=variables[key], b64encode=True)
             variables[key] = 'aws:kms:{}'.format(encrypted)
 
@@ -505,16 +505,15 @@ def generate_definition(variables):
     return definition_yaml
 
 
-def get_latest_spilo_image(registry_url='https://registry.opensource.zalan.do',
-                           address='/teams/acid/artifacts/spilo-9.4/tags'):
+def get_latest_image(registry_domain='registry.opensource.zalan.do', team='acid', artifact='spilo-9.5'):
     """
-    >>> 'registry.opensource.zalan.do' in get_latest_spilo_image()
+    >>> 'registry.opensource.zalan.do' in get_latest_image()
     True
-    >>> get_latest_spilo_image('dont.exist.url')
+    >>> get_latest_image('dont.exist.url')
     ''
     """
     try:
-        r = requests.get(registry_url + address)
+        r = requests.get('https://{0}/teams/{1}/artifacts/{2}/tags'.format(registry_domain, team, artifact))
         if r.ok:
             # sort the tags by creation date
             latest = None
@@ -525,7 +524,7 @@ def get_latest_spilo_image(registry_url='https://registry.opensource.zalan.do',
                     latest = tag
                     break
                 latest = latest or tag
-            return "{0}:{1}".format(SPILO_IMAGE_ADDRESS, latest)
+            return "{0}/{1}/{2}:{3}".format(registry_domain, team, artifact, latest)
     except:
         pass
     return ""

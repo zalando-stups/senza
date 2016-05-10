@@ -708,7 +708,9 @@ def create_cf_template(definition, region, version, parameter, force):
 @region_option
 @click.option('--dry-run', is_flag=True, help='No-op mode: show what would be deleted')
 @click.option('-f', '--force', is_flag=True, help='Allow deleting multiple stacks')
-def delete(stack_ref, region, dry_run, force):
+@click.option('-i', '--interactive', is_flag=True,
+              help='Prompt before every deletion')
+def delete(stack_ref, region, dry_run, force, interactive):
     '''Delete a single Cloud Formation stack'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
@@ -725,6 +727,9 @@ def delete(stack_ref, region, dry_run, force):
                     'Please use the "--force" flag if you really want to delete multiple stacks.')
 
     for stack in stacks:
+        if interactive and not click.confirm("Delete '{}'?".format(stack.StackName)):
+            continue
+
         with Action('Deleting Cloud Formation stack {}..'.format(stack.StackName)):
             if not dry_run:
                 cf.delete_stack(StackName=stack.StackName)

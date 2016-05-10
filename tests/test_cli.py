@@ -1018,6 +1018,48 @@ def test_delete(monkeypatch):
         assert 'OK' in result.output
 
 
+def test_delete_interactive(monkeypatch):
+
+    cf = MagicMock()
+    stack = {'StackName': 'test-1',
+             'CreationTime': datetime.datetime.utcnow()}
+    cf.list_stacks.return_value = {'StackSummaries': [stack]}
+
+    def my_resource(rtype, *args):
+        return MagicMock()
+
+    def my_client(rtype, *args):
+        if rtype == 'cloudformation':
+            return cf
+        return MagicMock()
+
+    monkeypatch.setattr('boto3.resource', my_resource)
+    monkeypatch.setattr('boto3.client', my_client)
+
+    runner = CliRunner()
+
+    data = {'SenzaInfo': {'StackName': 'test'}}
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+        result = runner.invoke(cli,
+                               ['delete', 'myapp.yaml', '--region=myregion', '-i', '1'],
+                               input='n\n',
+                               catch_exceptions=False)
+        assert "Delete 'test-1'" in result.output
+        assert "OK" not in result.output
+
+        result = runner.invoke(cli,
+                               ['delete', 'myapp.yaml', '--region=myregion',
+                                '-i', '1'],
+                               input='y\n',
+                               catch_exceptions=False)
+        assert "Delete 'test-1'" in result.output
+        assert "OK" in result.output
+
+
+
 def test_create(monkeypatch):
     cf = MagicMock()
 

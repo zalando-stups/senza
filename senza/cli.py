@@ -883,6 +883,7 @@ def get_instance_docker_image_source(instance) -> str:
 @click.argument('stack_ref', nargs=-1)
 @click.option('--all', is_flag=True, help='Show all instances, including instances not part of any stack')
 @click.option('--terminated', is_flag=True, help='Show instances in TERMINATED state')
+@click.option('-v', '--version', metavar='VERSION', help='Show instances matching with the specific stack versions')
 @click.option('-d', '--docker-image', is_flag=True, help='Show docker image source for every instance listed')
 @click.option('-p', '--piu', metavar='REASON', help='execute PIU request-access command')
 @click.option('-O', '--odd-host', help='Odd SSH bastion hostname', envvar='ODD_HOST', metavar='HOSTNAME')
@@ -890,7 +891,7 @@ def get_instance_docker_image_source(instance) -> str:
 @output_option
 @watch_option
 @watchrefresh_option
-def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region, output, w, watch):
+def instances(stack_ref, all, terminated, version, docker_image, piu, odd_host, region, output, w, watch):
     '''List the stack's EC2 instances'''
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
@@ -904,6 +905,10 @@ def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region, o
     else:
         # filter out instances not part of any stack
         filters = [{'Name': 'tag-key', 'Values': ['aws:cloudformation:stack-name']}]
+
+    if version:
+        version = version.split(',')
+        filters.append({'Name': 'tag:StackVersion', 'Values': version})
 
     opt_docker_column = ' docker_source' if docker_image else ''
 

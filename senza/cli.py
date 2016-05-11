@@ -507,11 +507,9 @@ StackReference(name='foobar-stack', version='v99'), StackReference(name='other-s
                 with open(ref) as fd:
                     data = yaml.safe_load(fd)
                 ref = data['SenzaInfo']['StackName']
-            except Exception as e:
-                if not STACK_NAME_PATTERN.match(ref):
-                    # we can be sure that ref is a file path,
-                    # as stack names cannot contain dots or slashes
-                    raise click.FileError(ref, str(e))
+            except (OSError, IOError):
+                # It's still possible that the ref is a regex
+                pass
 
             if refs:
                 version = refs.pop()

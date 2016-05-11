@@ -269,8 +269,8 @@ def matches_any(cf_stack_name: str, stack_refs: list):
         version = None
 
     for ref in stack_refs:
-        matches_name = re.match(ref.name+'$', name)
-        matches_version = not ref.version or re.match(ref.version+'$', version)
+        matches_name = re.match(ref.name + '$', name)
+        matches_version = not ref.version or re.match(ref.version + '$', version)
         return bool(matches_name and matches_version)
     return False
 

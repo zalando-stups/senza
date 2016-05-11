@@ -256,13 +256,22 @@ def matches_any(cf_stack_name: str, stack_refs: list):
 
     >>> matches_any('foobar-1', [StackReference(name='foobar', version='2')])
     False
+
+    >>> matches_any('foobar-1', [StackReference(name='foob.r', version='\d')])
+    True
     """
+
     cf_stack_name = cf_stack_name or ''  # ensure cf_stack_name is a str
-    name, version = cf_stack_name.rsplit('-', 1)
+    try:
+        name, version = cf_stack_name.rsplit('-', 1)
+    except ValueError:
+        name = cf_stack_name
+        version = None
+
     for ref in stack_refs:
         matches_name = re.match(ref.name+'$', name)
         matches_version = not ref.version or re.match(ref.version+'$', version)
-        return matches_name and matches_version
+        return bool(matches_name and matches_version)
     return False
 
 

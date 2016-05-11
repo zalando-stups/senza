@@ -369,7 +369,7 @@ def set_default_variables(variables):
     variables.setdefault('healthcheck_port', HEALTHCHECK_PORT)
     variables.setdefault('hosted_zone', 'example.com')
     variables.setdefault('add_replica_loadbalancer', False)
-    variables.setdefault('instance_type', 't2.micro')
+    variables.setdefault('instance_type', 't2.medium')
     variables.setdefault('kms_arn', None)
     variables.setdefault('odd_sg_id', None)
     variables.setdefault('pgpassword_admin', 'admin')
@@ -398,7 +398,7 @@ def gather_user_variables(variables, region, account_info):
     prompt(variables, 'wal_s3_bucket', 'Postgres WAL S3 bucket to use',
            default='{}-{}-spilo-app'.format(get_account_alias(), region))
 
-    prompt(variables, 'instance_type', 'EC2 instance type', default='t2.micro')
+    prompt(variables, 'instance_type', 'EC2 instance type', default='t2.medium')
 
     variables['hosted_zone'] = account_info.Domain or defaults['hosted_zone']
     if (variables['hosted_zone'][-1:] != '.'):

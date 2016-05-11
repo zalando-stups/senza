@@ -888,6 +888,7 @@ def get_instance_docker_image_source(instance) -> str:
 @watchrefresh_option
 def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region, output, w, watch):
     '''List the stack's EC2 instances'''
+    # TODO fix wild card refs
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
     check_credentials(region)

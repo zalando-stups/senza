@@ -1,9 +1,10 @@
+import base64
+import boto3
 import collections
 import datetime
 import functools
+import re
 import time
-import boto3
-import base64
 from botocore.exceptions import ClientError
 
 
@@ -259,8 +260,8 @@ def matches_any(cf_stack_name: str, stack_refs: list):
     cf_stack_name = cf_stack_name or ''  # ensure cf_stack_name is a str
     name, version = cf_stack_name.rsplit('-', 1)
     for ref in stack_refs:
-        matches_name = name == ref.name
-        matches_version = version == ref.version or not ref.version
+        matches_name = re.match(ref.name+'$', name)
+        matches_version = not ref.version or re.match(ref.version+'$', version)
         return matches_name and matches_version
     return False
 

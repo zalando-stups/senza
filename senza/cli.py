@@ -4,7 +4,6 @@ import collections
 import configparser
 import datetime
 import functools
-import importlib
 import ipaddress
 import os
 import re
@@ -33,6 +32,7 @@ from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
 import senza
 from urllib.request import urlopen
 from urllib.parse import quote
+from .templates import get_templates, get_template_description
 from .traffic import change_version_traffic, print_version_traffic, get_records, get_zone
 from .utils import named_value, camel_case_to_underscore, pystache_render, ensure_keys
 from pprint import pformat
@@ -808,11 +808,6 @@ def events(stack_ref, region, w, watch, output):
                         rows, styles=STYLES, titles=TITLES, max_column_widths=MAX_COLUMN_WIDTHS)
 
 
-def get_template_description(template: str):
-    module = importlib.import_module('senza.templates.{}'.format(template))
-    return '{}: {}'.format(template, module.__doc__.strip())
-
-
 @cli.command()
 @click.argument('definition_file', type=click.File('w'))
 @region_option
@@ -820,21 +815,22 @@ def get_template_description(template: str):
 @click.option('-v', '--user-variable', help='Provide user variables for the template',
               metavar='KEY=VAL', multiple=True, type=KEY_VAL)
 def init(definition_file, region, template, user_variable):
-    '''Initialize a new Senza definition'''
+    """Initialize a new Senza definition"""
     region = get_region(region)
     check_credentials(region)
     account_info = AccountArguments(region=region)
 
-    templates = []
-    for mod in os.listdir(os.path.join(os.path.dirname(__file__), 'templates')):
-        if not mod.startswith('_'):
-            templates.append(mod.split('.')[0])
-    while template not in templates:
-        template = choice('Please select the project template',
-                          [(t, get_template_description(t)) for t in sorted(templates)],
-                          default='webapp')
+    templates = get_templates()
 
-    module = importlib.import_module('senza.templates.{}'.format(template))
+    module = templates.get(template, None)
+
+    if not module:
+        module = choice('Please select the project template',
+                        [(module, get_template_description(name, module))
+                         for name, module
+                         in sorted(templates.items(), key=lambda x: x[0])],  # sort by key
+                        default='webapp')
+
     variables = {}
     for key_val in user_variable:
         key, val = key_val

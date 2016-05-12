@@ -1368,8 +1368,10 @@ def failure_event(event: dict):
 @click.option('-d', '--deletion', is_flag=True, help='Wait for deletion instead of CREATE_COMPLETE')
 @click.option('-t', '--timeout', type=click.IntRange(0, 7200, clamp=True), metavar='SECS', default=1800,
               help='Maximum wait time (default: 1800s)')
+@click.option('-i', '--interval', default=5, type=click.IntRange(1, 600, clamp=True),
+              help='Time between checks (default: 5s)')
 @region_option
-def wait(stack_ref, region, deletion, timeout):
+def wait(stack_ref, region, deletion, timeout, interval):
     '''Wait for successfull stack creation or deletion.
 
     Supports waiting for more than one stack up to timeout seconds.'''
@@ -1409,7 +1411,7 @@ def wait(stack_ref, region, deletion, timeout):
             return
         else:
             raise click.UsageError('No matching stack for "{}" found'.format(' '.join(stack_ref)))
-        time.sleep(5)
+        time.sleep(interval)
     raise click.Abort()
 
 

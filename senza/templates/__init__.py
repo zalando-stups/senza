@@ -24,7 +24,7 @@ def get_templates() -> dict:
             continue
         else:
             # make sure the entry point resolves to a module with the essential interface functions
-            if isinstance(module, ModuleType) and\
-             has_functions(module, ('gather_user_variables', 'generate_definition')):
+            if (isinstance(module, ModuleType) and
+               has_functions(module, ('gather_user_variables', 'generate_definition'))):
                 template_modules[e.name] = module
     return template_modules

@@ -1,9 +1,13 @@
-from types import ModuleType
+from types import ModuleType, FunctionType
 import pkg_resources
 
 
 def get_template_description(name, module: ModuleType):
-    return '{}: {}'.format(name, module.__doc__.strip())
+    return '{}: {}'.format(name, (module.__doc__ or "").strip())
+
+
+def has_functions(module, names):
+    return all(isinstance(getattr(module, function_name, None), FunctionType) for function_name in names)
 
 
 def get_templates() -> dict:
@@ -19,5 +23,8 @@ def get_templates() -> dict:
             # ignore bad entry points
             continue
         else:
-            template_modules[e.name] = module
+            # make sure the entry point resolves to a module with the essential interface functions
+            if (isinstance(module, ModuleType) and
+               has_functions(module, ('gather_user_variables', 'generate_definition'))):
+                template_modules[e.name] = module
     return template_modules

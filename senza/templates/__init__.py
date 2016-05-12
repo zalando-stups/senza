@@ -3,7 +3,7 @@ import pkg_resources
 
 
 def get_template_description(name, module: ModuleType):
-    return '{}: {}'.format(name, module.__doc__.strip())
+    return '{}: {}'.format(name, (module.__doc__ or "").strip())
 
 
 def get_templates() -> dict:
@@ -19,5 +19,6 @@ def get_templates() -> dict:
             # ignore bad entry points
             continue
         else:
-            template_modules[e.name] = module
+            if isinstance(module, ModuleType):  # avoid objects that are not modules
+                template_modules[e.name] = module
     return template_modules

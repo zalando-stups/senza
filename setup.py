@@ -133,7 +133,12 @@ def setup_package():
         cmdclass=cmdclass,
         tests_require=['pytest-cov', 'pytest'],
         command_options=command_options,
-        entry_points={'console_scripts': CONSOLE_SCRIPTS},
+        entry_points={'console_scripts': CONSOLE_SCRIPTS,
+                      'senza.templates': ['bgapp = senza.templates.bgapp',
+                                          'postgresapp = senza.templates.postgresapp',
+                                          'rediscluster = senza.templates.rediscluster',
+                                          'redisnode = senza.templates.redisnode',
+                                          'webapp = senza.templates.webapp']},
     )
 
 

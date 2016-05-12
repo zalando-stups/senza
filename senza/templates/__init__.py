@@ -1,8 +1,10 @@
 from types import ModuleType
 import pkg_resources
 
+
 def get_template_description(name, module: ModuleType):
     return '{}: {}'.format(name, module.__doc__.strip())
+
 
 def get_templates() -> dict:
     """

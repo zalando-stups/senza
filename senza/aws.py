@@ -1,9 +1,10 @@
+import base64
+import boto3
 import collections
 import datetime
 import functools
+import re
 import time
-import boto3
-import base64
 from botocore.exceptions import ClientError
 
 
@@ -240,7 +241,7 @@ def get_stacks(stack_refs: list, region, all=False):
 
 
 def matches_any(cf_stack_name: str, stack_refs: list):
-    '''
+    """
     >>> matches_any(None, [StackReference(name='foobar', version=None)])
     False
 
@@ -255,12 +256,22 @@ def matches_any(cf_stack_name: str, stack_refs: list):
 
     >>> matches_any('foobar-1', [StackReference(name='foobar', version='2')])
     False
-    '''
+
+    >>> matches_any('foobar-1', [StackReference(name='foob.r', version='\d')])
+    True
+    """
+
+    cf_stack_name = cf_stack_name or ''  # ensure cf_stack_name is a str
+    try:
+        name, version = cf_stack_name.rsplit('-', 1)
+    except ValueError:
+        name = cf_stack_name
+        version = None
+
     for ref in stack_refs:
-        if ref.version and cf_stack_name == ref.cf_stack_name():
-            return True
-        elif not ref.version and (cf_stack_name or '').rsplit('-', 1)[0] == ref.name:
-            return True
+        matches_name = re.match(ref.name + '$', name)
+        matches_version = not ref.version or re.match(ref.version + '$', version)
+        return bool(matches_name and matches_version)
     return False
 
 

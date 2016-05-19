@@ -314,7 +314,8 @@ class AccountArguments:
     AttributeError: 'AccountArguments' object has no attribute 'blubber'
     '''
     def __init__(self, region, **kwargs):
-        setattr(self, '__Region', region)
+        self.__Region = region
+        self.__VpcID = None
         for key, val in kwargs.items():
             setattr(self, '__' + key, val)
 
@@ -378,24 +379,23 @@ class AccountArguments:
 
     @property
     def VpcID(self):
-        attr = getattr(self, '__VpcID', None)
-        if attr is None:
+        if self.__VpcID is None:
             ec2 = boto3.resource('ec2', self.Region)
+            vpc_list = list()
             for vpc in ec2.vpcs.all():  # don't use the list from blow. .all() use a internal pageing!
                 if vpc.is_default:
-                    setattr(self, '__VpcID', vpc.vpc_id)
-                    return vpc.vpc_id
-            if getattr(self, '__VpcID', None) is None:
-                vpclist = list(ec2.vpcs.all())
-                if len(vpclist) == 1:
+                    self.__VpcID = vpc.vpc_id
+                    break
+                vpc_list.append(vpc)
+            else:
+                if len(vpc_list) == 1:
                     # Use the only one VPC if no default VPC found
-                    setattr(self, '__VpcID', vpclist[0].vpc_id)
-                    return vpclist[0].vpc_id
-                elif len(vpclist) > 1:
+                    self.__VpcID = vpc_list[0].vpc_id
+                elif len(vpc_list) > 1:
                     raise AttributeError('Multiple VPC only supported with one default VPC!')
                 else:
                     raise AttributeError('Can\'t find any VPC!')
-        return attr
+        return self.__VpcID
 
     @property
     def MintBucket(self):

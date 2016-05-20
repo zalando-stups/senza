@@ -11,8 +11,8 @@ def store_exception(exception: Exception) -> str:
     """
 
     tracebacks = format_exception(etype=type(exception),
-                                   value=exception,
-                                   tb=exception.__traceback__)  # type: [str]
+                                  value=exception,
+                                  tb=exception.__traceback__)  # type: [str]
 
     content = ''.join(tracebacks)
 
@@ -40,7 +40,8 @@ def handle_exceptions(func):
         except ClientError as e:
             sys.stdout.flush()
             if is_credentials_expired_error(e):
-                print('AWS credentials have expired. Use the "mai" command line tool to get a new temporary access key.\n',
+                print('AWS credentials have expired.'
+                      'Use the "mai" command line tool to get a new temporary access key.',
                       file=sys.stderr)
                 sys.exit(1)
             else:

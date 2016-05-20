@@ -318,7 +318,7 @@ class AccountArguments:
     AttributeError: 'AccountArguments' object has no attribute 'blubber'
     '''
     def __init__(self, region, **kwargs):
-        self.__Region = region
+        self.Region = region
         self.__VpcID = None
         for key, val in kwargs.items():
             setattr(self, '__' + key, val)
@@ -340,10 +340,6 @@ class AccountArguments:
             setattr(self, '__AccountAlias', accountalias)
             return accountalias
         return attr
-
-    @property
-    def Region(self):
-        return getattr(self, '__Region', None)
 
     @property
     def Domain(self):

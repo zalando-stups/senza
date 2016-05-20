@@ -1,9 +1,8 @@
-import functools
-import sys
+from botocore.exceptions import NoCredentialsError, ClientError
 from tempfile import NamedTemporaryFile
 from traceback import format_exception
-
-from botocore.exceptions import NoCredentialsError, ClientError
+import functools
+import sys
 
 
 def store_exception(exception: Exception) -> str:
@@ -51,6 +50,7 @@ def handle_exceptions(func):
                 sys.exit(1)
         except Exception as e:
             # Catch All
+
             file_name = store_exception(e)
             print('Unknown Error.\n'
                   'Please create an issue with the content of {fn}'.format(fn=file_name))

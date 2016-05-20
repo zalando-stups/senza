@@ -32,6 +32,7 @@ from .aws import (parse_time, get_required_capabilities, resolve_topic_arn,
 from .components import get_component, evaluate_template
 from .components.stups_auto_configuration import find_taupage_image
 from .error_handling import handle_exceptions
+from .exceptions import VPCError
 from .patch import patch_auto_scaling_group
 from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
 from .templates import get_templates, get_template_description
@@ -336,9 +337,9 @@ class AccountArguments:
                     # Use the only one VPC if no default VPC found
                     self.__VpcID = vpc_list[0].vpc_id
                 elif len(vpc_list) > 1:
-                    raise AttributeError('Multiple VPC only supported with one default VPC!')
+                    raise VPCError('Multiple VPC only supported with one default VPC!')
                 else:
-                    raise AttributeError('Can\'t find any VPC!')
+                    raise VPCError('Can\'t find any VPC!')
         return self.__VpcID
 
     @property
@@ -593,8 +594,11 @@ def create_cf_template(definition, region, version, parameter, force):
     account_info = AccountArguments(region=region)
     args = parse_args(definition, region, version, parameter, account_info)
 
-    with Action('Generating Cloud Formation template..'):
-        data = evaluate(definition.copy(), args, account_info, force)
+    with Action('Generating Cloud Formation template..') as action:
+        try:
+            data = evaluate(definition.copy(), args, account_info, force)
+        except VPCError as e:
+            action.fatal_error('Fatal Error: {}'.format(e))
     stack_name = "{0}-{1}".format(data['Mappings']['Senza']['Info']['StackName'],
                                   data['Mappings']['Senza']['Info']['StackVersion'])
     if len(stack_name) > 128:

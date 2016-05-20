@@ -1,43 +1,43 @@
 #!/usr/bin/env python3
+import base64
 import calendar
 import collections
 import configparser
 import datetime
-import functools
 import ipaddress
+import json
 import os
 import re
 import sys
-import json
-from urllib.error import URLError
-import dns.resolver
 import time
+from pprint import pformat
 from subprocess import call
+from urllib.error import URLError
+from urllib.parse import quote
+from urllib.request import urlopen
 
+import boto3
 import click
-from clickclick import AliasedGroup, Action, choice, info, FloatRange, OutputFormat, error, fatal_error, ok
-from clickclick.console import print_table
+import dns.resolver
 import requests
 import yaml
-import base64
-import boto3
-from botocore.exceptions import NoCredentialsError, ClientError
+from botocore.exceptions import ClientError
+from clickclick import AliasedGroup, Action, choice, info, FloatRange, OutputFormat, error, fatal_error, ok
+from clickclick.console import print_table
 
-from .aws import parse_time, get_required_capabilities, resolve_topic_arn, get_stacks, StackReference, matches_any, \
-    get_account_id, get_account_alias, get_tag
+import senza
+from .aws import (parse_time, get_required_capabilities, resolve_topic_arn,
+                  get_stacks, StackReference, matches_any, get_account_id,
+                  get_account_alias, get_tag)
 from .components import get_component, evaluate_template
 from .components.stups_auto_configuration import find_taupage_image
+from .error_handling import handle_exceptions
 from .patch import patch_auto_scaling_group
 from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
-import senza
-from urllib.request import urlopen
-from urllib.parse import quote
 from .templates import get_templates, get_template_description
+from .templates._helper import get_mint_bucket_name
 from .traffic import change_version_traffic, print_version_traffic, get_records, get_zone
 from .utils import named_value, camel_case_to_underscore, pystache_render, ensure_keys
-from pprint import pformat
-from senza.templates._helper import get_mint_bucket_name
-from .error_handling import store_exception
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -245,40 +245,6 @@ def evaluate(definition, args, account_info, force: bool):
     definition = yaml.load(definition)
 
     return definition
-
-
-def handle_exceptions(func):
-    @functools.wraps(func)
-    def wrapper():
-        try:
-            func()
-        except NoCredentialsError as e:
-            print('No AWS credentials found. Use the "mai" command line tool to get a temporary access key\n'
-                  'or manually configure either ~/.aws/credentials or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY.',
-                  file=sys.stderr)
-            sys.exit(1)
-        except ClientError as e:
-            sys.stdout.flush()
-            if is_credentials_expired_error(e):
-                print('AWS credentials have expired. Use the "mai" command line tool to get a new temporary access key.\n',
-                      file=sys.stderr)
-                sys.exit(1)
-            else:
-                file_name = store_exception(e)
-                print('Unknown Error.\n'
-                      'Please create an issue with the content of {fn}'.format(fn=file_name))
-                sys.exit(1)
-        except Exception as e:
-            # Catch All
-            file_name = store_exception(e)
-            print('Unknown Error.\n'
-                  'Please create an issue with the content of {fn}'.format(fn=file_name))
-            sys.exit(1)
-    return wrapper
-
-
-def is_credentials_expired_error(e: ClientError) -> bool:
-    return e.response['Error']['Code'] in ['ExpiredToken', 'RequestExpired']
 
 
 @click.group(cls=AliasedGroup, context_settings=CONTEXT_SETTINGS)

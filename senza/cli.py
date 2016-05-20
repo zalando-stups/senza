@@ -37,6 +37,7 @@ from .traffic import change_version_traffic, print_version_traffic, get_records,
 from .utils import named_value, camel_case_to_underscore, pystache_render, ensure_keys
 from pprint import pformat
 from senza.templates._helper import get_mint_bucket_name
+from .error_handling import store_exception
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -252,24 +253,27 @@ def handle_exceptions(func):
         try:
             func()
         except NoCredentialsError as e:
-            sys.stdout.flush()
-            sys.stderr.write('No AWS credentials found. ' +
-                             'Use the "mai" command line tool to get a temporary access key\n')
-            sys.stderr.write('or manually configure either ~/.aws/credentials ' +
-                             'or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY.\n')
+            print('No AWS credentials found. Use the "mai" command line tool to get a temporary access key\n'
+                  'or manually configure either ~/.aws/credentials or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY.',
+                  file=sys.stderr)
             sys.exit(1)
         except ClientError as e:
             sys.stdout.flush()
             if is_credentials_expired_error(e):
-                sys.stderr.write('AWS credentials have expired. ' +
-                                 'Use the "mai" command line tool to get a new temporary access key.\n')
+                print('AWS credentials have expired. Use the "mai" command line tool to get a new temporary access key.\n',
+                      file=sys.stderr)
                 sys.exit(1)
             else:
-                raise
-        except:
+                file_name = store_exception(e)
+                print('Unknown Error.\n'
+                      'Please create an issue with the content of {fn}'.format(fn=file_name))
+                sys.exit(1)
+        except Exception as e:
             # Catch All
-            sys.stdout.flush()
-            raise
+            file_name = store_exception(e)
+            print('Unknown Error.\n'
+                  'Please create an issue with the content of {fn}'.format(fn=file_name))
+            sys.exit(1)
     return wrapper
 
 

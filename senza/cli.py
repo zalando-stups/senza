@@ -296,86 +296,64 @@ class TemplateArguments:
 
 
 class AccountArguments:
-    '''
-    >>> test = AccountArguments('blubber',
-    ... AccountID='123456',
-    ... AccountAlias='testdummy',
-    ... Domain='test.example.org.',
-    ... TeamID='superteam')
-    >>> test.AccountID
-    '123456'
-    >>> test.AccountAlias
-    'testdummy'
-    >>> test.TeamID
-    'superteam'
-    >>> test.Domain
-    'test.example.org'
+    """
+    >>> test = AccountArguments('blubber')
     >>> test.Region
     'blubber'
-    >>> test.blubber
-    Traceback (most recent call last):
-      File "<stdin>", line 1, in <module>
-    AttributeError: 'AccountArguments' object has no attribute 'blubber'
-    '''
-    def __init__(self, region, **kwargs):
+    """
+    def __init__(self, region):
         self.Region = region
+        self.__AccountAlias = None
+        self.__AccountID = None
+        self.__Domain = None
+        self.__MintBucket = None
+        self.__TeamID = None
         self.__VpcID = None
-        for key, val in kwargs.items():
-            setattr(self, '__' + key, val)
 
     @property
     def AccountID(self):
-        attr = getattr(self, '__AccountID', None)
-        if attr is None:
-            accountid = get_account_id()
-            setattr(self, '__AccountID', accountid)
-            return accountid
-        return attr
+        if self.__AccountID is None:
+            self.__AccountID = get_account_id()
+        return self.__AccountID
 
     @property
     def AccountAlias(self):
-        attr = getattr(self, '__AccountAlias', None)
-        if attr is None:
-            accountalias = get_account_alias()
-            setattr(self, '__AccountAlias', accountalias)
-            return accountalias
-        return attr
+        if self.__AccountAlias is None:
+            self.__AccountAlias = get_account_alias()
+        return self.__AccountAlias
 
     @property
     def Domain(self):
-        attr = getattr(self, '__Domain', None)
-        if attr is None:
-            return self.__setDomain()
-        return attr.rstrip('.')
+        if self.__Domain is None:
+            self.__setDomain()
+        return self.__Domain
 
-    def __setDomain(self, domainname=None):
-        domainlist = get_zone(domainname, all=True)
-        if len(domainlist) == 0:
+    def __setDomain(self, domain_name=None):
+        domain_list = get_zone(domain_name, all=True)
+        if len(domain_list) == 0:
             raise AttributeError('No Domain configured')
-        elif len(domainlist) > 1:
+        elif len(domain_list) > 1:
             domain = choice('Please select the domain',
-                            sorted(domain['Name'].rstrip('.') for domain in domainlist))
+                            sorted(domain['Name'].rstrip('.')
+                                   for domain in domain_list))
         else:
-            domain = domainlist[0]['Name'].rstrip('.')
-        setattr(self, '__Domain', domain)
+            domain = domain_list[0]['Name'].rstrip('.')
+        self.__Domain = domain
         return domain
 
-    def splitDomain(self, domainname):
-        self.__setDomain(domainname)
-        if domainname.endswith('.{}'.format(self.Domain)):
-            return domainname[:-len('.{}'.format(self.Domain))], self.Domain
+    def splitDomain(self, domain_name):
+        self.__setDomain(domain_name)
+        if domain_name.endswith('.{}'.format(self.Domain)):
+            return domain_name[:-len('.{}'.format(self.Domain))], self.Domain
         else:
             # default behaviour for unknown domains
-            return domainname.split('.', 1)
+            return domain_name.split('.', 1)
 
     @property
     def TeamID(self):
-        attr = getattr(self, '__TeamID', None)
-        if attr is None:
-            team_id = get_account_alias().split('-', maxsplit=1)[-1]
-            setattr(self, '__TeamID', team_id)
-            return team_id
-        return attr
+        if self.__TeamID is None:
+            self.__TeamID = self.AccountAlias.split('-', maxsplit=1)[-1]
+        return self.__TeamID
 
     @property
     def VpcID(self):
@@ -399,12 +377,9 @@ class AccountArguments:
 
     @property
     def MintBucket(self):
-        attr = getattr(self, '__MintBucket', None)
-        if attr is None:
-            mint_bucket = get_mint_bucket_name(self.Region)
-            setattr(self, '__MintBucket', mint_bucket)
-            return mint_bucket
-        return attr
+        if self.__MintBucket is None:
+            self.__MintBucket = get_mint_bucket_name(self.Region)
+        return self.__TeamID
 
 
 def parse_args(input, region, version, parameter, account_info):

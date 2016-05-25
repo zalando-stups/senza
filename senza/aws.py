@@ -266,7 +266,7 @@ def matches_any(cf_stack_name: str, stack_refs: list):
         name, version = cf_stack_name.rsplit('-', 1)
     except ValueError:
         name = cf_stack_name
-        version = None
+        version = ""
 
     for ref in stack_refs:
         matches_name = re.match(ref.name + '$', name)

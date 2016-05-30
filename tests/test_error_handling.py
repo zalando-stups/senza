@@ -35,14 +35,14 @@ def test_store_exception(monkeypatch, mock_tempfile):
 
     line_n = lineno() + 2
     try:
-        _ = 0/0
+        raise Exception("Testing exception handing")
     except Exception as e:
         file_name = senza.error_handling.store_exception(e)
 
     lines = ['Traceback (most recent call last):',
              '  File "{}", line {}, in test_store_exception'.format(__file__, line_n),
-             '    _ = 0/0',
-             'ZeroDivisionError: division by zero\n']
+             '    raise Exception("Testing exception handing")',
+             'Exception: Testing exception handing\n']
 
     expected_exception = '\n'.join(lines).encode()
 
@@ -56,25 +56,25 @@ def test_store_nested_exception(monkeypatch, mock_tempfile):
 
     line_n1 = lineno() + 2
     try:
-        _ = 0/0
+        raise Exception("Testing exception handing")
     except Exception as e:
         line_n2 = lineno() + 2
         try:
-            _ = "a" + 0
+            raise Exception("Testing nested exception handing")
         except Exception as e:
             file_name = senza.error_handling.store_exception(e)
 
     lines = ['Traceback (most recent call last):',
              '  File "{}", line {}, in test_store_nested_exception'.format(__file__, line_n1),
-             '    _ = 0/0',
-             'ZeroDivisionError: division by zero',
+             '    raise Exception("Testing exception handing")',
+             'Exception: Testing exception handing',
              '',
              'During handling of the above exception, another exception occurred:',
              '',
              'Traceback (most recent call last):',
              '  File "{}", line {}, in test_store_nested_exception'.format(__file__, line_n2),
-             '    _ = "a" + 0',
-             "TypeError: Can't convert 'int' object to str implicitly\n"]
+             '    raise Exception("Testing nested exception handing")',
+             "Exception: Testing nested exception handing\n"]
 
     expected_exception = '\n'.join(lines).encode()
 
@@ -82,7 +82,3 @@ def test_store_nested_exception(monkeypatch, mock_tempfile):
                                           delete=False)
     assert file_name == mock_tempfile.name
     mock_tempfile.write.assert_called_once_with(expected_exception)
-
-
-
-

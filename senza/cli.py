@@ -982,7 +982,10 @@ def status(stack_ref, region, output, w, watch):
                         except:
                             answers = []
                         for answer in answers:
-                            if str(answer.target.to_text()).startswith('{}-'.format(stack.StackName)):
+                            target = answer.target.to_text()
+                            if isinstance(target, bytes):
+                                target = target.decode()
+                            if target.startswith('{}-'.format(stack.StackName)):
                                 main_dns_resolves = True
 
             instances = list(ec2.instances.filter(Filters=[{'Name': 'tag:aws:cloudformation:stack-id',

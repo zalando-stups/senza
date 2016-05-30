@@ -264,6 +264,8 @@ class TemplateArguments:
 
 class AccountArguments:
     """
+    Account arguments to use in the definitions
+
     >>> test = AccountArguments('blubber')
     >>> test.Region
     'blubber'
@@ -293,7 +295,7 @@ class AccountArguments:
     def Domain(self):
         if self.__Domain is None:
             self.__setDomain()
-        return self.__Domain
+        return self.__Domain.rstrip('.')
 
     def __setDomain(self, domain_name=None):
         domain_list = get_zone(domain_name, all=True)
@@ -308,7 +310,7 @@ class AccountArguments:
         self.__Domain = domain
         return domain
 
-    def splitDomain(self, domain_name):
+    def split_domain(self, domain_name):
         self.__setDomain(domain_name)
         if domain_name.endswith('.{}'.format(self.Domain)):
             return domain_name[:-len('.{}'.format(self.Domain))], self.Domain
@@ -346,7 +348,7 @@ class AccountArguments:
     def MintBucket(self):
         if self.__MintBucket is None:
             self.__MintBucket = get_mint_bucket_name(self.Region)
-        return self.__TeamID
+        return self.__MintBucket
 
 
 def parse_args(input, region, version, parameter, account_info):

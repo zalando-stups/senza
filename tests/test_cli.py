@@ -5,7 +5,8 @@ import collections
 from unittest.mock import MagicMock
 import yaml
 import json
-from senza.cli import cli, handle_exceptions, AccountArguments
+from senza.cli import cli, AccountArguments
+from senza.error_handling import handle_exceptions
 import botocore.exceptions
 from senza.traffic import PERCENT_RESOLUTION, StackVersion
 import senza.traffic

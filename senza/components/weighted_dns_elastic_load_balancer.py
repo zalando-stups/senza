@@ -6,7 +6,7 @@ def component_weighted_dns_elastic_load_balancer(definition, configuration, args
     if 'Domains' not in configuration:
         if 'MainDomain' in configuration:
             main_domain = configuration['MainDomain']
-            main_subdomain, main_zone = account_info.splitDomain(main_domain)
+            main_subdomain, main_zone = account_info.split_domain(main_domain)
             del configuration['MainDomain']
         else:
             main_zone = account_info.Domain
@@ -14,7 +14,7 @@ def component_weighted_dns_elastic_load_balancer(definition, configuration, args
 
         if 'VersionDomain' in configuration:
             version_domain = configuration['VersionDomain']
-            version_subdomain, version_zone = account_info.splitDomain(version_domain)
+            version_subdomain, version_zone = account_info.split_domain(version_domain)
             del configuration['VersionDomain']
         else:
             version_zone = account_info.Domain

@@ -1,42 +1,44 @@
 #!/usr/bin/env python3
+import base64
 import calendar
 import collections
 import configparser
 import datetime
-import functools
 import ipaddress
+import json
 import os
 import re
 import sys
-import json
-from urllib.error import URLError
-import dns.resolver
 import time
+from pprint import pformat
 from subprocess import call
+from urllib.error import URLError
+from urllib.parse import quote
+from urllib.request import urlopen
 
+import boto3
 import click
-from clickclick import AliasedGroup, Action, choice, info, FloatRange, OutputFormat, error, fatal_error, ok
-from clickclick.console import print_table
+import dns.resolver
 import requests
 import yaml
-import base64
-import boto3
-from botocore.exceptions import NoCredentialsError, ClientError
+from botocore.exceptions import ClientError
+from clickclick import AliasedGroup, Action, choice, info, FloatRange, OutputFormat, error, fatal_error, ok
+from clickclick.console import print_table
 
-from .aws import parse_time, get_required_capabilities, resolve_topic_arn, get_stacks, StackReference, matches_any, \
-    get_account_id, get_account_alias, get_tag
+import senza
+from .aws import (parse_time, get_required_capabilities, resolve_topic_arn,
+                  get_stacks, StackReference, matches_any, get_account_id,
+                  get_account_alias, get_tag)
 from .components import get_component, evaluate_template
 from .components.stups_auto_configuration import find_taupage_image
+from .error_handling import handle_exceptions
+from .exceptions import VPCError
 from .patch import patch_auto_scaling_group
 from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
-import senza
-from urllib.request import urlopen
-from urllib.parse import quote
 from .templates import get_templates, get_template_description
+from .templates._helper import get_mint_bucket_name
 from .traffic import change_version_traffic, print_version_traffic, get_records, get_zone
 from .utils import named_value, camel_case_to_underscore, pystache_render, ensure_keys
-from pprint import pformat
-from senza.templates._helper import get_mint_bucket_name
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -246,37 +248,6 @@ def evaluate(definition, args, account_info, force: bool):
     return definition
 
 
-def handle_exceptions(func):
-    @functools.wraps(func)
-    def wrapper():
-        try:
-            func()
-        except NoCredentialsError as e:
-            sys.stdout.flush()
-            sys.stderr.write('No AWS credentials found. ' +
-                             'Use the "mai" command line tool to get a temporary access key\n')
-            sys.stderr.write('or manually configure either ~/.aws/credentials ' +
-                             'or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY.\n')
-            sys.exit(1)
-        except ClientError as e:
-            sys.stdout.flush()
-            if is_credentials_expired_error(e):
-                sys.stderr.write('AWS credentials have expired. ' +
-                                 'Use the "mai" command line tool to get a new temporary access key.\n')
-                sys.exit(1)
-            else:
-                raise
-        except:
-            # Catch All
-            sys.stdout.flush()
-            raise
-    return wrapper
-
-
-def is_credentials_expired_error(e: ClientError) -> bool:
-    return e.response['Error']['Code'] in ['ExpiredToken', 'RequestExpired']
-
-
 @click.group(cls=AliasedGroup, context_settings=CONTEXT_SETTINGS)
 @click.option('-V', '--version', is_flag=True, callback=print_version, expose_value=False, is_eager=True,
               help='Print the current version number and exit.')
@@ -292,119 +263,92 @@ class TemplateArguments:
 
 
 class AccountArguments:
-    '''
-    >>> test = AccountArguments('blubber',
-    ... AccountID='123456',
-    ... AccountAlias='testdummy',
-    ... Domain='test.example.org.',
-    ... TeamID='superteam')
-    >>> test.AccountID
-    '123456'
-    >>> test.AccountAlias
-    'testdummy'
-    >>> test.TeamID
-    'superteam'
-    >>> test.Domain
-    'test.example.org'
+    """
+    Account arguments to use in the definitions
+
+    >>> test = AccountArguments('blubber')
     >>> test.Region
     'blubber'
-    >>> test.blubber
-    Traceback (most recent call last):
-      File "<stdin>", line 1, in <module>
-    AttributeError: 'AccountArguments' object has no attribute 'blubber'
-    '''
-    def __init__(self, region, **kwargs):
-        setattr(self, '__Region', region)
-        for key, val in kwargs.items():
-            setattr(self, '__' + key, val)
+    """
+    def __init__(self, region):
+        self.Region = region
+        self.__AccountAlias = None
+        self.__AccountID = None
+        self.__Domain = None
+        self.__MintBucket = None
+        self.__TeamID = None
+        self.__VpcID = None
 
     @property
     def AccountID(self):
-        attr = getattr(self, '__AccountID', None)
-        if attr is None:
-            accountid = get_account_id()
-            setattr(self, '__AccountID', accountid)
-            return accountid
-        return attr
+        if self.__AccountID is None:
+            self.__AccountID = get_account_id()
+        return self.__AccountID
 
     @property
     def AccountAlias(self):
-        attr = getattr(self, '__AccountAlias', None)
-        if attr is None:
-            accountalias = get_account_alias()
-            setattr(self, '__AccountAlias', accountalias)
-            return accountalias
-        return attr
-
-    @property
-    def Region(self):
-        return getattr(self, '__Region', None)
+        if self.__AccountAlias is None:
+            self.__AccountAlias = get_account_alias()
+        return self.__AccountAlias
 
     @property
     def Domain(self):
-        attr = getattr(self, '__Domain', None)
-        if attr is None:
-            return self.__setDomain()
-        return attr.rstrip('.')
+        if self.__Domain is None:
+            self.__setDomain()
+        return self.__Domain.rstrip('.')
 
-    def __setDomain(self, domainname=None):
-        domainlist = get_zone(domainname, all=True)
-        if len(domainlist) == 0:
+    def __setDomain(self, domain_name=None):
+        domain_list = get_zone(domain_name, all=True)
+        if len(domain_list) == 0:
             raise AttributeError('No Domain configured')
-        elif len(domainlist) > 1:
+        elif len(domain_list) > 1:
             domain = choice('Please select the domain',
-                            sorted(domain['Name'].rstrip('.') for domain in domainlist))
+                            sorted(domain['Name'].rstrip('.')
+                                   for domain in domain_list))
         else:
-            domain = domainlist[0]['Name'].rstrip('.')
-        setattr(self, '__Domain', domain)
+            domain = domain_list[0]['Name'].rstrip('.')
+        self.__Domain = domain
         return domain
 
-    def splitDomain(self, domainname):
-        self.__setDomain(domainname)
-        if domainname.endswith('.{}'.format(self.Domain)):
-            return domainname[:-len('.{}'.format(self.Domain))], self.Domain
+    def split_domain(self, domain_name):
+        self.__setDomain(domain_name)
+        if domain_name.endswith('.{}'.format(self.Domain)):
+            return domain_name[:-len('.{}'.format(self.Domain))], self.Domain
         else:
             # default behaviour for unknown domains
-            return domainname.split('.', 1)
+            return domain_name.split('.', 1)
 
     @property
     def TeamID(self):
-        attr = getattr(self, '__TeamID', None)
-        if attr is None:
-            team_id = get_account_alias().split('-', maxsplit=1)[-1]
-            setattr(self, '__TeamID', team_id)
-            return team_id
-        return attr
+        if self.__TeamID is None:
+            self.__TeamID = self.AccountAlias.split('-', maxsplit=1)[-1]
+        return self.__TeamID
 
     @property
     def VpcID(self):
-        attr = getattr(self, '__VpcID', None)
-        if attr is None:
+        if self.__VpcID is None:
             ec2 = boto3.resource('ec2', self.Region)
+            vpc_list = list()
             for vpc in ec2.vpcs.all():  # don't use the list from blow. .all() use a internal pageing!
                 if vpc.is_default:
-                    setattr(self, '__VpcID', vpc.vpc_id)
-                    return vpc.vpc_id
-            if getattr(self, '__VpcID', None) is None:
-                vpclist = list(ec2.vpcs.all())
-                if len(vpclist) == 1:
+                    self.__VpcID = vpc.vpc_id
+                    break
+                vpc_list.append(vpc)
+            else:
+                if len(vpc_list) == 1:
                     # Use the only one VPC if no default VPC found
-                    setattr(self, '__VpcID', vpclist[0].vpc_id)
-                    return vpclist[0].vpc_id
-                elif len(vpclist) > 1:
-                    raise AttributeError('Multiple VPC only supported with one default VPC!')
+                    self.__VpcID = vpc_list[0].vpc_id
+                elif len(vpc_list) > 1:
+                    raise VPCError('Multiple VPC only supported with one default VPC!')
                 else:
-                    raise AttributeError('Can\'t find any VPC!')
-        return attr
+                    raise VPCError('Can\'t find any VPC!')
+        return self.__VpcID
 
     @property
     def MintBucket(self):
-        attr = getattr(self, '__MintBucket', None)
-        if attr is None:
-            mint_bucket = get_mint_bucket_name(self.Region)
-            setattr(self, '__MintBucket', mint_bucket)
-            return mint_bucket
-        return attr
+        if self.__MintBucket is None:
+            self.__MintBucket = get_mint_bucket_name(self.Region)
+        return self.__MintBucket
 
 
 def parse_args(input, region, version, parameter, account_info):
@@ -652,8 +596,11 @@ def create_cf_template(definition, region, version, parameter, force):
     account_info = AccountArguments(region=region)
     args = parse_args(definition, region, version, parameter, account_info)
 
-    with Action('Generating Cloud Formation template..'):
-        data = evaluate(definition.copy(), args, account_info, force)
+    with Action('Generating Cloud Formation template..') as action:
+        try:
+            data = evaluate(definition.copy(), args, account_info, force)
+        except VPCError as e:
+            action.fatal_error('Fatal Error: {}'.format(e))
     stack_name = "{0}-{1}".format(data['Mappings']['Senza']['Info']['StackName'],
                                   data['Mappings']['Senza']['Info']['StackVersion'])
     if len(stack_name) > 128:

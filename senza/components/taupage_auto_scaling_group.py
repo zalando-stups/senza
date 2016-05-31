@@ -1,17 +1,15 @@
+import json
+import re
+import sys
+import textwrap
 
 import click
 import pierone.api
-import textwrap
 import yaml
-import json
-import sys
-import re
-
 from senza.aws import resolve_referenced_resource
 from senza.components.auto_scaling_group import component_auto_scaling_group
 from senza.docker import docker_image_exists
 from senza.utils import ensure_keys
-
 
 _AWS_FN_RE = re.compile(r"('[{]{2} (.*?) [}]{2}')", re.DOTALL)
 
@@ -20,6 +18,16 @@ def check_docker_image_exists(docker_image: pierone.api.DockerImage):
     if 'pierone' in docker_image.registry:
         try:
             exists = pierone.api.image_exists('pierone', docker_image)
+            if exists:
+                image_tag = pierone.api.get_image_tag('pierone', docker_image)
+                if image_tag['severity_fix_available'] in ['CRITICAL', 'HIGH', 'MEDIUM',
+                                                           'UNKNOWN', 'PENDING']:
+                    click.secho(textwrap.dedent('''
+                    You are deploying an image that has *{}* severity
+                    security fixes easily available!  Please check this artifact tag in
+                    pierone and see which software versions you should upgrade to apply
+                    those fixes.
+                    '''.format(image_tag['severity_fix_available'])).replace('\n', ' ').strip(), fg='red', bold=True)
         except pierone.api.Unauthorized:
             msg = textwrap.dedent('''
             Unauthorized: Cannot check whether Docker image "{}" exists in Pier One Docker registry.
@@ -27,7 +35,6 @@ def check_docker_image_exists(docker_image: pierone.api.DockerImage):
             Alternatively you can skip this check using the "--force" option.
             '''.format(docker_image)).strip()
             raise click.UsageError(msg)
-
     else:
         exists = docker_image_exists(str(docker_image))
     if not exists:

@@ -398,6 +398,7 @@ def parse_args(input, region, version, parameter, account_info):
     args = TemplateArguments(region=region, version=version, **paras)
     return args
 
+
 def read_parameter_file(parameter_file):
     paras = []
     try:
@@ -408,6 +409,7 @@ def read_parameter_file(parameter_file):
     except:
         raise click.UsageError('Can\'t read parameter file "{}"'.format(parameter_file))
     return tuple(paras)
+
 
 def get_region(region):
     if not region:

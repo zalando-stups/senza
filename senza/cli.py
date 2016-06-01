@@ -356,6 +356,7 @@ def parse_args(input, region, version, parameter, account_info):
     paras = {}
     defaults = collections.OrderedDict()
     parameterlist = []
+    
     # process positional parameters first
     seen_keyword = False
     for i, param in enumerate(input['SenzaInfo'].get('Parameters', [])):

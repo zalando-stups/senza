@@ -568,13 +568,14 @@ def create(definition, region, version, parameter, disable_rollback, dry_run, fo
 @click.argument('version', callback=validate_version)
 @click.argument('parameter', nargs=-1)
 @region_option
+@parameter_file_option
 @click.option('--disable-rollback', is_flag=True, help='Disable Cloud Formation rollback on failure')
 @click.option('--dry-run', is_flag=True, help='No-op mode: show what would be created')
 @click.option('-f', '--force', is_flag=True, help='Ignore failing validation checks')
-def update(definition, region, version, parameter, disable_rollback, dry_run, force):
+def update(definition, region, version, parameter, disable_rollback, dry_run, force, parameter_file):
     '''Update an existing Cloud Formation stack from the given Senza definition file'''
     region = get_region(region)
-    data = create_cf_template(definition, region, version, parameter, force)
+    data = create_cf_template(definition, region, version, parameter, force, parameter_file)
     cf = boto3.client('cloudformation', region)
 
     with Action('Updating Cloud Formation stack {}..'.format(data['StackName'])) as act:

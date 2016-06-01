@@ -20,8 +20,10 @@ def check_docker_image_exists(docker_image: pierone.api.DockerImage):
             exists = pierone.api.image_exists('pierone', docker_image)
             if exists:
                 image_tag = pierone.api.get_image_tag('pierone', docker_image)
-                if image_tag['severity_fix_available'] in ['CRITICAL', 'HIGH', 'MEDIUM',
-                                                           'UNKNOWN', 'PENDING']:
+                if image_tag['severity_fix_available'] not in ['NOT_PROCESSED_YET',
+                                                               'COULDNT_FIGURE_OUT',
+                                                               'NO_CVES_FOUND',
+                                                               'TOO_OLD']:
                     click.secho(textwrap.dedent('''
                     You are deploying an image that has *{}* severity
                     security fixes easily available!  Please check this artifact tag in

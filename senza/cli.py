@@ -155,7 +155,7 @@ class KeyValParamType(click.ParamType):
 
 region_option = click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID',
                              help='AWS region ID (e.g. eu-west-1)')
-parameter_file_option = click.option('--parameter-file', help='Config file for params')
+parameter_file_option = click.option('--parameter-file', help='Config file for params', metavar='PATH')
 output_option = click.option('-o', '--output', type=click.Choice(['text', 'json', 'tsv']), default='text',
                              help='Use alternative output format')
 json_output_option = click.option('-o', '--output', type=click.Choice(['json', 'yaml']), default='json',

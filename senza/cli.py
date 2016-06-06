@@ -613,7 +613,7 @@ def print_cfjson(definition, region, version, parameter, output, force, paramete
 
 def create_cf_template(definition, region, version, parameter, force, parameter_file):
     region = get_region(region)
-    if parameter_file is not None:
+    if parameter_file:
         parameter_from_file = read_parameter_file(parameter_file)
         parameter = parameter + parameter_from_file
     check_credentials(region)

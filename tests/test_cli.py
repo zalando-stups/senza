@@ -54,7 +54,9 @@ def test_parameter_file_not_found():
     assert 'read parameter file "notfound.yaml"' in result.output
 
 
-def test_parameter_file_found():
+def test_parameter_file_found(monkeypatch):
+    monkeypatch.setattr('boto3.client', lambda *args: MagicMock())
+
     data = {'SenzaInfo': {'StackName': 'test', 'Parameters': [{'ApplicationId': {'Description': 'Application ID from kio'}}]}, 'Resources': {'MyQueue': {'Type': 'AWS::SQS::Queue'}}}
     param_data = { 'ApplicationId': 'test-app-id' }
 

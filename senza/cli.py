@@ -402,12 +402,17 @@ def parse_args(input, region, version, parameter, account_info):
 def read_parameter_file(parameter_file):
     paras = []
     try:
-        with open(parameter_file, 'r') as ymlfile:
-            cfg = yaml.load(ymlfile)
-        for key, val in cfg.items():
-            paras.append("%s=%s" % (key, val))
-    except:
+        ymlfile = open(parameter_file, 'r')
+    except OSError:
         raise click.UsageError('Can\'t read parameter file "{}"'.format(parameter_file))
+
+    try:
+        cfg = yaml.load(ymlfile)
+        for key, val in cfg.items():
+            paras.append("{}={}".format(key, val))
+    except yaml.YAMLError as e:
+        raise click.UsageError('Error {}'.format(e))
+
     return tuple(paras)
 
 

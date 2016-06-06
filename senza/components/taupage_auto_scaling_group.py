@@ -20,16 +20,6 @@ def check_docker_image_exists(docker_image: pierone.api.DockerImage):
             exists = pierone.api.image_exists('pierone', docker_image)
             if exists:
                 image_tag = pierone.api.get_image_tag('pierone', docker_image)
-                if image_tag['severity_fix_available'] not in ['NOT_PROCESSED_YET',
-                                                               'COULDNT_FIGURE_OUT',
-                                                               'NO_CVES_FOUND',
-                                                               'TOO_OLD']:
-                    click.secho(textwrap.dedent('''
-                    You are deploying an image that has *{}* severity
-                    security fixes easily available!  Please check this artifact tag in
-                    pierone and see which software versions you should upgrade to apply
-                    those fixes.
-                    '''.format(image_tag['severity_fix_available'])).replace('\n', ' ').strip(), fg='red', bold=True)
         except pierone.api.Unauthorized:
             msg = textwrap.dedent('''
             Unauthorized: Cannot check whether Docker image "{}" exists in Pier One Docker registry.
@@ -39,8 +29,23 @@ def check_docker_image_exists(docker_image: pierone.api.DockerImage):
             raise click.UsageError(msg)
     else:
         exists = docker_image_exists(str(docker_image))
+
+    warn_msg = 'You are deploying an image that was not automatically '
+    'checked for vulnerabilities. Images stored in Pierone are automatically checked!'
+
     if not exists:
         raise click.UsageError('Docker image "{}" does not exist'.format(docker_image))
+    elif 'severity_fix_available' in image_tag:
+        if image_tag.get('severity_fix_available') not in ['COULDNT_FIGURE_OUT',
+                                                           'NO_CVES_FOUND']:
+            warn_msg = textwrap.dedent('''
+                    You are deploying an image that has *{}* severity
+                    security fixes easily available!  Please check this artifact
+                    tag in pierone and see which software versions you should
+                    upgrade to apply those fixes.
+                    '''.format(image_tag['severity_fix_available']))
+
+    click.secho(warn_msg.replace('\n', ' ').strip(), fg='red', bold=True)
 
 
 def component_taupage_auto_scaling_group(definition, configuration, args, info, force, account_info):

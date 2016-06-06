@@ -407,7 +407,7 @@ def read_parameter_file(parameter_file):
         raise click.UsageError('Can\'t read parameter file "{}"'.format(parameter_file))
 
     try:
-        cfg = yaml.load(ymlfile)
+        cfg = yaml.safe_load(ymlfile)
         for key, val in cfg.items():
             paras.append("{}={}".format(key, val))
     except yaml.YAMLError as e:

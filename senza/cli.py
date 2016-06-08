@@ -339,7 +339,8 @@ class AccountArguments:
                     # Use the only one VPC if no default VPC found
                     self.__VpcID = vpc_list[0].vpc_id
                 elif len(vpc_list) > 1:
-                    raise VPCError('Multiple VPC only supported with one default VPC!')
+                    raise VPCError('Multiple VPCs are only supported if one '
+                                   'VPC is the default VPC (IsDefault=true)!')
                 else:
                     raise VPCError('Can\'t find any VPC!')
         return self.__VpcID

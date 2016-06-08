@@ -40,6 +40,56 @@ def test_file_not_found():
     assert '"notfound.yaml" not found' in result.output
 
 
+def test_parameter_file_not_found():
+    data = {'SenzaInfo': {'StackName': 'test'}, 'Resources': {'MyQueue': {'Type': 'AWS::SQS::Queue'}}}
+
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+
+        result = runner.invoke(cli, ['print', '--parameter-file', 'notfound.yaml', 'myapp.yaml', '--region=myregion', '123'], catch_exceptions=False)
+
+    assert 'read parameter file "notfound.yaml"' in result.output
+
+
+def test_parameter_file_found(monkeypatch):
+    monkeypatch.setattr('boto3.client', lambda *args: MagicMock())
+
+    data = {'SenzaInfo': {'StackName': 'test', 'Parameters': [{'ApplicationId': {'Description': 'Application ID from kio'}}]}, 'Resources': {'MyQueue': {'Type': 'AWS::SQS::Queue'}}}
+    param_data = { 'ApplicationId': 'test-app-id' }
+
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+        with open('parameter.yaml', 'w') as fd:
+            yaml.dump(param_data, fd)
+
+        result = runner.invoke(cli, ['print', '--parameter-file', 'parameter.yaml', 'myapp.yaml', '--region=myregion', '123'], catch_exceptions=False)
+
+    assert 'Generating Cloud Formation template.. OK' in result.output
+
+
+def test_parameter_file_syntax_error():
+    data = {'SenzaInfo': {'StackName': 'test', 'Parameters': [{'ApplicationId': {'Description': 'Application ID from kio'}}]}, 'Resources': {'MyQueue': {'Type': 'AWS::SQS::Queue'}}}
+    param_data = "'ApplicationId': ["
+
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+        with open('parameter.yaml', 'w') as fd:
+            fd.write(param_data)
+
+        result = runner.invoke(cli, ['print', '--parameter-file', 'parameter.yaml', 'myapp.yaml', '--region=myregion', '123'], catch_exceptions=False)
+
+    assert 'Error: Error while parsing a flow node' in result.output
+
+
 def test_version():
     runner = CliRunner()
     result = runner.invoke(cli, ['--version'])

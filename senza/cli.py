@@ -155,6 +155,7 @@ class KeyValParamType(click.ParamType):
 
 region_option = click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID',
                              help='AWS region ID (e.g. eu-west-1)')
+parameter_file_option = click.option('--parameter-file', help='Config file for params', metavar='PATH')
 output_option = click.option('-o', '--output', type=click.Choice(['text', 'json', 'tsv']), default='text',
                              help='Use alternative output format')
 json_output_option = click.option('-o', '--output', type=click.Choice(['json', 'yaml']), default='json',
@@ -399,6 +400,23 @@ def parse_args(input, region, version, parameter, account_info):
     return args
 
 
+def read_parameter_file(parameter_file):
+    paras = []
+    try:
+        ymlfile = open(parameter_file, 'r')
+    except OSError:
+        raise click.UsageError('Can\'t read parameter file "{}"'.format(parameter_file))
+
+    try:
+        cfg = yaml.safe_load(ymlfile)
+        for key, val in cfg.items():
+            paras.append("{}={}".format(key, val))
+    except yaml.YAMLError as e:
+        raise click.UsageError('Error {}'.format(e))
+
+    return tuple(paras)
+
+
 def get_region(region):
     if not region:
         region = GLOBAL_OPTIONS.get('region')
@@ -519,15 +537,16 @@ def list_stacks(region, stack_ref, all, output, w, watch):
 @click.argument('version', callback=validate_version)
 @click.argument('parameter', nargs=-1)
 @region_option
+@parameter_file_option
 @click.option('--disable-rollback', is_flag=True, help='Disable Cloud Formation rollback on failure')
 @click.option('--dry-run', is_flag=True, help='No-op mode: show what would be created')
 @click.option('-f', '--force', is_flag=True, help='Ignore failing validation checks')
 @click.option('-t', '--tag', help='Tags to associate with the stack.', multiple=True)
-def create(definition, region, version, parameter, disable_rollback, dry_run, force, tag):
+def create(definition, region, version, parameter, disable_rollback, dry_run, force, tag, parameter_file):
     '''Create a new Cloud Formation stack from the given Senza definition file'''
 
     region = get_region(region)
-    data = create_cf_template(definition, region, version, parameter, force)
+    data = create_cf_template(definition, region, version, parameter, force, parameter_file)
 
     for tag_kv in tag:
         try:
@@ -557,13 +576,14 @@ def create(definition, region, version, parameter, disable_rollback, dry_run, fo
 @click.argument('version', callback=validate_version)
 @click.argument('parameter', nargs=-1)
 @region_option
+@parameter_file_option
 @click.option('--disable-rollback', is_flag=True, help='Disable Cloud Formation rollback on failure')
 @click.option('--dry-run', is_flag=True, help='No-op mode: show what would be created')
 @click.option('-f', '--force', is_flag=True, help='Ignore failing validation checks')
-def update(definition, region, version, parameter, disable_rollback, dry_run, force):
+def update(definition, region, version, parameter, disable_rollback, dry_run, force, parameter_file):
     '''Update an existing Cloud Formation stack from the given Senza definition file'''
     region = get_region(region)
-    data = create_cf_template(definition, region, version, parameter, force)
+    data = create_cf_template(definition, region, version, parameter, force, parameter_file)
     cf = boto3.client('cloudformation', region)
 
     with Action('Updating Cloud Formation stack {}..'.format(data['StackName'])) as act:
@@ -582,17 +602,21 @@ def update(definition, region, version, parameter, disable_rollback, dry_run, fo
 @click.argument('version', callback=validate_version)
 @click.argument('parameter', nargs=-1)
 @region_option
+@parameter_file_option
 @json_output_option
 @click.option('-f', '--force', is_flag=True, help='Ignore failing validation checks')
-def print_cfjson(definition, region, version, parameter, output, force):
+def print_cfjson(definition, region, version, parameter, output, force, parameter_file):
     '''Print the generated Cloud Formation template'''
     region = get_region(region)
-    data = create_cf_template(definition, region, version, parameter, force)
+    data = create_cf_template(definition, region, version, parameter, force, parameter_file)
     print_json(data['TemplateBody'], output)
 
 
-def create_cf_template(definition, region, version, parameter, force):
+def create_cf_template(definition, region, version, parameter, force, parameter_file):
     region = get_region(region)
+    if parameter_file:
+        parameter_from_file = read_parameter_file(parameter_file)
+        parameter = parameter + parameter_from_file
     check_credentials(region)
     account_info = AccountArguments(region=region)
     args = parse_args(definition, region, version, parameter, account_info)

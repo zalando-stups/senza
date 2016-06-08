@@ -1,18 +1,26 @@
+from unittest.mock import MagicMock, patch
+
 import click
 import pytest
-from unittest.mock import MagicMock
+import senza.traffic
+import pierone.api
 from senza.cli import AccountArguments
 from senza.components import get_component
+from senza.components.auto_scaling_group import (component_auto_scaling_group,
+                                                 normalize_asg_success,
+                                                 normalize_network_threshold,
+                                                 to_iso8601_duration)
+from senza.components.elastic_load_balancer import \
+    component_elastic_load_balancer
 from senza.components.iam_role import component_iam_role, get_merged_policies
-from senza.components.elastic_load_balancer import component_elastic_load_balancer
-from senza.components.weighted_dns_elastic_load_balancer import component_weighted_dns_elastic_load_balancer
-from senza.components.stups_auto_configuration import component_stups_auto_configuration
-from senza.components.redis_node import component_redis_node
 from senza.components.redis_cluster import component_redis_cluster
-from senza.components.auto_scaling_group \
-    import component_auto_scaling_group, normalize_network_threshold, to_iso8601_duration, normalize_asg_success
-from senza.components.taupage_auto_scaling_group import generate_user_data
-import senza.traffic
+from senza.components.redis_node import component_redis_node
+from senza.components.stups_auto_configuration import \
+    component_stups_auto_configuration
+from senza.components.taupage_auto_scaling_group import (check_docker_image_exists,
+                                                         generate_user_data)
+from senza.components.weighted_dns_elastic_load_balancer import \
+    component_weighted_dns_elastic_load_balancer
 
 
 def test_invalid_component():
@@ -564,3 +572,102 @@ def test_normalize_network_threshold():
 
     with pytest.raises(click.UsageError):
         normalize_network_threshold("5 Donkeys")
+
+
+def test_check_docker_image_exists():
+    def build_image(from_registry_url: str):
+        return pierone.api.DockerImage(registry=from_registry_url,
+                                       team='bar', artifact='foobar',
+                                       tag='1.0')
+
+    pierone_has_cves = {
+        'tag': '1.0',
+        'team': 'foo',
+        'artifact': 'app1',
+        'severity_fix_available': 'HIGH',
+        'severity_no_fix_available': 'LOW',
+        'created_by': 'myuser',
+        'created': '2015-08-01T08:14:59.432Z'
+    }
+
+    pierone_no_cves = {
+        'tag': '2.0',
+        'team': 'foo',
+        'artifact': 'app1',
+        'severity_fix_available': 'NO_CVES_FOUND',
+        'severity_no_fix_available': 'NO_CVES_FOUND',
+        'created_by': 'myuser',
+        'created': '2016-06-20T08:14:59.432Z'
+    }
+
+    fake_token = {
+        'access_token': 'abc'
+    }
+
+    # image from pierone has CVEs
+    with patch('senza.components.taupage_auto_scaling_group.click.secho') as output_function, patch(
+            "senza.components.taupage_auto_scaling_group.get_existing_token",
+            return_value=fake_token), patch(
+            'senza.components.taupage_auto_scaling_group.pierone.api.image_exists',
+            return_value=True), patch(
+                'senza.components.taupage_auto_scaling_group.pierone.api.get_image_tag',
+                return_value=pierone_has_cves):
+
+        check_docker_image_exists(build_image(from_registry_url='pierone'))
+
+        assert output_function.called
+        assert 'Please check this artifact tag in pierone' in output_function.call_args[0][0]
+
+    # image from pierone no CVEs
+    with patch('senza.components.taupage_auto_scaling_group.click.secho') as output_function, patch(
+            "senza.components.taupage_auto_scaling_group.get_existing_token",
+            return_value=fake_token), patch(
+            'senza.components.taupage_auto_scaling_group.pierone.api.image_exists',
+            return_value=True), patch(
+                'senza.components.taupage_auto_scaling_group.pierone.api.get_image_tag',
+                return_value=pierone_no_cves):
+
+        check_docker_image_exists(build_image(from_registry_url='pierone'))
+
+        assert not output_function.called
+
+    # image from pierone auth error
+    with patch("senza.components.taupage_auto_scaling_group.get_existing_token",
+               return_value=None), pytest.raises(click.UsageError):
+
+        check_docker_image_exists(build_image(from_registry_url='pierone'))
+
+    # image from pierone and not 'pierone' in url has CVEs
+    with patch('senza.components.taupage_auto_scaling_group.click.secho') as output_function, patch(
+            'senza.components.taupage_auto_scaling_group.docker_image_exists',
+            return_value=True), patch(
+                'senza.components.taupage_auto_scaling_group.pierone.api.get_image_tag',
+                return_value=pierone_has_cves):
+
+        check_docker_image_exists(build_image(from_registry_url='opensource'))
+
+        assert output_function.called
+        assert 'Please check this artifact tag in pierone' in output_function.call_args[0][0]
+
+    # image from pierone and not 'pierone' in url no CVEs
+    with patch('senza.components.taupage_auto_scaling_group.click.secho') as output_function, patch(
+            'senza.components.taupage_auto_scaling_group.docker_image_exists',
+            return_value=True), patch(
+                'senza.components.taupage_auto_scaling_group.pierone.api.get_image_tag',
+                return_value=pierone_no_cves):
+
+        check_docker_image_exists(build_image(from_registry_url='opensource'))
+
+        assert not output_function.called
+
+    # image from dockerhub
+    with patch('senza.components.taupage_auto_scaling_group.click.secho') as output_function, patch(
+            'senza.components.taupage_auto_scaling_group.docker_image_exists',
+            return_value=True), patch(
+                'senza.components.taupage_auto_scaling_group.pierone.api.get_image_tag',
+                return_value=None):
+
+        check_docker_image_exists(build_image(from_registry_url='opensource'))
+
+        assert output_function.called
+        assert 'not automatically checked' in output_function.call_args[0][0]

@@ -1,37 +1,61 @@
+import json
+import re
+import sys
+import textwrap
 
 import click
 import pierone.api
-import textwrap
 import yaml
-import json
-import sys
-import re
-
 from senza.aws import resolve_referenced_resource
 from senza.components.auto_scaling_group import component_auto_scaling_group
 from senza.docker import docker_image_exists
 from senza.utils import ensure_keys
-
+from zign.api import get_existing_token
 
 _AWS_FN_RE = re.compile(r"('[{]{2} (.*?) [}]{2}')", re.DOTALL)
 
 
 def check_docker_image_exists(docker_image: pierone.api.DockerImage):
+    token = None
     if 'pierone' in docker_image.registry:
-        try:
-            exists = pierone.api.image_exists('pierone', docker_image)
-        except pierone.api.Unauthorized:
+        token = get_existing_token('pierone')
+        if not token:
             msg = textwrap.dedent('''
             Unauthorized: Cannot check whether Docker image "{}" exists in Pier One Docker registry.
             Please generate a "pierone" OAuth access token using "pierone login".
             Alternatively you can skip this check using the "--force" option.
             '''.format(docker_image)).strip()
             raise click.UsageError(msg)
-
+        else:
+            token = token['access_token']
+            exists = pierone.api.image_exists(docker_image, token)
     else:
         exists = docker_image_exists(str(docker_image))
+
     if not exists:
         raise click.UsageError('Docker image "{}" does not exist'.format(docker_image))
+
+    image_tag = pierone.api.get_image_tag(docker_image, token)
+    if image_tag is not None and 'severity_fix_available' in image_tag:
+        if image_tag.get('severity_fix_available') not in ['COULDNT_FIGURE_OUT',
+                                                           'NO_CVES_FOUND']:
+            warn_msg = textwrap.dedent('''
+                    You are deploying an image that has *{}* severity
+                    security fixes easily available!  Please check this artifact
+                    tag in pierone and see which software versions you should
+                    upgrade to apply those fixes.
+                    '''.format(image_tag['severity_fix_available']))
+        else:
+            # Image is good to deploy!
+            return True
+    else:
+        warn_msg = textwrap.dedent('''
+        You are deploying an image that was not automatically checked for
+        vulnerabilities. Images stored in Pierone are automatically checked!
+        ''')
+
+    click.secho(warn_msg.replace('\n', ' ').strip(), fg='red', bold=True)
+    return True
 
 
 def component_taupage_auto_scaling_group(definition, configuration, args, info, force, account_info):

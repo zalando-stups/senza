@@ -12,33 +12,39 @@ import sys
 import time
 from pprint import pformat
 from subprocess import call
-from urllib.error import URLError
-from urllib.parse import quote
-from urllib.request import urlopen
 
 import boto3
 import click
 import dns.resolver
 import requests
+import senza
 import yaml
 from botocore.exceptions import ClientError
-from clickclick import AliasedGroup, Action, choice, info, FloatRange, OutputFormat, error, fatal_error, ok
+from clickclick import (Action, AliasedGroup, FloatRange, OutputFormat, choice,
+                        error, fatal_error, info, ok)
 from clickclick.console import print_table
 
-import senza
-from .aws import (parse_time, get_required_capabilities, resolve_topic_arn,
-                  get_stacks, StackReference, matches_any, get_account_id,
-                  get_account_alias, get_tag)
-from .components import get_component, evaluate_template
+from .arguments import (DefinitionParamType, KeyValParamType,
+                        definition_files_option, json_output_option,
+                        output_option, parameter_file_option, region_option,
+                        watch_option, watchrefresh_option)
+from .aws import (get_account_alias, get_account_id, get_required_capabilities,
+                  get_stacks, get_tag, matches_any, parse_time,
+                  resolve_topic_arn)
+from .components import evaluate_template, get_component
 from .components.stups_auto_configuration import find_taupage_image
 from .error_handling import handle_exceptions
 from .exceptions import VPCError
 from .patch import patch_auto_scaling_group
+from .references import (all_with_version, get_stack_refs,
+                         get_stack_refs_from_file)
 from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
-from .templates import get_templates, get_template_description
+from .templates import get_template_description, get_templates
 from .templates._helper import get_mint_bucket_name
-from .traffic import change_version_traffic, print_version_traffic, get_records, get_zone
-from .utils import named_value, camel_case_to_underscore, pystache_render, ensure_keys
+from .traffic import (change_version_traffic, get_records, get_zone,
+                      print_version_traffic)
+from .utils import (camel_case_to_underscore, ensure_keys, named_value,
+                    pystache_render)
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -110,59 +116,6 @@ def print_json(data, output=None):
         print(yaml.safe_dump(parsed_data, indent=4, default_flow_style=False))
     else:
         print(data)
-
-
-class DefinitionParamType(click.ParamType):
-    name = 'definition'
-
-    def convert(self, value, param, ctx):
-        if isinstance(value, str):
-            try:
-                url = value if '://' in value else 'file://{}'.format(quote(os.path.abspath(value)))
-                # if '://' not in value:
-                #     url = 'file://{}'.format(quote(os.path.abspath(value)))
-
-                response = urlopen(url)
-                data = yaml.safe_load(response.read())
-            except URLError:
-                self.fail('"{}" not found'.format(value), param, ctx)
-        else:
-            data = value
-        for key in ['SenzaInfo']:
-            if 'SenzaInfo' not in data:
-                self.fail('"{}" entry is missing in YAML file "{}"'.format(key, value), param, ctx)
-        return data
-
-
-class KeyValParamType(click.ParamType):
-    '''
-    >>> KeyValParamType().convert(('a', 'b'), None, None)
-    ('a', 'b')
-    '''
-    name = 'key_val'
-
-    def convert(self, value, param, ctx):
-        if isinstance(value, str):
-            try:
-                key, val = value.split('=', 1)
-            except:
-                self.fail('invalid key value parameter "{}" (must be KEY=VAL)'.format(value))
-            key_val = (key, val)
-        else:
-            key_val = value
-        return key_val
-
-
-region_option = click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID',
-                             help='AWS region ID (e.g. eu-west-1)')
-parameter_file_option = click.option('--parameter-file', help='Config file for params', metavar='PATH')
-output_option = click.option('-o', '--output', type=click.Choice(['text', 'json', 'tsv']), default='text',
-                             help='Use alternative output format')
-json_output_option = click.option('-o', '--output', type=click.Choice(['json', 'yaml']), default='json',
-                                  help='Use alternative output format')
-watch_option = click.option('-W', is_flag=True, help='Auto update the screen every 2 seconds')
-watchrefresh_option = click.option('-w', '--watch', type=click.IntRange(1, 300), metavar='SECS',
-                                   help='Auto update the screen every X seconds')
 
 
 def watching(w: bool, watch: int):
@@ -443,78 +396,22 @@ def check_credentials(region):
     return iam.list_account_aliases()
 
 
-def get_stack_refs(refs: list):
-    '''
-    >>> get_stack_refs(['foobar-stack'])
-    [StackReference(name='foobar-stack', version=None)]
-
-    >>> get_stack_refs(['foobar-stack', '1'])
-    [StackReference(name='foobar-stack', version='1')]
-
-    >>> get_stack_refs(['foobar-stack', '1', 'other-stack'])
-    [StackReference(name='foobar-stack', version='1'), StackReference(name='other-stack', version=None)]
-    >>> get_stack_refs(['foobar-stack', 'v1', 'v2', 'v99', 'other-stack'])
-    [StackReference(name='foobar-stack', version='v1'), StackReference(name='foobar-stack', version='v2'), \
-StackReference(name='foobar-stack', version='v99'), StackReference(name='other-stack', version=None)]
-    '''
-    refs = list(refs)
-    refs.reverse()
-    stack_refs = []
-    last_stack = None
-    while refs:
-        ref = refs.pop()
-        if last_stack is not None and re.compile(r'v[0-9][a-zA-Z0-9-]*$').match(ref):
-            stack_refs.append(StackReference(last_stack, ref))
-        else:
-            try:
-                with open(ref) as fd:
-                    data = yaml.safe_load(fd)
-                ref = data['SenzaInfo']['StackName']
-            except (OSError, IOError):
-                # It's still possible that the ref is a regex
-                pass
-
-            if refs:
-                version = refs.pop()
-            else:
-                version = None
-            stack_refs.append(StackReference(ref, version))
-            last_stack = ref
-    return stack_refs
-
-
-def all_with_version(stack_refs: list):
-    '''
-    >>> all_with_version([StackReference(name='foobar-stack', version='1'), \
-                          StackReference(name='other-stack', version=None)])
-    False
-    >>> all_with_version([StackReference(name='foobar-stack', version='1'), \
-                          StackReference(name='other-stack', version='v23')])
-    True
-    >>> all_with_version([StackReference(name='foobar-stack', version='1')])
-    True
-    >>> all_with_version([StackReference(name='other-stack', version=None)])
-    False
-    '''
-    for ref in stack_refs:
-        if not ref.version:
-            return False
-    return True
-
-
 @cli.command('list')
 @region_option
 @output_option
 @watch_option
 @watchrefresh_option
 @click.option('--all', is_flag=True, help='Show all stacks, including deleted ones')
+@definition_files_option
 @click.argument('stack_ref', nargs=-1)
-def list_stacks(region, stack_ref, all, output, w, watch):
+def list_stacks(region, stack_ref, all, output, w, watch, definition):
     '''List Cloud Formation stacks'''
     region = get_region(region)
     check_credentials(region)
 
     stack_refs = get_stack_refs(stack_ref)
+    stack_refs_from_file = get_stack_refs_from_file(definition)
+    stack_refs.extend(stack_refs_from_file)
 
     for _ in watching(w, watch):
         rows = []
@@ -680,9 +577,12 @@ def create_cf_template(definition, region, version, parameter, force, parameter_
 @click.option('-f', '--force', is_flag=True, help='Allow deleting multiple stacks')
 @click.option('-i', '--interactive', is_flag=True,
               help='Prompt before every deletion')
-def delete(stack_ref, region, dry_run, force, interactive):
-    '''Delete a single Cloud Formation stack'''
+@definition_files_option
+def delete(stack_ref, region, dry_run, force, interactive, definition):
+    """Delete Cloud Formation stacks"""
     stack_refs = get_stack_refs(stack_ref)
+    stack_refs_from_file = get_stack_refs_from_file(definition)
+    stack_refs.extend(stack_refs_from_file)
     region = get_region(region)
     check_credentials(region)
     cf = boto3.client('cloudformation', region)
@@ -717,9 +617,12 @@ def format_resource_type(resource_type):
 @watch_option
 @watchrefresh_option
 @output_option
-def resources(stack_ref, region, w, watch, output):
+@definition_files_option
+def resources(stack_ref, region, w, watch, output, definition):
     '''Show all resources of a single Cloud Formation stack'''
     stack_refs = get_stack_refs(stack_ref)
+    stack_refs_from_file = get_stack_refs_from_file(definition)
+    stack_refs.extend(stack_refs_from_file)
     region = get_region(region)
     check_credentials(region)
     cf = boto3.client('cloudformation', region)
@@ -750,9 +653,12 @@ def resources(stack_ref, region, w, watch, output):
 @watch_option
 @watchrefresh_option
 @output_option
-def events(stack_ref, region, w, watch, output):
+@definition_files_option
+def events(stack_ref, region, w, watch, output, definition):
     '''Show all Cloud Formation events for a single stack'''
     stack_refs = get_stack_refs(stack_ref)
+    stack_refs_from_file = get_stack_refs_from_file(definition)
+    stack_refs.extend(stack_refs_from_file)
     region = get_region(region)
     check_credentials(region)
     cf = boto3.client('cloudformation', region)
@@ -856,9 +762,13 @@ def get_instance_docker_image_source(instance) -> str:
 @output_option
 @watch_option
 @watchrefresh_option
-def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region, output, w, watch):
+@definition_files_option
+def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region,
+              output, w, watch, definition):
     '''List the stack's EC2 instances'''
     stack_refs = get_stack_refs(stack_ref)
+    stack_refs_from_file = get_stack_refs_from_file(definition)
+    stack_refs.extend(stack_refs_from_file)
     region = get_region(region)
     check_credentials(region)
 
@@ -919,9 +829,12 @@ def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region, o
 @output_option
 @watch_option
 @watchrefresh_option
-def status(stack_ref, region, output, w, watch):
+@definition_files_option
+def status(stack_ref, region, output, w, watch, definition):
     '''Show stack status information'''
     stack_refs = get_stack_refs(stack_ref)
+    stack_refs_from_file = get_stack_refs_from_file(definition)
+    stack_refs.extend(stack_refs_from_file)
     region = get_region(region)
     check_credentials(region)
 
@@ -984,9 +897,12 @@ def status(stack_ref, region, output, w, watch):
 @output_option
 @watch_option
 @watchrefresh_option
-def domains(stack_ref, region, output, w, watch):
+@definition_files_option
+def domains(stack_ref, region, output, w, watch, definition):
     '''List the stack's Route53 domains'''
     stack_refs = get_stack_refs(stack_ref)
+    stack_refs_from_file = get_stack_refs_from_file(definition)
+    stack_refs.extend(stack_refs_from_file)
     region = get_region(region)
     check_credentials(region)
 
@@ -1055,9 +971,12 @@ def traffic(stack_name, stack_version, percentage, region, output):
 @click.option('--show-instances', is_flag=True, help='Show EC2 instance IDs')
 @region_option
 @output_option
-def images(stack_ref, region, output, hide_older_than, show_instances):
+@definition_files_option
+def images(stack_ref, region, output, hide_older_than, show_instances, definition):
     '''Show all used AMIs and available Taupage AMIs'''
     stack_refs = get_stack_refs(stack_ref)
+    stack_refs_from_file = get_stack_refs_from_file(definition)
+    stack_refs.extend(stack_refs_from_file)
     region = get_region(region)
     check_credentials(region)
 
@@ -1165,7 +1084,8 @@ def print_console(line: str):
 @region_option
 @watch_option
 @watchrefresh_option
-def console(instance_or_stack_ref, limit, region, w, watch):
+@definition_files_option
+def console(instance_or_stack_ref, limit, region, w, watch, definition):
     '''Print EC2 instance console output.
 
     INSTANCE_OR_STACK_REF can be an instance ID, private IP address or stack name/version.'''
@@ -1178,6 +1098,8 @@ def console(instance_or_stack_ref, limit, region, w, watch):
         filters = [{'Name': 'private-ip-address', 'Values': list(instance_or_stack_ref)}]
     else:
         stack_refs = get_stack_refs(instance_or_stack_ref)
+        stack_refs_from_file = get_stack_refs_from_file(definition)
+        stack_refs.extend(stack_refs_from_file)
         # filter out instances not part of any stack
         filters = [{'Name': 'tag-key', 'Values': ['aws:cloudformation:stack-name']}]
 
@@ -1209,9 +1131,12 @@ def console(instance_or_stack_ref, limit, region, w, watch):
 @click.argument('stack_ref', nargs=-1)
 @region_option
 @json_output_option
-def dump(stack_ref, region, output):
+@definition_files_option
+def dump(stack_ref, region, output, definition):
     '''Dump Cloud Formation template of existing stack'''
     stack_refs = get_stack_refs(stack_ref)
+    stack_refs_from_file = get_stack_refs_from_file(definition)
+    stack_refs.extend(stack_refs_from_file)
     region = get_region(region)
     check_credentials(region)
 
@@ -1240,11 +1165,14 @@ def get_auto_scaling_groups(stack_refs, region):
 @click.option('--image', metavar='AMI_ID_OR_LATEST', help='Use specified image (AMI ID or "latest")')
 @click.option('--instance-type', metavar='INSTANCE_TYPE', help='Use specified EC2 instance type')
 @click.option('--user-data', metavar='YAML', help='Patch properties in user data YAML')
-def patch(stack_ref, region, image, instance_type, user_data):
+@definition_files_option
+def patch(stack_ref, region, image, instance_type, user_data, definition):
     '''Patch specific properties of existing stack.
 
     Currently only supports patching ASG launch configurations.'''
     stack_refs = get_stack_refs(stack_ref)
+    stack_refs_from_file = get_stack_refs_from_file(definition)
+    stack_refs.extend(stack_refs_from_file)
     region = get_region(region)
     check_credentials(region)
 
@@ -1276,12 +1204,15 @@ def patch(stack_ref, region, image, instance_type, user_data):
 @click.option('--inplace', is_flag=True, help='Perform inplace update, do not scale out')
 @click.option('-f', '--force', is_flag=True, help='Force respawn even if Launch Configuration is unchanged')
 @region_option
-def respawn_instances(stack_ref, inplace, force, region):
+@definition_files_option
+def respawn_instances(stack_ref, inplace, force, region, definition):
     '''Replace all EC2 instances in Auto Scaling Group(s)
 
     Performs a rolling update to prevent downtimes.'''
 
     stack_refs = get_stack_refs(stack_ref)
+    stack_refs_from_file = get_stack_refs_from_file(definition)
+    stack_refs.extend(stack_refs_from_file)
     region = get_region(region)
     check_credentials(region)
 
@@ -1293,10 +1224,13 @@ def respawn_instances(stack_ref, inplace, force, region):
 @click.argument('stack_ref', nargs=-1)
 @click.argument('desired_capacity', type=click.IntRange(0, 100, clamp=True))
 @region_option
-def scale(stack_ref, region, desired_capacity):
+@definition_files_option
+def scale(stack_ref, region, desired_capacity, definition):
     '''Scale Auto Scaling Group to desired capacity'''
 
     stack_refs = get_stack_refs(stack_ref)
+    stack_refs_from_file = get_stack_refs_from_file(definition)
+    stack_refs.extend(stack_refs_from_file)
     region = get_region(region)
     check_credentials(region)
 
@@ -1340,12 +1274,15 @@ def failure_event(event: dict):
 @click.option('-i', '--interval', default=5, type=click.IntRange(1, 600, clamp=True),
               help='Time between checks (default: 5s)')
 @region_option
-def wait(stack_ref, region, deletion, timeout, interval):
+@definition_files_option
+def wait(stack_ref, region, deletion, timeout, interval, definition):
     '''Wait for successfull stack creation or deletion.
 
     Supports waiting for more than one stack up to timeout seconds.'''
 
     stack_refs = get_stack_refs(stack_ref)
+    stack_refs_from_file = get_stack_refs_from_file(definition)
+    stack_refs.extend(stack_refs_from_file)
     region = get_region(region)
     cf = boto3.client('cloudformation', region)
 

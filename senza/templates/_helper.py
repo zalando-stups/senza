@@ -2,6 +2,7 @@ import json
 import re
 
 import boto3
+import botocore.exceptions
 import click
 import clickclick
 from click import confirm
@@ -131,12 +132,11 @@ def check_iam_role(application_id: str, bucket_name: str, region: str):
     role_name = 'app-{}'.format(application_id)
     with Action('Checking IAM role {}..'.format(role_name)):
         iam = boto3.client('iam')
-        exists = False
         try:
             iam.get_role(RoleName=role_name)
             exists = True
-        except:
-            pass
+        except botocore.exceptions.ClientError:
+            exists = False
 
     assume_role_policy_document = {'Statement': [{'Action': 'sts:AssumeRole',
                                                   'Effect': 'Allow',

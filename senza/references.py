@@ -28,6 +28,13 @@ def all_with_version(stack_refs: list):
     return True
 
 
+def is_yaml(reference:str) -> bool:
+    """
+    Checks if the reference looks like an yaml filename
+    """
+    return reference.endswith('.yaml') or reference.endswith('.yml')
+
+
 def get_stack_refs(refs: list):
     """
     >>> get_stack_refs(['foobar-stack'])
@@ -56,7 +63,9 @@ StackReference(name='foobar-stack', version='v99'), StackReference(name='other-s
                 with open(ref) as fd:
                     data = yaml.safe_load(fd)
                 ref = data['SenzaInfo']['StackName']
-            except (OSError, IOError):
+            except (OSError, IOError) as error:
+                if is_yaml(ref):
+                    raise FileError(ref, str(error))
                 # It's still possible that the ref is a regex
                 pass
 
@@ -69,17 +78,3 @@ StackReference(name='foobar-stack', version='v99'), StackReference(name='other-s
     return stack_refs
 
 
-def get_stack_refs_from_file(file_references: list) -> list:
-    # ((1.0, 2.0), (6.0, 4.0))
-    stack_references = []
-    for reference in file_references:
-        path, version = reference
-        try:
-            with Path(path).open() as fd:
-                data = yaml.safe_load(fd)
-        except (OSError, IOError) as error:
-            raise FileError(path, str(error))
-        name = data['SenzaInfo']['StackName']
-        version = version if version != '-' else None
-        stack_references.append(StackReference(name, version))
-    return stack_references

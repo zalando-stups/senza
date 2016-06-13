@@ -14,6 +14,22 @@ from zign.api import get_existing_token
 
 _AWS_FN_RE = re.compile(r"('[{]{2} (.*?) [}]{2}')", re.DOTALL)
 
+# from kio OpenAPI yaml
+APPLICATION_ID_RE = re.compile(r"^[a-z][a-z0-9-]*[a-z0-9]$")
+APPLICATION_VERSION_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$")
+
+
+def check_application_id(app_id: str):
+    if not APPLICATION_ID_RE.match(app_id):
+        raise click.UsageError('Application id must satisfy regular '
+                               'expression pattern "{}"'.format(APPLICATION_ID_RE.pattern))
+
+
+def check_application_version(version: str):
+    if not APPLICATION_VERSION_RE.match(version):
+        raise click.UsageError('Application version must satisfy regular '
+                               'expression pattern "{}"'.format(APPLICATION_VERSION_RE.pattern))
+
 
 def check_docker_image_exists(docker_image: pierone.api.DockerImage):
     token = None
@@ -75,6 +91,9 @@ def component_taupage_auto_scaling_group(definition, configuration, args, info, 
 
     if 'application_version' not in taupage_config:
         taupage_config['application_version'] = info['StackVersion']
+
+    check_application_id(taupage_config['application_id'])
+    check_application_version(taupage_config['application_version'])
 
     runtime = taupage_config.get('runtime')
     if runtime != 'Docker':

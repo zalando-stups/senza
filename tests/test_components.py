@@ -1,9 +1,9 @@
 from unittest.mock import MagicMock, patch
 
 import click
+import pierone.api
 import pytest
 import senza.traffic
-import pierone.api
 from senza.cli import AccountArguments
 from senza.components import get_component
 from senza.components.auto_scaling_group import (component_auto_scaling_group,
@@ -17,7 +17,9 @@ from senza.components.redis_cluster import component_redis_cluster
 from senza.components.redis_node import component_redis_node
 from senza.components.stups_auto_configuration import \
     component_stups_auto_configuration
-from senza.components.taupage_auto_scaling_group import (check_docker_image_exists,
+from senza.components.taupage_auto_scaling_group import (check_application_id,
+                                                         check_application_version,
+                                                         check_docker_image_exists,
                                                          generate_user_data)
 from senza.components.weighted_dns_elastic_load_balancer import \
     component_weighted_dns_elastic_load_balancer
@@ -671,3 +673,27 @@ def test_check_docker_image_exists():
 
         assert output_function.called
         assert 'not automatically checked' in output_function.call_args[0][0]
+
+
+def test_check_application_id():
+    check_application_id('test-app')
+
+    check_application_id('myapp')
+
+    with pytest.raises(click.UsageError):
+        check_application_id('42yolo')
+
+    with pytest.raises(click.UsageError):
+        check_application_id('test-APP')
+
+
+def test_check_application_version():
+    check_application_version('1.0')
+
+    check_application_version('MyVersion')
+
+    with pytest.raises(click.UsageError):
+        check_application_id('.1')
+
+    with pytest.raises(click.UsageError):
+        check_application_id('1.')

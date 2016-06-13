@@ -676,24 +676,24 @@ def test_check_docker_image_exists():
 
 
 def test_check_application_id():
-    assert check_application_id('test-app')
+    check_application_id('test-app')
 
-    assert check_application_id('myapp')
-
-    with pytest.raises(click.UsageError):
-        assert check_application_id('42yolo')
+    check_application_id('myapp')
 
     with pytest.raises(click.UsageError):
-        assert check_application_id('test-APP')
+        check_application_id('42yolo')
+
+    with pytest.raises(click.UsageError):
+        check_application_id('test-APP')
 
 
 def test_check_application_version():
-    assert check_application_version('1.0')
+    check_application_version('1.0')
 
-    assert check_application_version('MyVersion')
-
-    with pytest.raises(click.UsageError):
-        assert check_application_id('.1')
+    check_application_version('MyVersion')
 
     with pytest.raises(click.UsageError):
-        assert check_application_id('1.')
+        check_application_id('.1')
+
+    with pytest.raises(click.UsageError):
+        check_application_id('1.')

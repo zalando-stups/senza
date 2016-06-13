@@ -19,18 +19,16 @@ APPLICATION_ID_RE = re.compile(r"^[a-z][a-z0-9-]*[a-z0-9]$")
 APPLICATION_VERSION_RE = re.compile(r"^[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?$")
 
 
-def check_application_id(app_id: str) -> bool:
+def check_application_id(app_id: str):
     if not APPLICATION_ID_RE.match(app_id):
         raise click.UsageError('Application id must satisfy regular '
                                'expression pattern "{}"'.format(APPLICATION_ID_RE.pattern))
-    return True
 
 
-def check_application_version(version: str) -> bool:
+def check_application_version(version: str):
     if not APPLICATION_VERSION_RE.match(version):
         raise click.UsageError('Application version must satisfy regular '
                                'expression pattern "{}"'.format(APPLICATION_VERSION_RE.pattern))
-    return True
 
 
 def check_docker_image_exists(docker_image: pierone.api.DockerImage):

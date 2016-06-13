@@ -270,9 +270,9 @@ def test_print_account_info_and_arguments_in_name(monkeypatch):
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
 
-        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', 'B'],
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', 'b'],
                                catch_exceptions=False)
-    assert '"StackName": "test-myregion-B",' in result.output
+    assert '"StackName": "test-myregion-b",' in result.output
     assert 'AppImage-dummy-0123456789' in result.output
 
 

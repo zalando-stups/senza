@@ -1,5 +1,4 @@
 import re
-from pathlib import Path
 
 import yaml
 from click import FileError
@@ -28,7 +27,7 @@ def all_with_version(stack_refs: list):
     return True
 
 
-def is_yaml(reference:str) -> bool:
+def is_yaml(reference: str) -> bool:
     """
     Checks if the reference looks like an yaml filename
     """
@@ -76,5 +75,3 @@ StackReference(name='foobar-stack', version='v99'), StackReference(name='other-s
             stack_refs.append(StackReference(ref, version))
             last_stack = ref
     return stack_refs
-
-

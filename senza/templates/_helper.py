@@ -1,12 +1,13 @@
-import boto3
-import click
-import clickclick
 import json
 import re
-from clickclick import Action
-from senza.aws import get_security_group, get_account_alias, get_account_id
 
-__author__ = 'hjacobs'
+import boto3
+import botocore.exceptions
+import click
+import clickclick
+from click import confirm
+from clickclick import Action
+from senza.aws import get_account_alias, get_account_id, get_security_group
 
 
 def prompt(variables: dict, var_name, *args, **kwargs):
@@ -33,10 +34,6 @@ def choice(variables: dict, var_name, *args, **kwargs):
         # ensure the variable as the right type
         type = kwargs['type']
         variables[var_name] = type(variables[var_name])
-
-
-def confirm(*args, **kwargs):
-    return click.confirm(*args, **kwargs)
 
 
 def check_value(max_length: int, match_regex: str):
@@ -135,12 +132,11 @@ def check_iam_role(application_id: str, bucket_name: str, region: str):
     role_name = 'app-{}'.format(application_id)
     with Action('Checking IAM role {}..'.format(role_name)):
         iam = boto3.client('iam')
-        exists = False
         try:
             iam.get_role(RoleName=role_name)
             exists = True
-        except:
-            pass
+        except botocore.exceptions.ClientError:
+            exists = False
 
     assume_role_policy_document = {'Statement': [{'Action': 'sts:AssumeRole',
                                                   'Effect': 'Allow',
@@ -148,13 +144,17 @@ def check_iam_role(application_id: str, bucket_name: str, region: str):
                                                   'Sid': ''}],
                                    'Version': '2008-10-17'}
     if not exists:
-        with Action('Creating IAM role {}..'.format(role_name)):
-            iam.create_role(RoleName=role_name,
-                            AssumeRolePolicyDocument=json.dumps(assume_role_policy_document))
+        create = confirm('IAM role {} does not exist. '
+                         'Do you want Senza to create it now?'.format(role_name),
+                         default=True)
+        if create:
+            with Action('Creating IAM role {}..'.format(role_name)):
+                iam.create_role(RoleName=role_name,
+                                AssumeRolePolicyDocument=json.dumps(assume_role_policy_document))
 
     update_policy = bucket_name is not None and (not exists or
-                                                 click.confirm('IAM role {} already exists. '.format(role_name) +
-                                                               'Do you want Senza to overwrite the role policy?'))
+                                                 confirm('IAM role {} already exists. '.format(role_name) +
+                                                         'Do you want Senza to overwrite the role policy?'))
     if update_policy:
         with Action('Updating IAM role policy of {}..'.format(role_name)):
             policy = get_iam_role_policy(application_id, bucket_name, region)

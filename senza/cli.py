@@ -1176,7 +1176,17 @@ def print_console(line: str):
 def console(instance_or_stack_ref, limit, region, w, watch):
     '''Print EC2 instance console output.
 
-    INSTANCE_OR_STACK_REF can be an instance ID, private IP address or stack name/version.'''
+    INSTANCE_OR_STACK_REF can be an instance ID, private IP address or stack name/version.
+
+    Ex:\n
+    senza console my-stack-template.yml version1\n
+    senza console my-stack-template.yml\n
+    senza console my-stack-name version1\n
+    senza console my-stack-name\n
+    senza console 172.23.22.240\n
+    senza console i-7c3a3de5\n
+    senza console
+    '''
 
     if instance_or_stack_ref and all(x.startswith('i-') for x in instance_or_stack_ref):
         stack_refs = None
@@ -1196,9 +1206,12 @@ def console(instance_or_stack_ref, limit, region, w, watch):
 
     for _ in watching(w, watch):
 
+        found_match = False
         for instance in ec2.instances.filter(Filters=filters):
+
             cf_stack_name = get_tag(instance.tags, 'aws:cloudformation:stack-name')
             if not stack_refs or matches_any(cf_stack_name, stack_refs):
+                found_match = True
                 output = {}
                 try:
                     output = instance.console_output()
@@ -1211,6 +1224,15 @@ def console(instance_or_stack_ref, limit, region, w, watch):
                 if isinstance(output, dict) and output.get('Output'):
                     for line in output['Output'].split('\n')[-limit:]:
                         print_console(line)
+        if not found_match:
+            if stack_refs is None:
+                print("No EC2 instance with id '{}'.".format(instance_or_stack_ref[0]))
+            elif instance_or_stack_ref:
+                print("No stack matching '{}'{}.".format(
+                    stack_refs[0].name,
+                    " with version '{}'".format(stack_refs[0].version) if stack_refs[0].version is not None else ''))
+            else:
+                print("No EC2 instances in region '{}'.".format(region))
 
 
 @cli.command()

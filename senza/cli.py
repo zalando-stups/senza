@@ -153,8 +153,22 @@ class KeyValParamType(click.ParamType):
         return key_val
 
 
+def validate_version(ctx, param, value):
+    if not VERSION_PATTERN.match(value):
+        raise click.BadParameter('Version must satisfy regular expression pattern "[a-zA-Z0-9]+"')
+    return value
+
+
+def validate_region(ctx, param, value):
+    """Validate Click region param parameter."""
+    if value is not None:
+        if not REGION_PATTERN.match(value):
+            raise click.BadParameter("'{}'. Region must be a valid AWS region.".format(value))
+    return value
+
+
 region_option = click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID',
-                             help='AWS region ID (e.g. eu-west-1)')
+                             help='AWS region ID (e.g. eu-west-1)', callback=validate_region)
 parameter_file_option = click.option('--parameter-file', help='Config file for params', metavar='PATH')
 output_option = click.option('-o', '--output', type=click.Choice(['text', 'json', 'tsv']), default='text',
                              help='Use alternative output format')
@@ -182,13 +196,7 @@ def watching(w: bool, watch: int):
 # and start with an alpha character. Maximum length of the name is 255 characters.
 STACK_NAME_PATTERN = re.compile(r'^[a-zA-Z][a-zA-Z0-9-]*$')
 VERSION_PATTERN = re.compile(r'^[a-zA-Z0-9]+$')
-
-
-def validate_version(ctx, param, value):
-    if not VERSION_PATTERN.match(value):
-        raise click.BadParameter('Version must satisfy regular expression pattern "[a-zA-Z0-9]+"')
-    return value
-
+REGION_PATTERN = re.compile(r'^[a-z]{2}-[a-z]+-[0-9]$')
 
 DEFINITION = DefinitionParamType()
 

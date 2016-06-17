@@ -21,7 +21,7 @@ def test_invalid_definition():
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
 
-        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123'], catch_exceptions=False)
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=aa-fakeregion-1', '123'], catch_exceptions=False)
 
     assert 'Error: Invalid value for "definition"' in result.output
 
@@ -35,7 +35,7 @@ def test_file_not_found():
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
 
-        result = runner.invoke(cli, ['print', 'notfound.yaml', '--region=myregion', '123'], catch_exceptions=False)
+        result = runner.invoke(cli, ['print', 'notfound.yaml', '--region=aa-fakeregion-1', '123'], catch_exceptions=False)
 
     assert '"notfound.yaml" not found' in result.output
 
@@ -49,7 +49,7 @@ def test_parameter_file_not_found():
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
 
-        result = runner.invoke(cli, ['print', '--parameter-file', 'notfound.yaml', 'myapp.yaml', '--region=myregion', '123'], catch_exceptions=False)
+        result = runner.invoke(cli, ['print', '--parameter-file', 'notfound.yaml', 'myapp.yaml', '--region=aa-fakeregion-1', '123'], catch_exceptions=False)
 
     assert 'read parameter file "notfound.yaml"' in result.output
 
@@ -68,7 +68,7 @@ def test_parameter_file_found(monkeypatch):
         with open('parameter.yaml', 'w') as fd:
             yaml.dump(param_data, fd)
 
-        result = runner.invoke(cli, ['print', '--parameter-file', 'parameter.yaml', 'myapp.yaml', '--region=myregion', '123'], catch_exceptions=False)
+        result = runner.invoke(cli, ['print', '--parameter-file', 'parameter.yaml', 'myapp.yaml', '--region=aa-fakeregion-1', '123'], catch_exceptions=False)
 
     assert 'Generating Cloud Formation template.. OK' in result.output
 
@@ -85,7 +85,7 @@ def test_parameter_file_syntax_error():
         with open('parameter.yaml', 'w') as fd:
             fd.write(param_data)
 
-        result = runner.invoke(cli, ['print', '--parameter-file', 'parameter.yaml', 'myapp.yaml', '--region=myregion', '123'], catch_exceptions=False)
+        result = runner.invoke(cli, ['print', '--parameter-file', 'parameter.yaml', 'myapp.yaml', '--region=aa-fakeregion-1', '123'], catch_exceptions=False)
 
     assert 'Error: Error while parsing a flow node' in result.output
 
@@ -134,7 +134,7 @@ def test_print_minimal(monkeypatch):
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
 
-        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123'],
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=aa-fakeregion-1', '123'],
                                catch_exceptions=False)
 
     assert 'AWSTemplateFormatVersion' in result.output
@@ -160,11 +160,37 @@ def test_print_basic(monkeypatch):
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
 
-        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123'],
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=aa-fakeregion-1', '123'],
                                catch_exceptions=False)
 
     assert 'AWSTemplateFormatVersion' in result.output
     assert 'subnet-123' in result.output
+
+
+def test_region_validation(monkeypatch):
+    monkeypatch.setattr('boto3.client', lambda *args: MagicMock())
+
+    data = {'SenzaInfo': {'StackName': 'test'}, 'SenzaComponents': [{'Configuration': {'Type': 'Senza::Configuration',
+                                                                                       'ServerSubnets': {
+                                                                                           'myregion': [
+                                                                                               'subnet-123']}}},
+                                                                    {'AppServer': {
+                                                                        'Type': 'Senza::TaupageAutoScalingGroup',
+                                                                        'InstanceType': 't2.micro',
+                                                                        'Image': 'AppImage',
+                                                                        'TaupageConfig': {'runtime': 'Docker',
+                                                                                          'source': 'foo/bar'}}}]}
+
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=invalid-region', '123'],
+                               catch_exceptions=False)
+
+    assert 'Error: Invalid value for "--region": \'invalid-region\'. Region must be a valid AWS region.' in result.output
 
 
 def test_print_replace_mustache(monkeypatch):
@@ -196,7 +222,7 @@ def test_print_replace_mustache(monkeypatch):
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
 
-        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', 'master-mind'],
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=aa-fakeregion-1', '123', 'master-mind'],
                                catch_exceptions=False)
     assert 'AWSTemplateFormatVersion' in result.output
     assert 'subnet-123' in result.output
@@ -234,9 +260,9 @@ def test_print_account_info(monkeypatch):
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
 
-        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123'],
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=aa-fakeregion-1', '123'],
                                catch_exceptions=False)
-    assert '"StackName": "test-myregion",' in result.output
+    assert '"StackName": "test-aa-fakeregion-1",' in result.output
     assert 'AppImage-dummy-0123456789' in result.output
 
 
@@ -270,9 +296,9 @@ def test_print_account_info_and_arguments_in_name(monkeypatch):
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
 
-        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', 'b'],
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=aa-fakeregion-1', '123', 'b'],
                                catch_exceptions=False)
-    assert '"StackName": "test-myregion-b",' in result.output
+    assert '"StackName": "test-aa-fakeregion-1-b",' in result.output
     assert 'AppImage-dummy-0123456789' in result.output
 
 
@@ -355,16 +381,16 @@ def test_print_auto(monkeypatch):
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
 
-        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', '1.0-SNAPSHOT'],
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=aa-fakeregion-1', '123', '1.0-SNAPSHOT'],
                                catch_exceptions=False)
     # no stdout/stderr seperation with runner.invoke...
     stdout, cfjson = result.output.split('\n', 1)
     assert 'Generating Cloud Formation template.. OK' == stdout
     data = json.loads(cfjson)
     assert 'AWSTemplateFormatVersion' in data.keys()
-    assert 'subnet-abc123' in data['Mappings']['ServerSubnets']['myregion']['Subnets']
-    assert 'subnet-ghi789' not in data['Mappings']['ServerSubnets']['myregion']['Subnets']
-    assert 'subnet-ghi789' in data['Mappings']['LoadBalancerSubnets']['myregion']['Subnets']
+    assert 'subnet-abc123' in data['Mappings']['ServerSubnets']['aa-fakeregion-1']['Subnets']
+    assert 'subnet-ghi789' not in data['Mappings']['ServerSubnets']['aa-fakeregion-1']['Subnets']
+    assert 'subnet-ghi789' in data['Mappings']['LoadBalancerSubnets']['aa-fakeregion-1']['Subnets']
     assert 'source: foo/bar:1.0-SNAPSHO' in data['Resources']['AppServerConfig']['Properties']['UserData']['Fn::Base64']
     assert 'ELB' == data['Resources']['AppServer']['Properties']['HealthCheckType']
     assert 'my-referenced-role' in data['Resources']['AppServerInstanceProfile']['Properties']['Roles']
@@ -430,12 +456,12 @@ def test_print_default_value(monkeypatch):
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
 
-        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', '1.0-SNAPSHOT', 'extra value'],
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=aa-fakeregion-1', '123', '1.0-SNAPSHOT', 'extra value'],
                                catch_exceptions=False)
         assert 'DefParam: DefValue\\n' in result.output
         assert 'ExtraParam: extra value\\n' in result.output
 
-        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', '1.0-SNAPSHOT', 'extra value',
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=aa-fakeregion-1', '123', '1.0-SNAPSHOT', 'extra value',
                                      'other def value'],
                                catch_exceptions=False)
         assert 'DefParam: other def value\\n' in result.output
@@ -475,7 +501,7 @@ def test_print_taupage_config_without_ref(monkeypatch):
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd, default_flow_style=False)
 
-        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', 'master-mind'],
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=aa-fakeregion-1', '123', 'master-mind'],
                                catch_exceptions=False)
 
     stdout, cfjson = result.output.split('\n', 1)
@@ -528,7 +554,7 @@ def test_print_taupage_config_with_ref(monkeypatch):
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd, default_flow_style=False)
 
-        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=myregion', '123', 'master-mind'],
+        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=aa-fakeregion-1', '123', 'master-mind'],
                                catch_exceptions=False)
 
     stdout, cfjson = result.output.split('\n', 1)
@@ -555,12 +581,12 @@ def test_dump(monkeypatch):
     runner = CliRunner()
 
     with runner.isolated_filesystem():
-        result = runner.invoke(cli, ['dump', 'mystack', '--region=myregion'],
+        result = runner.invoke(cli, ['dump', 'mystack', '--region=aa-fakeregion-1'],
                                catch_exceptions=False)
 
         assert '{\n    "foo": "bar"\n}' == result.output.rstrip()
 
-        result = runner.invoke(cli, ['dump', 'mystack', '--region=myregion', '-o', 'yaml'],
+        result = runner.invoke(cli, ['dump', 'mystack', '--region=aa-fakeregion-1', '-o', 'yaml'],
                                catch_exceptions=False)
 
         assert 'foo: bar' == result.output.rstrip()
@@ -583,7 +609,7 @@ def test_init(monkeypatch):
     runner = CliRunner()
 
     with runner.isolated_filesystem():
-        result = runner.invoke(cli, ['init', 'myapp.yaml', '--region=myregion', '-v', 'test=123',
+        result = runner.invoke(cli, ['init', 'myapp.yaml', '--region=aa-fakeregion-1', '-v', 'test=123',
                                      '-v', 'mint_bucket=mybucket'],
                                catch_exceptions=False, input='1\nsdf\nsdf\n8080\n/\n')
         assert os.path.exists('myapp.yaml')
@@ -618,12 +644,12 @@ def test_init_opt2(monkeypatch):
     with runner.isolated_filesystem():
 
         input = ['2'] + ['Y']*30
-        result = runner.invoke(cli, ['init', 'spilo.yaml', '--region=myregion'], input='\n'.join(input))
+        result = runner.invoke(cli, ['init', 'spilo.yaml', '--region=aa-fakeregion-1'], input='\n'.join(input))
         assert 'Generating Senza definition file' in  result.output
         assert 'Do you wish to encrypt these passwords using KMS' in result.output
 
         input = ['2'] + ['N']*30
-        result = runner.invoke(cli, ['init', 'spilo.yaml', '--region=myregion'], input='\n'.join(input))
+        result = runner.invoke(cli, ['init', 'spilo.yaml', '--region=aa-fakeregion-1'], input='\n'.join(input))
         assert 'Generating Senza definition file' in  result.output
         assert 'Do you wish to encrypt these passwords using KMS' in result.output
 
@@ -645,7 +671,7 @@ def test_init_opt5(monkeypatch):
     runner = CliRunner()
 
     with runner.isolated_filesystem():
-        result = runner.invoke(cli, ['init', 'myapp.yaml', '--region=myregion', '-v', 'test=123',
+        result = runner.invoke(cli, ['init', 'myapp.yaml', '--region=aa-fakeregion-1', '-v', 'test=123',
                                      '-v', 'mint_bucket=mybucket'],
                                catch_exceptions=False, input='5\nsdf\nsdf\n8080\n/\n')
         assert os.path.exists('myapp.yaml')
@@ -693,7 +719,7 @@ def test_instances(monkeypatch):
     with runner.isolated_filesystem():
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
-        result = runner.invoke(cli, ['instances', 'myapp.yaml', '--region=myregion', '1'],
+        result = runner.invoke(cli, ['instances', 'myapp.yaml', '--region=aa-fakeregion-1', '1'],
                                catch_exceptions=False)
 
     assert 'Launched\n' in result.output
@@ -732,21 +758,21 @@ def test_console(monkeypatch):
     with runner.isolated_filesystem():
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
-        result = runner.invoke(cli, ['console', 'myapp.yaml', '--region=myregion', '1'],
+        result = runner.invoke(cli, ['console', 'myapp.yaml', '--region=aa-fakeregion-1', '1'],
                                catch_exceptions=False)
         assert 'Showing last 25 lines of test-1/10.0.0.1..' in result.output
         assert '**MAGIC-CONSOLE-OUTPUT**' in result.output
 
-        result = runner.invoke(cli, ['console', 'foobar', '--region=myregion'],
+        result = runner.invoke(cli, ['console', 'foobar', '--region=aa-fakeregion-1'],
                                catch_exceptions=False)
         assert '' == result.output
 
-        result = runner.invoke(cli, ['console', '172.31.1.2', '--region=myregion'],
+        result = runner.invoke(cli, ['console', '172.31.1.2', '--region=aa-fakeregion-1'],
                                catch_exceptions=False)
         assert 'Showing last 25 lines of test-1/10.0.0.1..' in result.output
         assert '**MAGIC-CONSOLE-OUTPUT**' in result.output
 
-        result = runner.invoke(cli, ['console', 'i-123', '--region=myregion'],
+        result = runner.invoke(cli, ['console', 'i-123', '--region=aa-fakeregion-1'],
                                catch_exceptions=False)
         assert 'Showing last 25 lines of test-1/10.0.0.1..' in result.output
         assert '**MAGIC-CONSOLE-OUTPUT**' in result.output
@@ -787,7 +813,7 @@ def test_status(monkeypatch):
     with runner.isolated_filesystem():
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
-        result = runner.invoke(cli, ['status', 'myapp.yaml', '--region=myregion', '1'],
+        result = runner.invoke(cli, ['status', 'myapp.yaml', '--region=aa-fakeregion-1', '1'],
                                catch_exceptions=False)
 
     assert 'Running' in result.output
@@ -831,7 +857,7 @@ def test_resources(monkeypatch):
     with runner.isolated_filesystem():
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
-        result = runner.invoke(cli, ['resources', 'myapp.yaml', '--region=myregion', '1'],
+        result = runner.invoke(cli, ['resources', 'myapp.yaml', '--region=aa-fakeregion-1', '1'],
                                catch_exceptions=False)
     assert 'AppLoadBalancer' in result.output
     assert 'CREATE_COMPLETE' in result.output
@@ -905,7 +931,7 @@ def test_domains(monkeypatch):
     with runner.isolated_filesystem():
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
-        result = runner.invoke(cli, ['domains', 'myapp.yaml', '--region=myregion', '1'],
+        result = runner.invoke(cli, ['domains', 'myapp.yaml', '--region=aa-fakeregion-1', '1'],
                                catch_exceptions=False)
     assert 'mydomain.example.org' in result.output
     assert 'VersionDomain test-1.example.org          CNAME test-1-123.myregion.elb.amazonaws.com' in result.output
@@ -953,7 +979,7 @@ def test_events(monkeypatch):
     with runner.isolated_filesystem():
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
-        result = runner.invoke(cli, ['events', 'myapp.yaml', '--region=myregion', '1'],
+        result = runner.invoke(cli, ['events', 'myapp.yaml', '--region=aa-fakeregion-1', '1'],
                                catch_exceptions=False)
 
     assert ' CloudFormation::Stack' in result.output
@@ -981,7 +1007,7 @@ def test_list(monkeypatch):
     with runner.isolated_filesystem():
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
-        result = runner.invoke(cli, ['list', 'myapp.yaml', '--region=myregion'],
+        result = runner.invoke(cli, ['list', 'myapp.yaml', '--region=aa-fakeregion-1'],
                                catch_exceptions=False)
 
     assert 'test-stack 1' in result.output
@@ -1023,7 +1049,7 @@ def test_images(monkeypatch):
     runner = CliRunner()
 
     with runner.isolated_filesystem():
-        result = runner.invoke(cli, ['images', '--region=myregion'], catch_exceptions=False)
+        result = runner.invoke(cli, ['images', '--region=aa-fakeregion-1'], catch_exceptions=False)
 
     assert 'ami-123' in result.output
     assert 'ami-456' in result.output
@@ -1055,16 +1081,16 @@ def test_delete(monkeypatch):
     with runner.isolated_filesystem():
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
-        result = runner.invoke(cli, ['delete', 'myapp.yaml', '--region=myregion', '1'],
+        result = runner.invoke(cli, ['delete', 'myapp.yaml', '--region=aa-fakeregion-1', '1'],
                                catch_exceptions=False)
         assert 'OK' in result.output
 
         cf.list_stacks.return_value = {'StackSummaries': [stack, stack]}
-        result = runner.invoke(cli, ['delete', 'myapp.yaml', '--region=myregion'],
+        result = runner.invoke(cli, ['delete', 'myapp.yaml', '--region=aa-fakeregion-1'],
                                catch_exceptions=False)
         assert 'Please use the "--force" flag if you really want to delete multiple stacks' in result.output
 
-        result = runner.invoke(cli, ['delete', 'myapp.yaml', '--region=myregion', '--force'],
+        result = runner.invoke(cli, ['delete', 'myapp.yaml', '--region=aa-fakeregion-1', '--force'],
                                catch_exceptions=False)
         assert 'OK' in result.output
 
@@ -1095,14 +1121,14 @@ def test_delete_interactive(monkeypatch):
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
         result = runner.invoke(cli,
-                               ['delete', 'myapp.yaml', '--region=myregion', '-i', '1'],
+                               ['delete', 'myapp.yaml', '--region=aa-fakeregion-1', '-i', '1'],
                                input='n\n',
                                catch_exceptions=False)
         assert "Delete 'test-1'" in result.output
         assert "OK" not in result.output
 
         result = runner.invoke(cli,
-                               ['delete', 'myapp.yaml', '--region=myregion',
+                               ['delete', 'myapp.yaml', '--region=aa-fakeregion-1',
                                 '-i', '1'],
                                input='y\n',
                                catch_exceptions=False)
@@ -1141,12 +1167,12 @@ def test_create(monkeypatch):
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '1', 'my-param-value',
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=aa-fakeregion-1', '1', 'my-param-value',
                                      'extra-param-value'],
                                catch_exceptions=False)
         assert 'DRY-RUN' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=myregion', '1', 'my-param-value',
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=aa-fakeregion-1', '1', 'my-param-value',
                                      'extra-param-value'],
                                catch_exceptions=False)
         assert 'OK' in result.output
@@ -1154,39 +1180,39 @@ def test_create(monkeypatch):
         cf.create_stack.side_effect = botocore.exceptions.ClientError({'Error': {'Code': 'AlreadyExistsException',
                                                                                  'Message': 'already exists expired'}},
                                                                       'foobar')
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=myregion', '1', 'my-param-value',
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=aa-fakeregion-1', '1', 'my-param-value',
                                      'extra-param-value'],
                                catch_exceptions=True)
         assert 'Stack test-1 already exists' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=myregion', 'abcde' * 25, 'my-param-value',
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=aa-fakeregion-1', 'abcde' * 25, 'my-param-value',
                                      'extra-param-value'],
                                catch_exceptions=True)
         assert 'cannot exceed 128 characters. Please choose another name/version.' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '2'],
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=aa-fakeregion-1', '2'],
                                catch_exceptions=True)
         assert 'Missing parameter' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '2', 'p1', 'p2', 'p3',
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=aa-fakeregion-1', '2', 'p1', 'p2', 'p3',
                                      'p4'],
                                catch_exceptions=True)
         assert 'Too many parameters given' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '2', 'my-param-value',
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=aa-fakeregion-1', '2', 'my-param-value',
                                      'ExtraParam=extra-param-value'],
                                catch_exceptions=True)
         assert 'OK' in result.output
 
         result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--tag', 'key=tag_value',
-                                     '--region=myregion', '2', 'my-param-value', 'ExtraParam=extra-param-value'],
+                                     '--region=aa-fakeregion-1', '2', 'my-param-value', 'ExtraParam=extra-param-value'],
                                catch_exceptions=True)
         assert 'OK' in result.output
         assert "'Key': 'key'" in result.output
         assert "'Value': 'tag_value'" in result.output
 
         result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--tag', 'key=tag_value', '--tag',
-                                     'key2=value2', '--region=myregion', '2', 'my-param-value',
+                                     'key2=value2', '--region=aa-fakeregion-1', '2', 'my-param-value',
                                      'ExtraParam=extra-param-value'],
                                catch_exceptions=True)
         assert 'OK' in result.output
@@ -1194,33 +1220,33 @@ def test_create(monkeypatch):
         assert "'Key': 'key2'" in result.output
 
         # checks that equal signs are OK in the keyword param value
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '2', 'my-param-value',
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=aa-fakeregion-1', '2', 'my-param-value',
                                      'ExtraParam=extra=param=value'],
                                catch_exceptions=True)
         assert 'OK' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '2',
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=aa-fakeregion-1', '2',
                                      'UnknownParam=value'],
                                catch_exceptions=True)
         assert 'Unrecognized keyword parameter' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '2', 'my-param-value',
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=aa-fakeregion-1', '2', 'my-param-value',
                                      'MyParam=param-value-again'],
                                catch_exceptions=True)
         assert 'Parameter specified multiple times' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '2',
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=aa-fakeregion-1', '2',
                                      'MyParam=my-param-value', 'MyParam=param-value-again'],
                                catch_exceptions=True)
         assert 'Parameter specified multiple times' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=myregion', '2',
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=aa-fakeregion-1', '2',
                                      'MyParam=my-param-value', 'positional'],
                                catch_exceptions=True)
         assert 'Positional parameters must not follow keywords' in result.output
 
         result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--tag', 'key=value', '--tag', 'badtag',
-                                     '--region=myregion', '2', 'my-param-value', 'ExtraParam=extra-param-value'],
+                                     '--region=aa-fakeregion-1', '2', 'my-param-value', 'ExtraParam=extra-param-value'],
                                catch_exceptions=True)
         assert 'Invalid tag badtag. Tags should be in the form of key=value' in result.output
 
@@ -1244,11 +1270,11 @@ def test_update(monkeypatch):
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
 
-        result = runner.invoke(cli, ['update', 'myapp.yaml', '--dry-run', '--region=myregion', '1'],
+        result = runner.invoke(cli, ['update', 'myapp.yaml', '--dry-run', '--region=aa-fakeregion-1', '1'],
                                catch_exceptions=False)
         assert 'DRY-RUN' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=myregion', '1'],
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=aa-fakeregion-1', '1'],
                                catch_exceptions=False)
         assert 'OK' in result.output
 
@@ -1311,7 +1337,7 @@ def test_traffic(monkeypatch):
 
     runner = CliRunner()
 
-    common_opts = ['traffic', '--region=my-region', 'myapp']
+    common_opts = ['traffic', '--region=aa-fakeregion-1', 'myapp']
 
     def run(opts):
         result = runner.invoke(cli, common_opts + opts, catch_exceptions=False)
@@ -1386,7 +1412,7 @@ def test_patch(monkeypatch):
     monkeypatch.setattr('senza.cli.find_taupage_image', MagicMock(return_value=image))
     monkeypatch.setattr('senza.cli.patch_auto_scaling_group', patch_auto_scaling_group)
     runner = CliRunner()
-    result = runner.invoke(cli, ['patch', 'myapp', '1', '--image=latest', '--region=myregion'],
+    result = runner.invoke(cli, ['patch', 'myapp', '1', '--image=latest', '--region=aa-fakeregion-1'],
                            catch_exceptions=False)
 
     assert props['ImageId'] == 'latesttaupage-123'
@@ -1399,11 +1425,11 @@ def test_respawn(monkeypatch):
     monkeypatch.setattr('senza.cli.get_auto_scaling_groups', lambda *args: 'myasg')
     monkeypatch.setattr('senza.cli.respawn_auto_scaling_group', lambda *args, **kwargs: None)
     runner = CliRunner()
-    result = runner.invoke(cli, ['respawn', 'myapp', '1', '--region=myregion'],
+    result = runner.invoke(cli, ['respawn', 'myapp', '1', '--region=aa-fakeregion-1'],
                            catch_exceptions=False)
 
 
-def test_scale(monkeypatch):
+def     test_scale(monkeypatch):
     boto3 = MagicMock()
     boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1'}]}
     boto3.describe_stack_resources.return_value = {'StackResources': [{'ResourceType': 'AWS::AutoScaling::AutoScalingGroup', 'PhysicalResourceId': 'myasg'}]}
@@ -1412,7 +1438,7 @@ def test_scale(monkeypatch):
     boto3.describe_auto_scaling_groups.return_value = {'AutoScalingGroups': [group]}
     monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
     runner = CliRunner()
-    result = runner.invoke(cli, ['scale', 'myapp', '1', '2', '--region=myregion'],
+    result = runner.invoke(cli, ['scale', 'myapp', '1', '2', '--region=aa-fakeregion-1'],
                            catch_exceptions=False)
     assert 'Scaling myasg from 1 to 2 instances' in result.output
 

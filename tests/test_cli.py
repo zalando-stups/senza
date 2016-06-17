@@ -741,6 +741,13 @@ def test_console(monkeypatch):
             return ec2
         return MagicMock()
 
+    def my_resource_empty(rtype, *args):
+        if rtype == 'ec2':
+            ec2 = MagicMock()
+            ec2.instances.filter.return_value = []
+            return ec2
+        return MagicMock()
+
     def my_client(rtype, *args, **kwargs):
         if rtype == 'cloudformation':
             cf = MagicMock()
@@ -763,9 +770,13 @@ def test_console(monkeypatch):
         assert 'Showing last 25 lines of test-1/10.0.0.1..' in result.output
         assert '**MAGIC-CONSOLE-OUTPUT**' in result.output
 
-        result = runner.invoke(cli, ['console', 'foobar', '--region=aa-fakeregion-1'],
+        result = runner.invoke(cli, ['console', 'stacknotfound', '--region=aa-fakeregion-1'],
                                catch_exceptions=False)
-        assert '' == result.output
+        assert "No stack matching 'stacknotfound'." in result.output
+
+        result = runner.invoke(cli, ['console', 'stacknotfound', 'ver1', '--region=aa-fakeregion-1'],
+                               catch_exceptions=False)
+        assert "No stack matching 'stacknotfound' with version 'ver1'." in result.output
 
         result = runner.invoke(cli, ['console', '172.31.1.2', '--region=aa-fakeregion-1'],
                                catch_exceptions=False)
@@ -776,6 +787,15 @@ def test_console(monkeypatch):
                                catch_exceptions=False)
         assert 'Showing last 25 lines of test-1/10.0.0.1..' in result.output
         assert '**MAGIC-CONSOLE-OUTPUT**' in result.output
+
+        monkeypatch.setattr('boto3.resource', my_resource_empty)
+
+        result = runner.invoke(cli, ['console', 'i-notfound', '--region=aa-fakeregion-1'],
+                               catch_exceptions=False)
+        assert "No EC2 instance with id 'i-notfound'." in result.output
+
+        result = runner.invoke(cli, ['console', '--region=aa-fakeregion-1'], catch_exceptions=False)
+        assert "No EC2 instances in region 'aa-fakeregion-1'." in result.output
 
 
 def test_status(monkeypatch):

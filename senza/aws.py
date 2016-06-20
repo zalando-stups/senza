@@ -11,6 +11,7 @@ from click import FileError
 
 from .stack_references import check_file_exceptions
 
+
 def resolve_referenced_resource(ref: dict, region: str):
     if 'Stack' in ref and 'LogicalId' in ref:
         cf = boto3.client('cloudformation', region)
@@ -244,6 +245,7 @@ def get_stacks(stack_refs: list, region, all=False):
     # After going through all stacks
     check_file_exceptions(stack_refs)
 
+
 def matches_any(cf_stack_name: str, stack_refs: list):
     """
     >>> matches_any(None, [StackReference(name='foobar', version=None)])
@@ -331,8 +333,8 @@ def get_account_alias():
 class StackReference(collections.namedtuple('StackReference', 'name version')):
     def __init__(self, *args, **kwargs):
         self.matched = 0
-        self.possible_definition_file = (self.name.endswith('.yml')
-                                         or self.name.endswith('.yaml'))
+        self.possible_definition_file = (self.name.endswith('.yml') or
+                                         self.name.endswith('.yaml'))
 
     def raise_file_exception(self):
         """
@@ -347,10 +349,10 @@ class StackReference(collections.namedtuple('StackReference', 'name version')):
             except (OSError, IOError) as error:
                     raise FileError(ref, str(error))
 
-    def matches(self, name:str, version:str):
+    def matches(self, name: str, version: str):
         matches_name = re.match(self.name + '$', name)
-        matches_version = (not self.version
-                           or re.match(self.version + '$', version))
+        matches_version = (not self.version or
+                           re.match(self.version + '$', version))
         matches = bool(matches_name and matches_version)
         if matches:
             self.matched += 1

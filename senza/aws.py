@@ -241,8 +241,8 @@ def get_stacks(stack_refs: list, region, all=False, unique_only=False):
         kwargs['NextToken'] = results.get('NextToken')
 
     stacks.sort(key=lambda x: x['CreationTime'], reverse=True)
-    # stack names that were already yielded to avod yielding old deleted stacks
-    # whose name was reused
+    # stack names that were already yielded to avoid yielding old deleted
+    # stacks whose name was reused
     stacks_yielded = set()
     for stack in stacks:
         if stack['StackName'] not in stacks_yielded or not unique_only:

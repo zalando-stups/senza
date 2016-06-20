@@ -38,7 +38,8 @@ from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
 from .templates import get_templates, get_template_description
 from .templates._helper import get_mint_bucket_name
 from .traffic import change_version_traffic, print_version_traffic, get_records, get_zone
-from .utils import named_value, camel_case_to_underscore, pystache_render, ensure_keys
+from .utils import (named_value, camel_case_to_underscore, pystache_render,
+                    ensure_keys)
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
@@ -128,9 +129,11 @@ class DefinitionParamType(click.ParamType):
                 self.fail('"{}" not found'.format(value), param, ctx)
         else:
             data = value
-        for key in ['SenzaInfo']:
-            if 'SenzaInfo' not in data:
-                self.fail('"{}" entry is missing in YAML file "{}"'.format(key, value), param, ctx)
+
+        if 'SenzaInfo' not in data:
+            self.fail('"SenzaInfo" entry is missing in '
+                      'YAML file "{}"'.format(value),
+                      param, ctx)
         return data
 
 
@@ -471,6 +474,7 @@ StackReference(name='foobar-stack', version='v99'), StackReference(name='other-s
     last_stack = None
     while refs:
         ref = refs.pop()
+
         if last_stack is not None and re.compile(r'v[0-9][a-zA-Z0-9-]*$').match(ref):
             stack_refs.append(StackReference(last_stack, ref))
         else:

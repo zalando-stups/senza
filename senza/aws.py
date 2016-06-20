@@ -5,8 +5,11 @@ import datetime
 import functools
 import re
 import time
+import yaml
 from botocore.exceptions import ClientError
+from click import FileError
 
+from .stack_references import check_file_exceptions
 
 def resolve_referenced_resource(ref: dict, region: str):
     if 'Stack' in ref and 'LogicalId' in ref:
@@ -238,7 +241,8 @@ def get_stacks(stack_refs: list, region, all=False):
             if not stack_refs or matches_any(stack['StackName'], stack_refs):
                 yield SenzaStackSummary(stack)
         kwargs['NextToken'] = results.get('NextToken')
-
+    # After going through all stacks
+    check_file_exceptions(stack_refs)
 
 def matches_any(cf_stack_name: str, stack_refs: list):
     """
@@ -268,11 +272,7 @@ def matches_any(cf_stack_name: str, stack_refs: list):
         name = cf_stack_name
         version = ""
 
-    for ref in stack_refs:
-        matches_name = re.match(ref.name + '$', name)
-        matches_version = not ref.version or re.match(ref.version + '$', version)
-        return bool(matches_name and matches_version)
-    return False
+    return any(ref.matches(name, version) for ref in stack_refs)
 
 
 def get_tag(tags: list, key: str, default=None):
@@ -329,5 +329,34 @@ def get_account_alias():
 
 
 class StackReference(collections.namedtuple('StackReference', 'name version')):
+    def __init__(self, *args, **kwargs):
+        self.matched = 0
+        self.possible_definition_file = (self.name.endswith('.yml')
+                                         or self.name.endswith('.yaml'))
+
+    def raise_file_exception(self):
+        """
+        If it looks like a filename and didn't match anything try to open it
+        to see if exists and can be opened and raise an exception if it can't
+        """
+        if not self.matched and self.possible_definition_file:
+            try:
+                with open(self.name) as fd:
+                    data = yaml.safe_load(fd)
+                ref = data['SenzaInfo']['StackName']
+            except (OSError, IOError) as error:
+                    raise FileError(ref, str(error))
+
+    def matches(self, name:str, version:str):
+        matches_name = re.match(self.name + '$', name)
+        matches_version = (not self.version
+                           or re.match(self.version + '$', version))
+        matches = bool(matches_name and matches_version)
+        if matches:
+            self.matched += 1
+        return matches
+
     def cf_stack_name(self):
-        return '{}-{}'.format(self.name, self.version)
+        return ('{}-{}'.format(self.name, self.version)
+                if self.version
+                else self.name)

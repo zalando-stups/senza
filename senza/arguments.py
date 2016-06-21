@@ -1,6 +1,8 @@
 import click
 import re
 
+from .error_handling import HandleExceptions
+
 REGION_PATTERN = re.compile(r'^[a-z]{2}-[a-z]+-[0-9]$')
 
 
@@ -11,6 +13,10 @@ def validate_region(ctx, param, value):
             raise click.BadParameter("'{}'. Region must be a valid "
                                      "AWS region.".format(value))
     return value
+
+
+def set_stacktrace_visible(ctx, param, value):
+    HandleExceptions.stacktrace_visible = value
 
 
 region_option = click.option('--region',
@@ -35,6 +41,8 @@ json_output_option = click.option('-o', '--output',
 
 stacktrace_visible_option = click.option('--stacktrace-visible',
                                          is_flag=True,
+                                         callback=set_stacktrace_visible,
+                                         expose_value=False,
                                          help='Show stack trace instead of '
                                               'storing it')
 

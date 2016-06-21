@@ -1405,8 +1405,7 @@ def failure_event(event: dict):
               help='Time between checks (default: 5s)')
 @region_option
 @stacktrace_visible_option
-def wait(stack_ref, region, deletion, timeout, interval,
-         stacktrace_visible):
+def wait(stack_ref, region, deletion, timeout, interval,):
     '''Wait for successfull stack creation or deletion.
 
     Supports waiting for more than one stack up to timeout seconds.'''

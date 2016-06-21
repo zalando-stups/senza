@@ -5,6 +5,8 @@ import string
 
 from pytest import fixture
 
+import botocore.exceptions
+
 import senza.error_handling
 
 
@@ -82,3 +84,61 @@ def test_store_nested_exception(monkeypatch, mock_tempfile):
                                           delete=False)
     assert file_name == mock_tempfile.name
     mock_tempfile.write.assert_called_once_with(expected_exception)
+
+
+def test_missing_credentials(capsys):
+    func = MagicMock(side_effect=botocore.exceptions.NoCredentialsError())
+
+    try:
+        senza.error_handling.HandleExceptions(func)()
+    except SystemExit:
+        pass
+
+    out, err = capsys.readouterr()
+    assert 'No AWS credentials found.' in err
+
+    func = MagicMock(side_effect=botocore.exceptions.ClientError(
+        {'Error': {'Code': 'AccessDenied',
+                   'Message': 'User: myuser is not authorized to perform: service:TaskName'}},
+        'foobar'))
+
+    try:
+        senza.error_handling.HandleExceptions(func)()
+    except SystemExit:
+        pass
+
+    out, err = capsys.readouterr()
+
+    assert 'No AWS credentials found.' in err
+
+
+def test_expired_credentials(capsys):
+    func = MagicMock(side_effect=botocore.exceptions.ClientError(
+        {'Error': {'Code': 'ExpiredToken',
+                   'Message': 'Token expired'}},
+        'foobar'))
+
+    try:
+        senza.error_handling.HandleExceptions(func)()
+    except SystemExit:
+        pass
+
+    out, err = capsys.readouterr()
+
+    assert 'AWS credentials have expired.' in err
+
+
+def test_unknown_ClientError_no_stack_trace(capsys):
+    func = MagicMock(side_effect=botocore.exceptions.ClientError(
+        {'Error': {'Code': 'SomeUnknownError',
+                   'Message': 'A weird error happened'}},
+        'foobar'))
+
+    try:
+        senza.error_handling.HandleExceptions(func)()
+    except SystemExit:
+        pass
+
+    out, err = capsys.readouterr()
+
+    assert 'Unknown Error: An error occurred' in err

@@ -47,7 +47,8 @@ class HandleExceptions:
             file_name = store_exception(e)
             print('Unknown Error: {e}.\n'
                   'Please create an issue '
-                  'with the content of {fn}'.format(e=e, fn=file_name))
+                  'with the content of {fn}'.format(e=e, fn=file_name),
+                  file=sys.stderr)
             sys.exit(1)
         raise e
 

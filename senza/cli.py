@@ -26,12 +26,16 @@ from clickclick import AliasedGroup, Action, choice, info, FloatRange, OutputFor
 from clickclick.console import print_table
 
 import senza
+from .arguments import (json_output_option, output_option,
+                        parameter_file_option, region_option,
+                        stacktrace_visible_option, watch_option,
+                        watchrefresh_option)
 from .aws import (parse_time, get_required_capabilities, resolve_topic_arn,
                   get_stacks, StackReference, matches_any, get_account_id,
                   get_account_alias, get_tag)
 from .components import get_component, evaluate_template
 from .components.stups_auto_configuration import find_taupage_image
-from .error_handling import handle_exceptions
+from .error_handling import HandleExceptions
 from .exceptions import VPCError
 from .patch import patch_auto_scaling_group
 from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
@@ -159,26 +163,6 @@ def validate_version(ctx, param, value):
     return value
 
 
-def validate_region(ctx, param, value):
-    """Validate Click region param parameter."""
-    if value is not None:
-        if not REGION_PATTERN.match(value):
-            raise click.BadParameter("'{}'. Region must be a valid AWS region.".format(value))
-    return value
-
-
-region_option = click.option('--region', envvar='AWS_DEFAULT_REGION', metavar='AWS_REGION_ID',
-                             help='AWS region ID (e.g. eu-west-1)', callback=validate_region)
-parameter_file_option = click.option('--parameter-file', help='Config file for params', metavar='PATH')
-output_option = click.option('-o', '--output', type=click.Choice(['text', 'json', 'tsv']), default='text',
-                             help='Use alternative output format')
-json_output_option = click.option('-o', '--output', type=click.Choice(['json', 'yaml']), default='json',
-                                  help='Use alternative output format')
-watch_option = click.option('-W', is_flag=True, help='Auto update the screen every 2 seconds')
-watchrefresh_option = click.option('-w', '--watch', type=click.IntRange(1, 300), metavar='SECS',
-                                   help='Auto update the screen every X seconds')
-
-
 def watching(w: bool, watch: int):
     if w and not watch:
         watch = 2
@@ -196,7 +180,6 @@ def watching(w: bool, watch: int):
 # and start with an alpha character. Maximum length of the name is 255 characters.
 STACK_NAME_PATTERN = re.compile(r'^[a-zA-Z][a-zA-Z0-9-]*$')
 VERSION_PATTERN = re.compile(r'^[a-zA-Z0-9]+$')
-REGION_PATTERN = re.compile(r'^[a-z]{2}-[a-z]+-[0-9]$')
 
 DEFINITION = DefinitionParamType()
 
@@ -517,8 +500,10 @@ def all_with_version(stack_refs: list):
 @watchrefresh_option
 @click.option('--all', is_flag=True, help='Show all stacks, including deleted ones')
 @click.argument('stack_ref', nargs=-1)
-def list_stacks(region, stack_ref, all, output, w, watch):
+@stacktrace_visible_option
+def list_stacks(region, stack_ref, all, output, w, watch, stacktrace_visible):
     '''List Cloud Formation stacks'''
+    HandleExceptions.stacktrace_visible = stacktrace_visible
     region = get_region(region)
     check_credentials(region)
 
@@ -550,9 +535,11 @@ def list_stacks(region, stack_ref, all, output, w, watch):
 @click.option('--dry-run', is_flag=True, help='No-op mode: show what would be created')
 @click.option('-f', '--force', is_flag=True, help='Ignore failing validation checks')
 @click.option('-t', '--tag', help='Tags to associate with the stack.', multiple=True)
-def create(definition, region, version, parameter, disable_rollback, dry_run, force, tag, parameter_file):
+@stacktrace_visible_option
+def create(definition, region, version, parameter, disable_rollback, dry_run,
+           force, tag, parameter_file, stacktrace_visible):
     '''Create a new Cloud Formation stack from the given Senza definition file'''
-
+    HandleExceptions.stacktrace_visible = stacktrace_visible
     region = get_region(region)
     data = create_cf_template(definition, region, version, parameter, force, parameter_file)
 
@@ -588,8 +575,13 @@ def create(definition, region, version, parameter, disable_rollback, dry_run, fo
 @click.option('--disable-rollback', is_flag=True, help='Disable Cloud Formation rollback on failure')
 @click.option('--dry-run', is_flag=True, help='No-op mode: show what would be created')
 @click.option('-f', '--force', is_flag=True, help='Ignore failing validation checks')
-def update(definition, region, version, parameter, disable_rollback, dry_run, force, parameter_file):
+@stacktrace_visible_option
+def update(definition, region, version, parameter, disable_rollback, dry_run,
+           force, parameter_file, stacktrace_visible):
     '''Update an existing Cloud Formation stack from the given Senza definition file'''
+
+    HandleExceptions.stacktrace_visible = stacktrace_visible
+
     region = get_region(region)
     data = create_cf_template(definition, region, version, parameter, force, parameter_file)
     cf = boto3.client('cloudformation', region)
@@ -613,8 +605,13 @@ def update(definition, region, version, parameter, disable_rollback, dry_run, fo
 @parameter_file_option
 @json_output_option
 @click.option('-f', '--force', is_flag=True, help='Ignore failing validation checks')
-def print_cfjson(definition, region, version, parameter, output, force, parameter_file):
+@stacktrace_visible_option
+def print_cfjson(definition, region, version, parameter, output, force,
+                 parameter_file, stacktrace_visible):
     '''Print the generated Cloud Formation template'''
+
+    HandleExceptions.stacktrace_visible = stacktrace_visible_option
+
     region = get_region(region)
     data = create_cf_template(definition, region, version, parameter, force, parameter_file)
     print_json(data['TemplateBody'], output)
@@ -688,8 +685,12 @@ def create_cf_template(definition, region, version, parameter, force, parameter_
 @click.option('-f', '--force', is_flag=True, help='Allow deleting multiple stacks')
 @click.option('-i', '--interactive', is_flag=True,
               help='Prompt before every deletion')
-def delete(stack_ref, region, dry_run, force, interactive):
+@stacktrace_visible_option
+def delete(stack_ref, region, dry_run, force, interactive, stacktrace_visible):
     '''Delete a single Cloud Formation stack'''
+
+    HandleExceptions.stacktrace_visible = stacktrace_visible
+
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
     check_credentials(region)
@@ -725,8 +726,12 @@ def format_resource_type(resource_type):
 @watch_option
 @watchrefresh_option
 @output_option
-def resources(stack_ref, region, w, watch, output):
+@stacktrace_visible_option
+def resources(stack_ref, region, w, watch, output, stacktrace_visible):
     '''Show all resources of a single Cloud Formation stack'''
+
+    HandleExceptions.stacktrace_visible = stacktrace_visible
+
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
     check_credentials(region)
@@ -758,8 +763,12 @@ def resources(stack_ref, region, w, watch, output):
 @watch_option
 @watchrefresh_option
 @output_option
-def events(stack_ref, region, w, watch, output):
+@stacktrace_visible_option
+def events(stack_ref, region, w, watch, output, stacktrace_visible):
     '''Show all Cloud Formation events for a single stack'''
+
+    HandleExceptions.stacktrace_visible = stacktrace_visible
+
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
     check_credentials(region)
@@ -792,8 +801,12 @@ def events(stack_ref, region, w, watch, output):
 @click.option('-t', '--template', help='Use a custom template', metavar='TEMPLATE_ID')
 @click.option('-v', '--user-variable', help='Provide user variables for the template',
               metavar='KEY=VAL', multiple=True, type=KEY_VAL)
-def init(definition_file, region, template, user_variable):
+@stacktrace_visible_option
+def init(definition_file, region, template, user_variable, stacktrace_visible):
     """Initialize a new Senza definition"""
+
+    HandleExceptions.stacktrace_visible = stacktrace_visible
+
     region = get_region(region)
     check_credentials(region)
     account_info = AccountArguments(region=region)
@@ -864,8 +877,13 @@ def get_instance_docker_image_source(instance) -> str:
 @output_option
 @watch_option
 @watchrefresh_option
-def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region, output, w, watch):
+@stacktrace_visible_option
+def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region,
+              output, w, watch, stacktrace_visible):
     '''List the stack's EC2 instances'''
+
+    HandleExceptions.stacktrace_visible = stacktrace_visible
+
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
     check_credentials(region)
@@ -927,8 +945,12 @@ def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region, o
 @output_option
 @watch_option
 @watchrefresh_option
-def status(stack_ref, region, output, w, watch):
+@stacktrace_visible_option
+def status(stack_ref, region, output, w, watch, stacktrace_visible):
     '''Show stack status information'''
+
+    HandleExceptions.stacktrace_visible = stacktrace_visible
+
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
     check_credentials(region)
@@ -992,8 +1014,12 @@ def status(stack_ref, region, output, w, watch):
 @output_option
 @watch_option
 @watchrefresh_option
-def domains(stack_ref, region, output, w, watch):
+@stacktrace_visible_option
+def domains(stack_ref, region, output, w, watch, stacktrace_visible):
     '''List the stack's Route53 domains'''
+
+    HandleExceptions.stacktrace_visible = stacktrace_visible
+
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
     check_credentials(region)
@@ -1042,8 +1068,13 @@ def domains(stack_ref, region, output, w, watch):
 @click.argument('percentage', type=FloatRange(0, 100, clamp=True), required=False)
 @region_option
 @output_option
-def traffic(stack_name, stack_version, percentage, region, output):
+@stacktrace_visible_option
+def traffic(stack_name, stack_version, percentage, region, output,
+            stacktrace_visible):
     '''Route traffic to a specific stack (weighted DNS record)'''
+
+    HandleExceptions.stacktrace_visible = stacktrace_visible
+
     stack_refs = get_stack_refs([stack_name, stack_version])
     region = get_region(region)
     check_credentials(region)
@@ -1058,13 +1089,19 @@ def traffic(stack_name, stack_version, percentage, region, output):
 
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
-@click.option('--hide-older-than', help='Hide images older than X days (default: 21)',
+@click.option('--hide-older-than',
+              help='Hide images older than X days (default: 21)',
               type=int, default=21, metavar='DAYS')
 @click.option('--show-instances', is_flag=True, help='Show EC2 instance IDs')
 @region_option
 @output_option
-def images(stack_ref, region, output, hide_older_than, show_instances):
+@stacktrace_visible_option
+def images(stack_ref, region, output, hide_older_than, show_instances,
+           stacktrace_visible):
     '''Show all used AMIs and available Taupage AMIs'''
+
+    HandleExceptions.stacktrace_visible = stacktrace_visible
+
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
     check_credentials(region)
@@ -1173,7 +1210,8 @@ def print_console(line: str):
 @region_option
 @watch_option
 @watchrefresh_option
-def console(instance_or_stack_ref, limit, region, w, watch):
+@stacktrace_visible_option
+def console(instance_or_stack_ref, limit, region, w, watch, stacktrace_visible):
     '''Print EC2 instance console output.
 
     INSTANCE_OR_STACK_REF can be an instance ID, private IP address or stack name/version.
@@ -1187,6 +1225,8 @@ def console(instance_or_stack_ref, limit, region, w, watch):
     senza console i-7c3a3de5\n
     senza console
     '''
+
+    HandleExceptions.stacktrace_visible = stacktrace_visible
 
     if instance_or_stack_ref and all(x.startswith('i-') for x in instance_or_stack_ref):
         stack_refs = None
@@ -1239,8 +1279,12 @@ def console(instance_or_stack_ref, limit, region, w, watch):
 @click.argument('stack_ref', nargs=-1)
 @region_option
 @json_output_option
-def dump(stack_ref, region, output):
+@stacktrace_visible_option
+def dump(stack_ref, region, output, stacktrace_visible):
     '''Dump Cloud Formation template of existing stack'''
+
+    HandleExceptions.stacktrace_visible = stacktrace_visible
+
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
     check_credentials(region)
@@ -1267,13 +1311,22 @@ def get_auto_scaling_groups(stack_refs, region):
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
 @region_option
-@click.option('--image', metavar='AMI_ID_OR_LATEST', help='Use specified image (AMI ID or "latest")')
-@click.option('--instance-type', metavar='INSTANCE_TYPE', help='Use specified EC2 instance type')
-@click.option('--user-data', metavar='YAML', help='Patch properties in user data YAML')
-def patch(stack_ref, region, image, instance_type, user_data):
+@click.option('--image',
+              metavar='AMI_ID_OR_LATEST',
+              help='Use specified image (AMI ID or "latest")')
+@click.option('--instance-type',
+              metavar='INSTANCE_TYPE',
+              help='Use specified EC2 instance type')
+@click.option('--user-data', metavar='YAML',
+              help='Patch properties in user data YAML')
+@stacktrace_visible_option
+def patch(stack_ref, region, image, instance_type, user_data, stacktrace_visible):
     '''Patch specific properties of existing stack.
 
     Currently only supports patching ASG launch configurations.'''
+
+    HandleExceptions.stacktrace_visible = stacktrace_visible
+
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
     check_credentials(region)
@@ -1303,13 +1356,19 @@ def patch(stack_ref, region, image, instance_type, user_data):
 
 @cli.command('respawn-instances')
 @click.argument('stack_ref', nargs=-1)
-@click.option('--inplace', is_flag=True, help='Perform inplace update, do not scale out')
-@click.option('-f', '--force', is_flag=True, help='Force respawn even if Launch Configuration is unchanged')
+@click.option('--inplace',
+              is_flag=True, help='Perform inplace update, do not scale out')
+@click.option('-f', '--force',
+              is_flag=True,
+              help='Force respawn even if Launch Configuration is unchanged')
 @region_option
-def respawn_instances(stack_ref, inplace, force, region):
+@stacktrace_visible_option
+def respawn_instances(stack_ref, inplace, force, region, stacktrace_visible):
     '''Replace all EC2 instances in Auto Scaling Group(s)
 
     Performs a rolling update to prevent downtimes.'''
+
+    HandleExceptions.stacktrace_visible = stacktrace_visible
 
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
@@ -1323,8 +1382,11 @@ def respawn_instances(stack_ref, inplace, force, region):
 @click.argument('stack_ref', nargs=-1)
 @click.argument('desired_capacity', type=click.IntRange(0, 100, clamp=True))
 @region_option
-def scale(stack_ref, region, desired_capacity):
+@stacktrace_visible_option
+def scale(stack_ref, region, desired_capacity, stacktrace_visible):
     '''Scale Auto Scaling Group to desired capacity'''
+
+    HandleExceptions.stacktrace_visible = stacktrace_visible
 
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
@@ -1364,16 +1426,25 @@ def failure_event(event: dict):
 
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
-@click.option('-d', '--deletion', is_flag=True, help='Wait for deletion instead of CREATE_COMPLETE')
-@click.option('-t', '--timeout', type=click.IntRange(0, 7200, clamp=True), metavar='SECS', default=1800,
+@click.option('-d', '--deletion',
+              is_flag=True, help='Wait for deletion instead of CREATE_COMPLETE')
+@click.option('-t', '--timeout',
+              type=click.IntRange(0, 7200, clamp=True),
+              metavar='SECS',
+              default=1800,
               help='Maximum wait time (default: 1800s)')
-@click.option('-i', '--interval', default=5, type=click.IntRange(1, 600, clamp=True),
+@click.option('-i', '--interval', default=5,
+              type=click.IntRange(1, 600, clamp=True),
               help='Time between checks (default: 5s)')
 @region_option
-def wait(stack_ref, region, deletion, timeout, interval):
+@stacktrace_visible_option
+def wait(stack_ref, region, deletion, timeout, interval,
+         stacktrace_visible):
     '''Wait for successfull stack creation or deletion.
 
     Supports waiting for more than one stack up to timeout seconds.'''
+
+    HandleExceptions.stacktrace_visible = stacktrace_visible
 
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
@@ -1415,7 +1486,7 @@ def wait(stack_ref, region, deletion, timeout, interval):
 
 
 def main():
-    handle_exceptions(cli)()
+    HandleExceptions(cli)()
 
 
 if __name__ == "__main__":

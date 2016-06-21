@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import yaml
 import json
 from senza.cli import cli, AccountArguments
-from senza.error_handling import handle_exceptions
+from senza.error_handling import HandleExceptions
 import botocore.exceptions
 from senza.traffic import PERCENT_RESOLUTION, StackVersion
 import senza.traffic
@@ -100,7 +100,7 @@ def test_missing_credentials(capsys):
     func = MagicMock(side_effect=botocore.exceptions.NoCredentialsError())
 
     try:
-        handle_exceptions(func)()
+        HandleExceptions(func)()
     except SystemExit:
         pass
 
@@ -114,7 +114,7 @@ def test_expired_credentials(capsys):
                                                                  'foobar'))
 
     try:
-        handle_exceptions(func)()
+        HandleExceptions(func)()
     except SystemExit:
         pass
 

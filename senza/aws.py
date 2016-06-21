@@ -206,7 +206,7 @@ class SenzaStackSummary:
         return self.stack['StackName'] == other.stack['StackName']
 
 
-def get_stacks(stack_refs: list, region, all=False):
+def get_stacks(stack_refs: list, region, all=False, unique_only=False):
     # boto3.resource('cf')-stacks.filter() doesn't support status_filter, only StackName
     cf = boto3.client('cloudformation', region)
     if all:
@@ -232,12 +232,22 @@ def get_stacks(stack_refs: list, region, all=False):
             "UPDATE_ROLLBACK_COMPLETE"
         ]
     kwargs = {'StackStatusFilter': status_filter}
+    stacks = []
     while 'NextToken' not in kwargs or kwargs['NextToken']:
         results = cf.list_stacks(**kwargs)
         for stack in results['StackSummaries']:
             if not stack_refs or matches_any(stack['StackName'], stack_refs):
-                yield SenzaStackSummary(stack)
+                stacks.append(stack)
         kwargs['NextToken'] = results.get('NextToken')
+
+    stacks.sort(key=lambda x: x['CreationTime'], reverse=True)
+    # stack names that were already yielded to avoid yielding old deleted
+    # stacks whose name was reused
+    stacks_yielded = set()
+    for stack in stacks:
+        if stack['StackName'] not in stacks_yielded or not unique_only:
+            stacks_yielded.add(stack['StackName'])
+            yield SenzaStackSummary(stack)
 
 
 def matches_any(cf_stack_name: str, stack_refs: list):

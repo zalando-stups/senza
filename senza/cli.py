@@ -1421,7 +1421,7 @@ def wait(stack_ref, region, deletion, timeout, interval,
     while time.time() < cutoff:
         stacks_ok = set()
         stacks_nok = set()
-        for stack in get_stacks(stack_refs, region, all=True):
+        for stack in get_stacks(stack_refs, region, all=True, unique_only=True):
             if stack.StackStatus == target_status:
                 stacks_ok.add((stack.name, stack.version))
             elif stack.StackStatus.endswith('_FAILED') or stack.StackStatus.endswith('_COMPLETE'):

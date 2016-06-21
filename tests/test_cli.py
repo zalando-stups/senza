@@ -574,7 +574,8 @@ def test_print_taupage_config_with_ref(monkeypatch):
 
 def test_dump(monkeypatch):
     cf = MagicMock()
-    cf.list_stacks.return_value = {'StackSummaries': [{'StackName': 'mystack-1'}]}
+    cf.list_stacks.return_value = {'StackSummaries': [{'StackName': 'mystack-1',
+                                                       'CreationTime': '2016-06-14'}]}
     cf.get_template.return_value = {'TemplateBody': {'foo': 'bar'}}
     monkeypatch.setattr('boto3.client', lambda *args: cf)
 
@@ -819,7 +820,8 @@ def test_status(monkeypatch):
     def my_client(rtype, *args):
         if rtype == 'cloudformation':
             cf = MagicMock()
-            cf.list_stacks.return_value = {'StackSummaries': [{'StackName': 'test-1'}]}
+            cf.list_stacks.return_value = {'StackSummaries': [{'StackName': 'test-1',
+                                                               'CreationTime': '2016-06-14'}]}
             return cf
         return MagicMock()
 
@@ -846,7 +848,8 @@ def test_resources(monkeypatch):
     def my_client(rtype, *args):
         if rtype == 'cloudformation':
             cf = MagicMock()
-            cf.list_stacks.return_value = {'StackSummaries': [{'StackName': 'test-1'}]}
+            cf.list_stacks.return_value = {'StackSummaries': [{'StackName': 'test-1',
+                                                               'CreationTime': '2016-06-14'}]}
             cf.describe_stack_resources.return_value = {
                 'StackResources': [
                     {'LogicalResourceId': 'AppLoadBalancer',
@@ -912,7 +915,8 @@ def test_domains(monkeypatch):
     def my_client(rtype, *args):
         if rtype == 'cloudformation':
             cf = MagicMock()
-            cf.list_stacks.return_value = {'StackSummaries': [{'StackName': 'test-1'}]}
+            cf.list_stacks.return_value = {'StackSummaries': [{'StackName': 'test-1',
+                                                               'CreationTime': '2016-06-14'}]}
             return cf
         elif rtype == 'route53':
             route53 = MagicMock()
@@ -946,7 +950,8 @@ def test_domains(monkeypatch):
 
     runner = CliRunner()
 
-    data = {'SenzaInfo': {'StackName': 'test'}}
+    data = {'SenzaInfo': {'StackName': 'test',
+                          'CreationTime': '2016-06-14'}}
 
     with runner.isolated_filesystem():
         with open('myapp.yaml', 'w') as fd:
@@ -965,7 +970,8 @@ def test_events(monkeypatch):
     def my_client(rtype, *args):
         if rtype == 'cloudformation':
             cf = MagicMock()
-            cf.list_stacks.return_value = {'StackSummaries': [{'StackName': 'test-1'}]}
+            cf.list_stacks.return_value = {'StackSummaries': [{'StackName': 'test-1',
+                                                               'CreationTime': '2016-06-01'}]}
             cf.describe_stack_events.return_value = {'StackEvents': [
                 {'EventId': 'af98cac9-eca9-4946-ae23-683acb223b52',
                  'LogicalResourceId': 'test-1',
@@ -994,7 +1000,8 @@ def test_events(monkeypatch):
 
     runner = CliRunner()
 
-    data = {'SenzaInfo': {'StackName': 'test'}}
+    data = {'SenzaInfo': {'StackName': 'test'},
+            'CreationTime': '2016-06-14'}
 
     with runner.isolated_filesystem():
         with open('myapp.yaml', 'w') as fd:
@@ -1415,7 +1422,8 @@ def test_AccountArguments(monkeypatch):
 
 def test_patch(monkeypatch):
     boto3 = MagicMock()
-    boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1'}]}
+    boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',
+                                                          'CreationTime': '2016-06-14'}]}
     boto3.describe_stack_resources.return_value = {'StackResources': [{'ResourceType': 'AWS::AutoScaling::AutoScalingGroup', 'PhysicalResourceId': 'myasg'}]}
     group = {'AutoScalingGroupName': 'myasg'}
     boto3.describe_auto_scaling_groups.return_value = {'AutoScalingGroups': [group]}
@@ -1451,7 +1459,8 @@ def test_respawn(monkeypatch):
 
 def     test_scale(monkeypatch):
     boto3 = MagicMock()
-    boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1'}]}
+    boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',
+                                                          'CreationTime': '2016-06-14'}]}
     boto3.describe_stack_resources.return_value = {'StackResources': [{'ResourceType': 'AWS::AutoScaling::AutoScalingGroup', 'PhysicalResourceId': 'myasg'}]}
     # NOTE: we are using invalid MinSize (< capacity) here to get one more line covered ;-)
     group = {'AutoScalingGroupName': 'myasg', 'DesiredCapacity': 1, 'MinSize': 3, 'MaxSize': 1}

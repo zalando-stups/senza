@@ -54,7 +54,8 @@ def handle_exceptions(func):
             # Catch All
 
             file_name = store_exception(e)
-            print('Unknown Error.\n'
-                  'Please create an issue with the content of {fn}'.format(fn=file_name))
+            print('Unknown Error: {e}.\n'
+                  'Please create an issue '
+                  'with the content of {fn}'.format(e=e, fn=file_name))
             sys.exit(1)
     return wrapper

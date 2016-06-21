@@ -347,7 +347,9 @@ class StackReference(collections.namedtuple('StackReference', 'name version')):
                     data = yaml.safe_load(fd)
                 ref = data['SenzaInfo']['StackName']
             except (OSError, IOError) as error:
-                    raise FileError(ref, str(error))
+                raise FileError(ref, str(error))
+            except KeyError as error:
+                raise ValueError("SenzaInfo.StackName missing from definition file")
 
     def matches(self, name: str, version: str):
         matches_name = re.match(self.name + '$', name)

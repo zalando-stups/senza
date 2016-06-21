@@ -23,27 +23,47 @@ def store_exception(exception: Exception) -> str:
     return file_name
 
 
-def is_credentials_expired_error(e: ClientError) -> bool:
-    return e.response['Error']['Code'] in ['ExpiredToken', 'RequestExpired']
+def is_credentials_expired_error(client_error: ClientError) -> bool:
+    """Return true if the exception's error code is ExpiredToken or RequestExpired"""
+    return client_error.response['Error']['Code'] in ['ExpiredToken', 'RequestExpired']
+
+
+def is_access_denied_error(e: ClientError) -> bool:
+    return e.response['Error']['Code'] in ['AccessDenied']
 
 
 class HandleExceptions:
+    """Class HandleExceptions will display various error messages
+    depending on the type of the exception and show the stacktrack for general exceptions
+    depending on the value of stacktrace_visible"""
 
     stacktrace_visible = False
 
     def __init__(self, function):
         self.function = function
 
+    def die_unknown_error(self, e: Exception):
+        if not self.stacktrace_visible:
+            file_name = store_exception(e)
+            print('Unknown Error: {e}.\n'
+                  'Please create an issue '
+                  'with the content of {fn}'.format(e=e, fn=file_name))
+            sys.exit(1)
+        raise e
+
+    def die_credential_error(self):
+        print('No AWS credentials found. Use the "mai" command-line tool '
+              'to get a temporary access key\n'
+              'or manually configure either ~/.aws/credentials '
+              'or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY.',
+              file=sys.stderr)
+        sys.exit(1)
+
     def __call__(self, *args, **kwargs):
         try:
             self.function(*args, **kwargs)
-        except NoCredentialsError as e:
-            print('No AWS credentials found. Use the "mai" command-line tool '
-                  'to get a temporary access key\n'
-                  'or manually configure either ~/.aws/credentials '
-                  'or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY.',
-                  file=sys.stderr)
-            sys.exit(1)
+        except NoCredentialsError:
+            self.die_credential_error()
         except ClientError as e:
             sys.stdout.flush()
             if is_credentials_expired_error(e):
@@ -52,23 +72,10 @@ class HandleExceptions:
                       ' temporary access key.',
                       file=sys.stderr)
                 sys.exit(1)
+            elif is_access_denied_error(e):
+                self.die_credential_error()
             else:
-                if not self.stacktrace_visible:
-                    file_name = store_exception(e)
-                    print('Unknown Error: {e}.\n'
-                          'Please create an issue '
-                          'with the content of {fn}'.format(e=e,
-                                                            fn=file_name))
-                    sys.exit(1)
-                else:
-                    raise
+                self.die_unknown_error(e)
         except Exception as e:
             # Catch All
-            if not self.stacktrace_visible:
-                file_name = store_exception(e)
-                print('Unknown Error: {e}.\n'
-                      'Please create an issue '
-                      'with the content of {fn}'.format(e=e, fn=file_name))
-                sys.exit(1)
-            else:
-                raise
+            self.die_unknown_error(e)

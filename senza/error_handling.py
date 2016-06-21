@@ -1,4 +1,3 @@
-import functools
 import sys
 from tempfile import NamedTemporaryFile
 from traceback import format_exception
@@ -43,7 +42,7 @@ class HandleExceptions:
                   'to get a temporary access key\n'
                   'or manually configure either ~/.aws/credentials '
                   'or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY.',
-                file=sys.stderr)
+                  file=sys.stderr)
             sys.exit(1)
         except ClientError as e:
             sys.stdout.flush()

@@ -403,7 +403,15 @@ def read_parameter_file(parameter_file):
         raise click.UsageError('Can\'t read parameter file "{}"'.format(parameter_file))
 
     try:
-        cfg = yaml.safe_load(ymlfile)
+        url = (parameter_file if '://' in parameter_file
+               else 'file://{}'.format(quote(os.path.abspath(parameter_file))))
+
+        response = urlopen(url)
+    except URLError:
+        raise click.UsageError('"{}" not found'.format(parameter_file))
+
+    try:
+        cfg = yaml.safe_load(response.read())
         for key, val in cfg.items():
             paras.append("{}={}".format(key, val))
     except yaml.YAMLError as e:

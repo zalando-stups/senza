@@ -1,6 +1,6 @@
 
 import click
-from clickclick import fatal_error, warning
+from clickclick import fatal_error
 
 from senza.aws import find_ssl_certificate_arn, resolve_security_groups
 
@@ -80,20 +80,18 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
     if "HealthCheckPort" in configuration:
         health_check_port = configuration["HealthCheckPort"]
 
-    health_check_target = "{0}:{1}{2}".format(health_check_protocol, health_check_port, health_check_path)
+    health_check_target = "{0}:{1}{2}".format(health_check_protocol,
+                                              health_check_port,
+                                              health_check_path)
+
     if configuration.get('NameSuffix'):
-        loadbalancer_name = get_load_balancer_name(info["StackName"], '{}-{}'.format(info["StackVersion"],
-                                                                                     configuration['NameSuffix']))
+        version = '{}-{}'.format(info["StackVersion"],
+                                 configuration['NameSuffix'])
+        loadbalancer_name = get_load_balancer_name(info["StackName"], version)
         del(configuration['NameSuffix'])
-    elif configuration.get('NameSufix'):
-        # get rid of this branch (typo) as soon as possible
-        # https://github.com/zalando/planb-revocation/issues/29
-        warning('The "NameSufix" property is deprecated. Use "NameSuffix" instead.')
-        loadbalancer_name = get_load_balancer_name(info["StackName"], '{}-{}'.format(info["StackVersion"],
-                                                                                     configuration['NameSufix']))
-        del(configuration['NameSufix'])
     else:
-        loadbalancer_name = get_load_balancer_name(info["StackName"], info["StackVersion"])
+        loadbalancer_name = get_load_balancer_name(info["StackName"],
+                                                   info["StackVersion"])
 
     loadbalancer_scheme = "internal"
     allowed_loadbalancer_schemes = ("internet-facing", "internal")

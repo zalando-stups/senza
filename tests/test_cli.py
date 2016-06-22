@@ -1453,7 +1453,11 @@ def test_wait(monkeypatch):
     stack2 = {'StackName': 'test-2',
               'CreationTime': datetime.datetime.utcnow(),
               'StackStatus': 'CREATE_COMPLETE'}
-    cf.list_stacks.return_value = {'StackSummaries': [stack1, stack2]}
+    stack3 = {'StackName': 'test-3',
+              'CreationTime': datetime.datetime.utcnow(),
+              'StackStatus': 'DELETE_COMPLETE'}
+
+    cf.list_stacks.return_value = {'StackSummaries': [stack1, stack2, stack3]}
     monkeypatch.setattr('boto3.client', MagicMock(return_value=cf))
 
     def my_resource(rtype, *args):
@@ -1481,16 +1485,19 @@ def test_wait(monkeypatch):
                                ['wait', 'test', '2',
                                 '--region=aa-fakeregion-1'],
                                catch_exceptions=False)
-
         assert "OK: Stack(s) test-2 created successfully" in result.output
 
+        result = runner.invoke(cli,
+                               ['wait',  '--deletion', 'test', '3',
+                                '--region=aa-fakeregion-1'],
+                               catch_exceptions=False)
+        assert "OK: Stack(s) test-3 deleted successfully" in result.output
+
+        # test creating/updating several stacks at once.
         result = runner.invoke(cli,
                                ['wait', 'test', '1', 'test', '2',
                                 '--region=aa-fakeregion-1'],
                                input='n\n',
                                catch_exceptions=False)
-
         assert "created" in result.output
         assert "updated" in result.output
-
-

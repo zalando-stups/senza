@@ -397,10 +397,6 @@ def parse_args(input, region, version, parameter, account_info):
 
 def read_parameter_file(parameter_file):
     paras = []
-    try:
-        ymlfile = open(parameter_file, 'r')
-    except OSError:
-        raise click.UsageError('Can\'t read parameter file "{}"'.format(parameter_file))
 
     try:
         url = (parameter_file if '://' in parameter_file
@@ -408,7 +404,7 @@ def read_parameter_file(parameter_file):
 
         response = urlopen(url)
     except URLError:
-        raise click.UsageError('"{}" not found'.format(parameter_file))
+        raise click.UsageError('Can\'t read parameter file "{}"'.format(parameter_file))
 
     try:
         cfg = yaml.safe_load(response.read())

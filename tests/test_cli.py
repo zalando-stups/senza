@@ -1429,7 +1429,7 @@ def test_respawn(monkeypatch):
                            catch_exceptions=False)
 
 
-def     test_scale(monkeypatch):
+def test_scale(monkeypatch):
     boto3 = MagicMock()
     boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',
                                                           'CreationTime': '2016-06-14'}]}
@@ -1442,5 +1442,55 @@ def     test_scale(monkeypatch):
     result = runner.invoke(cli, ['scale', 'myapp', '1', '2', '--region=aa-fakeregion-1'],
                            catch_exceptions=False)
     assert 'Scaling myasg from 1 to 2 instances' in result.output
+
+
+def test_wait(monkeypatch):
+
+    cf = MagicMock()
+    stack1 = {'StackName': 'test-1',
+              'CreationTime': datetime.datetime.utcnow(),
+              'StackStatus': 'UPDATE_COMPLETE'}
+    stack2 = {'StackName': 'test-2',
+              'CreationTime': datetime.datetime.utcnow(),
+              'StackStatus': 'CREATE_COMPLETE'}
+    cf.list_stacks.return_value = {'StackSummaries': [stack1, stack2]}
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=cf))
+
+    def my_resource(rtype, *args):
+        return MagicMock()
+
+    def my_client(rtype, *args):
+        if rtype == 'cloudformation':
+            return cf
+        return MagicMock()
+
+    monkeypatch.setattr('boto3.resource', my_resource)
+    #monkeypatch.setattr('boto3.client', my_client)
+
+    runner = CliRunner()
+
+    data = {'SenzaInfo': {'StackName': 'test'}}
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli,
+                               ['wait', 'test', '1', '--region=aa-fakeregion-1'],
+                               catch_exceptions=False)
+        assert "OK: Stack(s) test-1 updated successfully" in result.output
+
+        result = runner.invoke(cli,
+                               ['wait', 'test', '2',
+                                '--region=aa-fakeregion-1'],
+                               catch_exceptions=False)
+
+        assert "OK: Stack(s) test-2 created successfully" in result.output
+
+        result = runner.invoke(cli,
+                               ['wait', 'test', '1', 'test', '2',
+                                '--region=aa-fakeregion-1'],
+                               input='n\n',
+                               catch_exceptions=False)
+
+        assert "created" in result.output
+        assert "updated" in result.output
 
 

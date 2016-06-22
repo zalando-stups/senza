@@ -1410,22 +1410,28 @@ def failure_event(event: dict):
 @region_option
 @stacktrace_visible_option
 def wait(stack_ref, region, deletion, timeout, interval,):
-    '''Wait for successfull stack creation or deletion.
+    """
+    Wait for successful stack creation or deletion.
 
-    Supports waiting for more than one stack up to timeout seconds.'''
+    Supports waiting for more than one stack up to timeout seconds.
+    """
 
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
     cf = boto3.client('cloudformation', region)
 
     cutoff = time.time() + timeout
-    target_status = 'DELETE_COMPLETE' if deletion else 'CREATE_COMPLETE'
+    target_status = (['DELETE_COMPLETE'] if deletion
+                     else ['CREATE_COMPLETE', 'UPDATE_COMPLETE'])
 
     while time.time() < cutoff:
         stacks_ok = set()
         stacks_nok = set()
+        successful_actions = set()
         for stack in get_stacks(stack_refs, region, all=True, unique_only=True):
-            if stack.StackStatus == target_status:
+            if stack.StackStatus in target_status:
+                successful_action, _ = stack.StackStatus.split('_')
+                successful_actions.add('{}d'.format(successful_action.lower()))
                 stacks_ok.add((stack.name, stack.version))
             elif stack.StackStatus.endswith('_FAILED') or stack.StackStatus.endswith('_COMPLETE'):
                 # output event messages for troubleshooting
@@ -1433,22 +1439,32 @@ def wait(stack_ref, region, deletion, timeout, interval,):
 
                 for event in sorted(events, key=lambda x: x['Timestamp']):
                     if failure_event(event):
-                        error('ERROR: {LogicalResourceId} {ResourceStatus}: {ResourceStatusReason}'.format(**event))
-                fatal_error('ERROR: Stack {}-{} has status {}'.format(stack.name, stack.version, stack.StackStatus))
+                        error('ERROR: {LogicalResourceId} {ResourceStatus}: '
+                              '{ResourceStatusReason}'.format(**event))
+                fatal_error('ERROR: Stack {}-{} has '
+                            'status {}'.format(stack.name,
+                                               stack.version,
+                                               stack.StackStatus))
             else:
                 stacks_nok.add((stack.name, stack.version, stack.StackStatus))
 
         if stacks_nok:
-            info('Waiting up to {:.0f} more secs for stack{} {}..'.format(cutoff - time.time(),
-                 's' if len(stacks_nok) > 1 else '',
-                 ', '.join(['{}-{} ({})'.format(*x) for x in sorted(stacks_nok)])))
+            waiting_for = ', '.join(['{}-{} ({})'.format(*x)
+                                     for x in sorted(stacks_nok)])
+            info('Waiting up to {:.0f} more secs '
+                 'for stack{} {}..'.format(cutoff - time.time(),
+                                           's' if len(stacks_nok) > 1 else '',
+                                           waiting_for))
         elif stacks_ok:
-            ok('OK: Stack(s) {} {} successfully.'.format(
-               ', '.join(['{}-{}'.format(*x) for x in sorted(stacks_ok)]),
-               'deleted' if deletion else 'created'))
+            successful_stacks = ', '.join(['{}-{}'.format(*x)
+                                           for x in sorted(stacks_ok)])
+            actions = '/'.join(successful_actions)
+            ok('OK: Stack(s) {} {} successfully.'.format(successful_stacks,
+                                                         actions))
             return
         else:
-            raise click.UsageError('No matching stack for "{}" found'.format(' '.join(stack_ref)))
+            raise click.UsageError('No matching stack for '
+                                   '"{}" found'.format(' '.join(stack_ref)))
         time.sleep(interval)
     raise click.Abort()
 

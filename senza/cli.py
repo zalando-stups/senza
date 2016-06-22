@@ -1245,13 +1245,13 @@ def console(instance_or_stack_ref, limit, region, w, watch):
                         print_console(line)
         if not found_match:
             if stack_refs is None:
-                print("No EC2 instance with id '{}'.".format(instance_or_stack_ref[0]))
+                fatal_error("No EC2 instance with id '{}'.".format(instance_or_stack_ref[0]))
             elif instance_or_stack_ref:
-                print("No stack matching '{}'{}.".format(
+                fatal_error("No stack matching '{}'{}.".format(
                     stack_refs[0].name,
                     " with version '{}'".format(stack_refs[0].version) if stack_refs[0].version is not None else ''))
             else:
-                print("No EC2 instances in region '{}'.".format(region))
+                fatal_error("No EC2 instances in region '{}'.".format(region))
 
 
 @cli.command()

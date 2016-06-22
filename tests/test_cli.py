@@ -6,7 +6,6 @@ from unittest.mock import MagicMock
 import yaml
 import json
 from senza.cli import cli, AccountArguments
-from senza.error_handling import HandleExceptions
 import botocore.exceptions
 from senza.traffic import PERCENT_RESOLUTION, StackVersion
 import senza.traffic
@@ -94,33 +93,6 @@ def test_version():
     runner = CliRunner()
     result = runner.invoke(cli, ['--version'])
     assert result.output.startswith('Senza ')
-
-
-def test_missing_credentials(capsys):
-    func = MagicMock(side_effect=botocore.exceptions.NoCredentialsError())
-
-    try:
-        HandleExceptions(func)()
-    except SystemExit:
-        pass
-
-    out, err = capsys.readouterr()
-    assert 'No AWS credentials found.' in err
-
-
-def test_expired_credentials(capsys):
-    func = MagicMock(side_effect=botocore.exceptions.ClientError({'Error': {'Code': 'ExpiredToken',
-                                                                            'Message': 'Token expired'}},
-                                                                 'foobar'))
-
-    try:
-        HandleExceptions(func)()
-    except SystemExit:
-        pass
-
-    out, err = capsys.readouterr()
-
-    assert 'AWS credentials have expired.' in err
 
 
 def test_print_minimal(monkeypatch):

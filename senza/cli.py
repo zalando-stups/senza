@@ -1427,8 +1427,11 @@ def wait(stack_ref, region, deletion, timeout, interval,):
     while time.time() < cutoff:
         stacks_ok = set()
         stacks_nok = set()
+        successful_actions = set()
         for stack in get_stacks(stack_refs, region, all=True, unique_only=True):
             if stack.StackStatus in target_status:
+                successful_action, _ = stack.StackStatus.split('_')
+                successful_actions.add('{}d'.format(successful_action.lower()))
                 stacks_ok.add((stack.name, stack.version))
             elif stack.StackStatus.endswith('_FAILED') or stack.StackStatus.endswith('_COMPLETE'):
                 # output event messages for troubleshooting
@@ -1455,8 +1458,9 @@ def wait(stack_ref, region, deletion, timeout, interval,):
         elif stacks_ok:
             successful_stacks = ', '.join(['{}-{}'.format(*x)
                                            for x in sorted(stacks_ok)])
+            actions = '/'.join(successful_actions)
             ok('OK: Stack(s) {} {} successfully.'.format(successful_stacks,
-                                                         'deleted' if deletion else 'created'))
+                                                         actions))
             return
         else:
             raise click.UsageError('No matching stack for '

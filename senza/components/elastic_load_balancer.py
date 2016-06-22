@@ -101,8 +101,9 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
         configuration["Scheme"] = loadbalancer_scheme
 
     if loadbalancer_scheme == 'internet-facing':
-        click.secho('You are deploying an internet-facing ELB that will be publicly accessible! ' +
-                    'You should have OAUTH2 and HTTPS in place!', fg='red', bold=True, err=True)
+        click.secho('You are deploying an internet-facing ELB that will be '
+                    'publicly accessible! You should have OAUTH2 and HTTPS '
+                    'in place!', bold=True, err=True)
 
     if loadbalancer_scheme not in allowed_loadbalancer_schemes:
         raise click.UsageError('Scheme "{}" is not supported for LoadBalancer'.format(loadbalancer_scheme))

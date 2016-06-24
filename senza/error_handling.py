@@ -2,6 +2,7 @@ import sys
 from tempfile import NamedTemporaryFile
 from traceback import format_exception
 
+import yaml.constructor
 from botocore.exceptions import ClientError, NoCredentialsError
 
 
@@ -77,6 +78,11 @@ class HandleExceptions:
                 self.die_credential_error()
             else:
                 self.die_unknown_error(e)
+        except yaml.constructor.ConstructorError as e:
+            print("Error parsing definition file:")
+            print(e)
+            if e.problem == "found unhashable key":
+                print("Please quote all variable values")
         except Exception as e:
             # Catch All
             self.die_unknown_error(e)

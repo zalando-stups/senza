@@ -1430,17 +1430,27 @@ def wait(stack_ref, region, deletion, timeout, interval,):
 
     while time.time() < cutoff:
         stacks_ok = set()
-        stacks_nok = set()
+        stacks_in_progress = set()
         successful_actions = set()
-        for stack in get_stacks(stack_refs, region, all=True, unique_only=True):
+
+        stacks_found = get_stacks(stack_refs, region, all=True, unique_only=True)
+
+        if not stacks_found:
+            raise click.UsageError('No matching stack for "{}" found'.format(' '.join(stack_ref)))
+
+        for stack in stacks_found:
+
             if stack.StackStatus in target_status:
                 successful_action, _ = stack.StackStatus.split('_')
                 successful_actions.add('{}d'.format(successful_action.lower()))
                 stacks_ok.add((stack.name, stack.version))
-            elif stack.StackStatus.endswith('_FAILED') or stack.StackStatus.endswith('_COMPLETE'):
+
+            elif stack.StackStatus.endswith('_IN_PROGRESS'):
+                stacks_in_progress.add(stack.name, stack.version, stack.StackStatus)
+
+            else:  # _FAILED or ROLLBACK_COMPLETE or UPDATE_ROLLBACK_COMPLETE
                 # output event messages for troubleshooting
                 events = cf.describe_stack_events(StackName=stack.StackId)['StackEvents']
-
                 for event in sorted(events, key=lambda x: x['Timestamp']):
                     if failure_event(event):
                         error('ERROR: {LogicalResourceId} {ResourceStatus}: '
@@ -1449,27 +1459,23 @@ def wait(stack_ref, region, deletion, timeout, interval,):
                             'status {}'.format(stack.name,
                                                stack.version,
                                                stack.StackStatus))
-            else:
-                stacks_nok.add((stack.name, stack.version, stack.StackStatus))
 
-        if stacks_nok:
+        if stacks_in_progress:
             waiting_for = ', '.join(['{}-{} ({})'.format(*x)
-                                     for x in sorted(stacks_nok)])
+                                     for x in sorted(stacks_in_progress)])
             info('Waiting up to {:.0f} more secs '
                  'for stack{} {}..'.format(cutoff - time.time(),
-                                           's' if len(stacks_nok) > 1 else '',
+                                           's' if len(stacks_in_progress) > 1 else '',
                                            waiting_for))
-        elif stacks_ok:
+            time.sleep(interval)
+            continue
+        if stacks_ok:
             successful_stacks = ', '.join(['{}-{}'.format(*x)
                                            for x in sorted(stacks_ok)])
             actions = '/'.join(successful_actions)
             ok('OK: Stack(s) {} {} successfully.'.format(successful_stacks,
                                                          actions))
             return
-        else:
-            raise click.UsageError('No matching stack for '
-                                   '"{}" found'.format(' '.join(stack_ref)))
-        time.sleep(interval)
     raise click.Abort()
 
 

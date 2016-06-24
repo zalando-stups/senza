@@ -22,17 +22,20 @@ def get_weights(dns_names: list, identifier: str, all_identifiers) -> ({str: int
     partial_sum = 0
     known_record_weights = {}
     for dns_name in dns_names:
-        for r in get_records(dns_name.split('.', 1)[1]):
-            if r['Type'] == 'CNAME' and r['Name'] == dns_name:
-                if r['Weight']:
-                    w = int(r['Weight'])
-                else:
-                    w = 0
-                known_record_weights[r['SetIdentifier']] = w
-                if r['SetIdentifier'] != identifier and w > 0:
+        for record in get_records(dns_name.split('.', 1)[1]):
+            if record['Type'] == 'CNAME' and record['Name'] == dns_name:
+                try:
+                    if record['Weight']:
+                        weight = int(record['Weight'])
+                    else:
+                        weight = 0
+                except KeyError:
+                    continue
+                known_record_weights[record['SetIdentifier']] = weight
+                if record['SetIdentifier'] != identifier and weight > 0:
                     # we should ignore all versions that do not get any traffic
                     # not to put traffic on the disabled versions when redistributing traffic weights
-                    partial_sum += w
+                    partial_sum += weight
                     partial_count += 1
     if identifier not in known_record_weights:
         known_record_weights[identifier] = 0

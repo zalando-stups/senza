@@ -31,12 +31,13 @@ def get_weights(dns_names: list, identifier: str, all_identifiers) -> ({str: int
                         weight = 0
                 except KeyError:
                     continue
-                known_record_weights[record['SetIdentifier']] = weight
-                if record['SetIdentifier'] != identifier and weight > 0:
-                    # we should ignore all versions that do not get any traffic
-                    # not to put traffic on the disabled versions when redistributing traffic weights
-                    partial_sum += weight
-                    partial_count += 1
+                else:
+                    known_record_weights[record['SetIdentifier']] = weight
+                    if record['SetIdentifier'] != identifier and weight > 0:
+                        # we should ignore all versions that do not get any traffic
+                        # not to put traffic on the disabled versions when redistributing traffic weights
+                        partial_sum += weight
+                        partial_count += 1
     if identifier not in known_record_weights:
         known_record_weights[identifier] = 0
     for ident in all_identifiers:

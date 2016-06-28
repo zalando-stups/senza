@@ -83,6 +83,7 @@ class HandleExceptions:
             print(e)
             if e.problem == "found unhashable key":
                 print("Please quote all variable values")
+            sys.exit(1)
         except Exception as e:
             # Catch All
             self.die_unknown_error(e)

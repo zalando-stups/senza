@@ -54,7 +54,7 @@ def test_route53_hosted_zones(monkeypatch):
     monkeypatch.setattr('boto3.client', m_client)
 
     route53 = Route53()
-    hosted_zones = list(route53.hosted_zones())
+    hosted_zones = list(route53.get_hosted_zones())
     assert len(hosted_zones) == 2
     assert hosted_zones[0].id == '/hostedzone/random1'
     assert hosted_zones[1].name == 'example.net.'

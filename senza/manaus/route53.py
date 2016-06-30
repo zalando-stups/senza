@@ -100,14 +100,14 @@ class Route53:
     def __init__(self):
         self.client = boto3.client('route53')
 
-    def hosted_zones(self) -> Iterator[Route53HostedZone]:
+    def get_hosted_zones(self) -> Iterator[Route53HostedZone]:
         hosted_zones = self.client.list_hosted_zones()["HostedZones"]
         for zone in hosted_zones:
             yield Route53HostedZone.from_boto_dict(zone)
 
     def get_records(self, *,
                     name: Optional[str]=None) -> Iterator[Route53Record]:
-        for zone in self.hosted_zones():
+        for zone in self.get_hosted_zones():
             response = self.client.list_resource_record_sets(HostedZoneId=zone.id)
             resources = response["ResourceRecordSets"]  # type: List[Dict[str, Any]]
             for resource in resources:

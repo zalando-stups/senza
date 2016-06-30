@@ -1529,3 +1529,32 @@ def test_wait_in_progress(monkeypatch):
         assert "Waiting up to 1 more secs for stack test-1 (CREATE_IN_PROGRESS).." in result.output
         assert 'Aborted!' in result.output
         assert 1 == result.exit_code
+
+
+def test_wait_failure(monkeypatch):
+    cf = MagicMock()
+    stack1 = {'StackName': 'test-1',
+              'CreationTime': datetime.datetime.utcnow(),
+              'StackStatus': 'ROLLBACK_COMPLETE'}
+
+    cf.list_stacks.return_value = {'StackSummaries': [stack1]}
+    cf.describe_stack_events.return_value = {'StackEvents': [{'Timestamp': 0, 'ResourceStatus': 'FAIL', 'ResourceStatusReason': 'myreason', 'LogicalResourceId': 'foo'}]}
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=cf))
+
+    def my_resource(rtype, *args):
+        return MagicMock()
+
+    monkeypatch.setattr('boto3.resource', my_resource)
+    monkeypatch.setattr('time.sleep', MagicMock())
+
+    runner = CliRunner()
+
+    data = {'SenzaInfo': {'StackName': 'test'}}
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli,
+                               ['wait', 'test', '1', '--region=aa-fakeregion-1'],
+                               catch_exceptions=False)
+        assert 'ERROR: foo FAIL: myreason' in result.output
+        assert 'ERROR: Stack test-1 has status ROLLBACK_COMPLETE' in result.output
+        assert 1 == result.exit_code

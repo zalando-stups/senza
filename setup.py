@@ -107,7 +107,7 @@ def setup_package():
 
     install_reqs = get_install_requirements('requirements.txt')
     if sys.version_info.major == 3 and sys.version_info.minor == 4:
-        install_reqs += 'typing'
+        install_reqs.append('typing')
 
     command_options = {'test': {'test_suite': ('setup.py', 'tests'), 'cov': ('setup.py', MAIN_PACKAGE)}}
     if JUNIT_XML:

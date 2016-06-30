@@ -1126,7 +1126,9 @@ def images(stack_ref, region, output, hide_older_than, show_instances):
                 stacks.add(stack_name)
         row['stacks'] = ', '.join(sorted(stacks))
 
-        #
+        if creation_time is None:
+            continue
+
         if creation_time > cutoff.timestamp() or row['total_instances']:
             rows.append(row)
 

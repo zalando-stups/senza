@@ -1413,7 +1413,7 @@ def failure_event(event: dict):
               help='Time between checks (default: 5s)')
 @region_option
 @stacktrace_visible_option
-def wait(stack_ref, region, deletion, timeout, interval,):
+def wait(stack_ref, region, deletion, timeout, interval):
     """
     Wait for successful stack creation or deletion.
 
@@ -1424,9 +1424,10 @@ def wait(stack_ref, region, deletion, timeout, interval,):
     region = get_region(region)
     cf = boto3.client('cloudformation', region)
 
-    cutoff = time.time() + timeout
     target_status = (['DELETE_COMPLETE'] if deletion
                      else ['CREATE_COMPLETE', 'UPDATE_COMPLETE'])
+
+    cutoff = time.time() + timeout
 
     while time.time() < cutoff:
         stacks_ok = set()
@@ -1446,7 +1447,7 @@ def wait(stack_ref, region, deletion, timeout, interval,):
                 stacks_ok.add((stack.name, stack.version))
 
             elif stack.StackStatus.endswith('_IN_PROGRESS'):
-                stacks_in_progress.add(stack.name, stack.version, stack.StackStatus)
+                stacks_in_progress.add((stack.name, stack.version, stack.StackStatus))
 
             else:  # _FAILED or ROLLBACK_COMPLETE or UPDATE_ROLLBACK_COMPLETE
                 # output event messages for troubleshooting

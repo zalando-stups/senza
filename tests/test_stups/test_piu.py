@@ -2,7 +2,24 @@ from unittest.mock import MagicMock
 
 from senza.stups.piu import Piu
 
-def test_route53_hosted_zones(monkeypatch):
+
+def test_request_access(monkeypatch):
+    m_run = MagicMock()
+    monkeypatch.setattr('senza.stups.piu.run', m_run)
+
+    Piu.request_access('127.0.0.1', 'no reason', None)
+    m_run.assert_called_once_with(['piu', 'request-access',
+                                   '127.0.0.1', 'no reason via senza'])
+
+    m_run.reset_mock()
+    Piu.request_access('127.0.0.1', 'no reason', 'example.com')
+    m_run.assert_called_once_with(['piu', 'request-access',
+                                   '127.0.0.1', 'no reason via senza',
+                                   '-O', 'example.com'])
+
+
+
+def test_find_odd_host(monkeypatch):
     m_client = MagicMock()
     m_client.return_value = m_client
     hosted_zone1 = {'Config': {'PrivateZone': False},

@@ -930,10 +930,9 @@ def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region,
             odd_host = odd_host or Piu.find_odd_host(region)
             for row in rows:
                 if row['private_ip'] is not None:
-                    cmd = ['piu', 'request-access', row['private_ip'], '{} via senza'.format(piu)]
-                    if odd_host is not None:
-                        cmd.extend(['-O', odd_host])
-                    call(cmd)
+                    Piu.request_access(instance=row['private_ip'],
+                                       reason=piu,
+                                       odd_host=odd_host)
 
 
 @cli.command()

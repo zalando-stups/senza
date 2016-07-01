@@ -4,7 +4,6 @@ import boto3
 
 
 class Route53HostedZone:
-
     """
     See:
     http://boto3.readthedocs.io/en/latest/reference/services/route53.html#Route53.Client.list_hosted_zones
@@ -35,7 +34,6 @@ class Route53HostedZone:
 
 
 class Route53Record:
-
     """
     See:
     http://boto3.readthedocs.io/en/latest/reference/services/route53.html#Route53.Client.list_resource_record_sets

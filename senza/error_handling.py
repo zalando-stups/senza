@@ -4,6 +4,9 @@ from traceback import format_exception
 
 import yaml.constructor
 from botocore.exceptions import ClientError, NoCredentialsError
+from clickclick import error
+
+from .exceptions import PiuNotFound
 
 
 def store_exception(exception: Exception) -> str:
@@ -83,6 +86,13 @@ class HandleExceptions:
             print(e)
             if e.problem == "found unhashable key":
                 print("Please quote all variable values")
+            sys.exit(1)
+        except PiuNotFound as e:
+            error(e)
+            print("You can install piu with the following command:",
+                  file=sys.stderr)
+            print("sudo pip3 install --upgrade stups-piu",
+                  file=sys.stderr)
             sys.exit(1)
         except Exception as e:
             # Catch All

@@ -11,7 +11,6 @@ import re
 import sys
 import time
 from pprint import pformat
-from subprocess import call
 from urllib.error import URLError
 from urllib.parse import quote
 from urllib.request import urlopen
@@ -37,6 +36,7 @@ from .components import get_component, evaluate_template
 from .components.stups_auto_configuration import find_taupage_image
 from .error_handling import HandleExceptions
 from .exceptions import VPCError
+from .stups.piu import Piu
 from .patch import patch_auto_scaling_group
 from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
 from .templates import get_templates, get_template_description
@@ -926,12 +926,12 @@ def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region,
                         rows, styles=STYLES, titles=TITLES)
 
         if piu is not None:
+            odd_host = odd_host or Piu.find_odd_host(region)
             for row in rows:
                 if row['private_ip'] is not None:
-                    cmd = ['piu', 'request-access', row['private_ip'], '{} via senza'.format(piu)]
-                    if odd_host is not None:
-                        cmd.extend(['-O', odd_host])
-                    call(cmd)
+                    Piu.request_access(instance=row['private_ip'],
+                                       reason=piu,
+                                       odd_host=odd_host)
 
 
 @cli.command()

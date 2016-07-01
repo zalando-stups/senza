@@ -8,12 +8,12 @@ def test_request_access(monkeypatch):
     monkeypatch.setattr('senza.stups.piu.run', m_run)
 
     Piu.request_access('127.0.0.1', 'no reason', None)
-    m_run.assert_called_once_with(['piu', 'request-access',
+    m_run.assert_called_once_with(['piu', 'request-access', '--connect',
                                    '127.0.0.1', 'no reason via senza'])
 
     m_run.reset_mock()
     Piu.request_access('127.0.0.1', 'no reason', 'example.com')
-    m_run.assert_called_once_with(['piu', 'request-access',
+    m_run.assert_called_once_with(['piu', 'request-access', '--connect',
                                    '127.0.0.1', 'no reason via senza',
                                    '-O', 'example.com'])
 

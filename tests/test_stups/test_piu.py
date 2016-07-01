@@ -27,18 +27,23 @@ def test_find_odd_host(monkeypatch):
                     'ResourceRecordSetCount': 42,
                     'Id': '/hostedzone/random1',
                     'Name': 'example.com.'}
-    hosted_zone2 = {'Config': {'PrivateZone': False},
-                    'CallerReference': '0000',
-                    'ResourceRecordSetCount': 7,
-                    'Id': '/hostedzone/random2',
-                    'Name': 'example.net.'}
+    mock_records = [{'Name': 'odd-eu-west-1.example.com.',
+                     'ResourceRecords': [{'Value': '127.0.0.1'}],
+                     'TTL': 600,
+                     'Type': 'A'}
+                    ]
     m_client.list_hosted_zones.return_value = {'MaxItems': '100',
                                                'ResponseMetadata': {
                                                    'HTTPStatusCode': 200,
                                                    'RequestId': 'FakeId'},
                                                'HostedZones': [hosted_zone1],
                                                'IsTruncated': False}
+    m_client.list_resource_record_sets.return_value = {
+        "ResourceRecordSets": mock_records}
     monkeypatch.setattr('boto3.client', m_client)
 
     odd_host = Piu.find_odd_host('eu-west-1')
     assert odd_host == 'odd-eu-west-1.example.com'
+
+    no_odd_host = Piu.find_odd_host('moon-crater-1')
+    assert no_odd_host is None

@@ -1,7 +1,8 @@
 from typing import Optional
 
 from subprocess import run
-from ..manaus.route53 import Route53
+from ..manaus.route53 import Route53, Route53Record  # NOQA
+
 
 class Piu:
     @staticmethod
@@ -17,11 +18,19 @@ class Piu:
         run(cmd)
 
     @staticmethod
-    def find_odd_host(region: str) -> str:
+    def find_odd_host(region: str) -> Optional[str]:
         route53 = Route53()
         hosted_zones = list(route53.get_hosted_zones())
-        # TODO try all the hosted zones and see if the domain exists
-        hosted_zone = hosted_zones.pop()
-        domain_name = hosted_zone.name[:-1]
-        return 'odd-{region}.{domain}'.format(region=region,
-                                              domain=domain_name)
+        for hosted_zone in hosted_zones:
+            potential_name = 'odd-{region}.{domain}'.format(region=region,
+                                                            domain=hosted_zone.name)
+            records = route53.get_records(name=potential_name)
+            try:
+                record = next(records)  # type: Route53Record
+            except StopIteration:
+                pass
+            else:
+                odd_host = record.name[:-1]  # remove the trailing dot
+                return odd_host
+
+        return None

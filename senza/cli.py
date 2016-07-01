@@ -11,7 +11,6 @@ import re
 import sys
 import time
 from pprint import pformat
-from subprocess import call
 from urllib.error import URLError
 from urllib.parse import quote
 from urllib.request import urlopen

@@ -108,6 +108,7 @@ class Route53:
     def get_records(self, *,
                     name: Optional[str]=None) -> Iterator[Route53Record]:
         for zone in self.get_hosted_zones():
+            # TODO use paginator
             response = self.client.list_resource_record_sets(HostedZoneId=zone.id)
             resources = response["ResourceRecordSets"]  # type: List[Dict[str, Any]]
             for resource in resources:

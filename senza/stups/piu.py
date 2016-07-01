@@ -1,6 +1,7 @@
+from subprocess import run
 from typing import Optional
 
-from subprocess import run
+from ..exceptions import PiuNotFound
 from ..manaus.route53 import Route53, Route53Record  # NOQA
 
 
@@ -21,7 +22,11 @@ class Piu:
                instance, reason]
         if odd_host is not None:
             cmd.extend(['-O', odd_host])
-        run(cmd)
+
+        try:
+            run(cmd)
+        except FileNotFoundError:
+            raise PiuNotFound
 
     @staticmethod
     def find_odd_host(region: str) -> Optional[str]:

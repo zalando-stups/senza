@@ -1,5 +1,7 @@
 from unittest.mock import MagicMock
 
+import pytest
+from senza.exceptions import PiuNotFound
 from senza.stups.piu import Piu
 
 
@@ -16,7 +18,6 @@ def test_request_access(monkeypatch):
     m_run.assert_called_once_with(['piu', 'request-access', '--connect',
                                    '127.0.0.1', 'no reason via senza',
                                    '-O', 'example.com'])
-
 
 
 def test_find_odd_host(monkeypatch):
@@ -47,3 +48,14 @@ def test_find_odd_host(monkeypatch):
 
     no_odd_host = Piu.find_odd_host('moon-crater-1')
     assert no_odd_host is None
+
+
+def test_request_access_not_installed(monkeypatch):
+    m_run = MagicMock()
+    m_run.side_effect = FileNotFoundError
+    monkeypatch.setattr('senza.stups.piu.run', m_run)
+
+    with pytest.raises(PiuNotFound):
+        Piu.request_access('127.0.0.1', 'no reason', None)
+    m_run.assert_called_once_with(['piu', 'request-access', '--connect',
+                                   '127.0.0.1', 'no reason via senza'])

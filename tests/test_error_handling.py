@@ -8,6 +8,7 @@ from pytest import fixture
 import botocore.exceptions
 
 import senza.error_handling
+from senza.exceptions import PiuNotFound
 
 
 def lineno() -> int:
@@ -142,3 +143,16 @@ def test_unknown_ClientError_no_stack_trace(capsys):
     out, err = capsys.readouterr()
 
     assert 'Unknown Error: An error occurred' in err
+
+
+def test_piu_not_found(capsys):
+    func = MagicMock(side_effect=PiuNotFound())
+
+    try:
+        senza.error_handling.HandleExceptions(func)()
+    except SystemExit:
+        pass
+
+    out, err = capsys.readouterr()
+
+    assert "Command not found: piu" in err

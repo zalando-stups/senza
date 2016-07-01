@@ -1,4 +1,4 @@
-from subprocess import run
+from subprocess import call
 from typing import Optional
 
 from ..exceptions import PiuNotFound
@@ -24,7 +24,7 @@ class Piu:
             cmd.extend(['-O', odd_host])
 
         try:
-            run(cmd)
+            call(cmd)
         except FileNotFoundError:
             raise PiuNotFound
 

@@ -6,18 +6,18 @@ from senza.stups.piu import Piu
 
 
 def test_request_access(monkeypatch):
-    m_run = MagicMock()
-    monkeypatch.setattr('senza.stups.piu.run', m_run)
+    m_call = MagicMock()
+    monkeypatch.setattr('senza.stups.piu.call', m_call)
 
     Piu.request_access('127.0.0.1', 'no reason', None)
-    m_run.assert_called_once_with(['piu', 'request-access', '--connect',
-                                   '127.0.0.1', 'no reason via senza'])
+    m_call.assert_called_once_with(['piu', 'request-access', '--connect',
+                                    '127.0.0.1', 'no reason via senza'])
 
-    m_run.reset_mock()
+    m_call.reset_mock()
     Piu.request_access('127.0.0.1', 'no reason', 'example.com')
-    m_run.assert_called_once_with(['piu', 'request-access', '--connect',
-                                   '127.0.0.1', 'no reason via senza',
-                                   '-O', 'example.com'])
+    m_call.assert_called_once_with(['piu', 'request-access', '--connect',
+                                    '127.0.0.1', 'no reason via senza',
+                                    '-O', 'example.com'])
 
 
 def test_find_odd_host(monkeypatch):
@@ -38,7 +38,7 @@ def test_find_odd_host(monkeypatch):
                                                    'HTTPStatusCode': 200,
                                                    'RequestId': 'FakeId'},
                                                'HostedZones': [hosted_zone1],
-                                               'IsTruncated': False}
+                                               'IsTcallcated': False}
     m_client.list_resource_record_sets.return_value = {
         "ResourceRecordSets": mock_records}
     monkeypatch.setattr('boto3.client', m_client)
@@ -51,11 +51,11 @@ def test_find_odd_host(monkeypatch):
 
 
 def test_request_access_not_installed(monkeypatch):
-    m_run = MagicMock()
-    m_run.side_effect = FileNotFoundError
-    monkeypatch.setattr('senza.stups.piu.run', m_run)
+    m_call = MagicMock()
+    m_call.side_effect = FileNotFoundError
+    monkeypatch.setattr('senza.stups.piu.call', m_call)
 
     with pytest.raises(PiuNotFound):
         Piu.request_access('127.0.0.1', 'no reason', None)
-    m_run.assert_called_once_with(['piu', 'request-access', '--connect',
-                                   '127.0.0.1', 'no reason via senza'])
+    m_call.assert_called_once_with(['piu', 'request-access', '--connect',
+                                    '127.0.0.1', 'no reason via senza'])

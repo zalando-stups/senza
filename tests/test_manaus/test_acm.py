@@ -1,7 +1,7 @@
 from datetime import datetime
 from unittest.mock import MagicMock
 
-from senza.manaus.acm import ACMCertificate
+from senza.manaus.acm import ACMCertificate, ACMCertificateStatus
 
 CERT1 = {'CertificateArn': 'arn:aws:acm:eu-west-1:cert',
          'CreatedAt': datetime(2016, 4, 1, 12, 13, 14),
@@ -40,8 +40,8 @@ CERT1 = {'CertificateArn': 'arn:aws:acm:eu-west-1:cert',
          'SignatureAlgorithm': 'SHA256WITHRSA',
          'Status': 'ISSUED',
          'Subject': 'CN=*.bus.example.com',
-         'SubjectAlternativeNames': ['*.bus.example.com',
-                                     '*.bus.aws.example.com',
+         'SubjectAlternativeNames': ['*.senza.example.com',
+                                     '*.senza.aws.example.com',
                                      '*.app.example.com']}
 
 
@@ -85,4 +85,13 @@ def test_certificate_get_by_arn(monkeypatch):
     assert certificate1.is_valid(when=datetime(2016, 4, 5, 12, 14, 14))
     assert not certificate1.is_valid(when=datetime(2018, 4, 5, 12, 14, 14))
     assert not certificate1.is_valid(when=datetime(2013, 4, 2, 10, 11, 12))
+    assert certificate1.status == ACMCertificateStatus.issued
 
+
+def test_matches():
+    certificate1 = ACMCertificate.from_boto_dict(CERT1)
+    assert certificate1.matches('myapp.senza.example.com')
+    assert certificate1.matches('myapp.app.example.com')
+    assert certificate1.matches('myapp.senza.aws.example.com')
+    assert not certificate1.matches('zalando.de')
+    assert not certificate1.matches('sub.myapp.senza.aws.example.com')

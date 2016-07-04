@@ -2,6 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Iterator, List, Dict, Any, Optional
 from functools import total_ordering
+from ssl import match_hostname, CertificateError
 
 import boto3
 
@@ -116,6 +117,23 @@ class ACMCertificate:
             return False
 
         return self.not_before < when < self.not_after
+
+    def matches(self, domain_name: str) -> bool:
+        """
+        Checks if certificate subject or alt names match the domain name.
+        """
+        # python ssl friendly certificate:
+        subject = ((('commonName', self.domain_name),),)
+        alt_name = [('DNS', name) for name in self.subject_alternative_name]
+        certificate = {'subject': subject,
+                       'subjectAltName': alt_name}
+
+        try:
+            match_hostname(certificate, domain_name)
+        except CertificateError:
+            return False
+        else:
+            return True
 
 
 class ACM:

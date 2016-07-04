@@ -72,3 +72,17 @@ def test_certificate_comparison():
     assert certificate1 < certificate2
     # this may look weird but equality is tested by ARN
     assert certificate1 == certificate2
+
+
+def test_certificate_get_by_arn(monkeypatch):
+    m_client = MagicMock()
+    m_client.return_value = m_client
+    m_client.describe_certificate.return_value = {'Certificate': CERT1}
+    monkeypatch.setattr('boto3.client', m_client)
+
+    certificate1 = ACMCertificate.get_by_arn('arn:aws:acm:eu-west-1:cert')
+    assert certificate1.domain_name == '*.senza.example.com'
+    assert certificate1.is_valid(when=datetime(2016, 4, 5, 12, 14, 14))
+    assert not certificate1.is_valid(when=datetime(2018, 4, 5, 12, 14, 14))
+    assert not certificate1.is_valid(when=datetime(2013, 4, 2, 10, 11, 12))
+

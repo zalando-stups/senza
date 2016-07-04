@@ -34,7 +34,7 @@ class ACMCertificate:
                  issuer: str,
                  created_at: datetime,
                  issued_at: datetime,
-                 status: ACMCertificateStatus,
+                 status: str,
                  not_before: datetime,
                  not_after: datetime,
                  signature_algorithm: str,
@@ -50,7 +50,7 @@ class ACMCertificate:
         self.issuer = issuer
         self.created_at = created_at
         self.issued_at = issued_at
-        self.status = status
+        self.status = ACMCertificateStatus(status)
         self.not_before = not_before
         self.not_after = not_after
         self.signature_algorithm = signature_algorithm
@@ -82,7 +82,7 @@ class ACMCertificate:
         issuer = certificate['Issuer']
         created_at = certificate['CreatedAt']
         issued_at = certificate['IssuedAt']
-        status = ACMCertificateStatus(certificate['Status'].lower())
+        status = certificate['Status']
         not_before = certificate['NotBefore']
         not_after = certificate['NotAfter']
         signature_algorithm = certificate['SignatureAlgorithm']
@@ -110,8 +110,7 @@ class ACMCertificate:
         """
         Checks if the certificate is still valid
         """
-        if when is None:
-            when = datetime.now()
+        when = when if when is not None else datetime.now()
 
         if self.status != ACMCertificateStatus.issued:
             return False

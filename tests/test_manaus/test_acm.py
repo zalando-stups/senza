@@ -44,9 +44,6 @@ CERT1 = {'CertificateArn': 'arn:aws:acm:eu-west-1:cert',
                                      '*.bus.aws.example.com',
                                      '*.app.example.com']}
 
-CERT1_REVOKED = CERT1.copy()
-CERT1_REVOKED['Status'] = 'REVOKED'
-
 
 def test_certificate_valid():
     certificate1 = ACMCertificate.from_boto_dict(CERT1)
@@ -55,8 +52,23 @@ def test_certificate_valid():
     assert not certificate1.is_valid(when=datetime(2018, 4, 5, 12, 14, 14))
     assert not certificate1.is_valid(when=datetime(2013, 4, 2, 10, 11, 12))
 
-    certificate1_revoked = ACMCertificate.from_boto_dict(CERT1_REVOKED)
+    cert1_revoked = CERT1.copy()
+    cert1_revoked['Status'] = 'REVOKED'
+
+    certificate1_revoked = ACMCertificate.from_boto_dict(cert1_revoked)
     assert certificate1_revoked.domain_name == '*.senza.example.com'
     assert not certificate1_revoked.is_valid(when=datetime(2016, 4, 5, 12, 14, 14))
     assert not certificate1_revoked.is_valid(when=datetime(2018, 4, 5, 12, 14, 14))
     assert not certificate1_revoked.is_valid(when=datetime(2013, 4, 2, 10, 11, 12))
+
+
+def test_certificate_comparison():
+    cert2 = CERT1.copy()
+    cert2['CreatedAt'] = datetime(2016, 4, 2, 12, 13, 14)
+
+    certificate1 = ACMCertificate.from_boto_dict(CERT1)
+    certificate2 = ACMCertificate.from_boto_dict(cert2)
+
+    assert certificate1 < certificate2
+    # this may look weird but equality is tested by ARN
+    assert certificate1 == certificate2

@@ -69,25 +69,33 @@ def test_component_load_balancer_healthcheck(monkeypatch):
 
     mock_string_result = MagicMock()
     mock_string_result.return_value = "foo"
-    monkeypatch.setattr('senza.components.elastic_load_balancer.find_ssl_certificate_arn', mock_string_result)
     monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    m_acm = MagicMock()
+    m_acm_certificate = MagicMock()
+    m_acm_certificate.arn = "foo"
+    m_acm.get_certificates.return_value = iter([m_acm_certificate])
+    monkeypatch.setattr('senza.components.elastic_load_balancer.ACM', m_acm)
 
     result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
     # Defaults to HTTP
     assert "HTTP:9999/healthcheck" == result["Resources"]["test_lb"]["Properties"]["HealthCheck"]["Target"]
 
     # Support own health check port
+    m_acm.get_certificates.return_value = iter([m_acm_certificate])
     configuration["HealthCheckPort"] = "1234"
     result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
     assert "HTTP:1234/healthcheck" == result["Resources"]["test_lb"]["Properties"]["HealthCheck"]["Target"]
     del(configuration["HealthCheckPort"])
 
     # Supports other AWS protocols
+    m_acm.get_certificates.return_value = iter([m_acm_certificate])
     configuration["HealthCheckProtocol"] = "TCP"
     result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
     assert "TCP:9999/healthcheck" == result["Resources"]["test_lb"]["Properties"]["HealthCheck"]["Target"]
 
     # Will fail on incorrect protocol
+    m_acm.get_certificates.return_value = iter([m_acm_certificate])
     configuration["HealthCheckProtocol"] = "MYFANCYPROTOCOL"
     try:
         component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
@@ -114,8 +122,13 @@ def test_component_load_balancer_idletimeout(monkeypatch):
 
     mock_string_result = MagicMock()
     mock_string_result.return_value = "foo"
-    monkeypatch.setattr('senza.components.elastic_load_balancer.find_ssl_certificate_arn', mock_string_result)
     monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    m_acm = MagicMock()
+    m_acm_certificate = MagicMock()
+    m_acm_certificate.arn = "foo"
+    m_acm.get_certificates.return_value = iter([m_acm_certificate])
+    monkeypatch.setattr('senza.components.elastic_load_balancer.ACM', m_acm)
 
     # issue 105: support additional ELB properties
     result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
@@ -138,8 +151,13 @@ def test_component_load_balancer_namelength(monkeypatch):
 
     mock_string_result = MagicMock()
     mock_string_result.return_value = "foo"
-    monkeypatch.setattr('senza.components.elastic_load_balancer.find_ssl_certificate_arn', mock_string_result)
     monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    m_acm = MagicMock()
+    m_acm_certificate = MagicMock()
+    m_acm_certificate.arn = "foo"
+    m_acm.get_certificates.return_value = iter([m_acm_certificate])
+    monkeypatch.setattr('senza.components.elastic_load_balancer.ACM', m_acm)
 
     result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
     lb_name = result['Resources']['test_lb']['Properties']['LoadBalancerName']
@@ -275,8 +293,13 @@ def test_weighted_dns_load_balancer(monkeypatch):
 
     mock_string_result = MagicMock()
     mock_string_result.return_value = "foo"
-    monkeypatch.setattr('senza.components.elastic_load_balancer.find_ssl_certificate_arn', mock_string_result)
     monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    m_acm = MagicMock()
+    m_acm_certificate = MagicMock()
+    m_acm_certificate.arn = "foo"
+    m_acm.get_certificates.return_value = iter([m_acm_certificate])
+    monkeypatch.setattr('senza.components.elastic_load_balancer.ACM', m_acm)
 
     result = component_weighted_dns_elastic_load_balancer(definition,
                                                           configuration,
@@ -318,8 +341,13 @@ def test_weighted_dns_load_balancer_with_different_domains(monkeypatch):
 
     mock_string_result = MagicMock()
     mock_string_result.return_value = "foo"
-    monkeypatch.setattr('senza.components.elastic_load_balancer.find_ssl_certificate_arn', mock_string_result)
     monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    m_acm = MagicMock()
+    m_acm_certificate = MagicMock()
+    m_acm_certificate.arn = "foo"
+    m_acm.get_certificates.return_value = iter([m_acm_certificate])
+    monkeypatch.setattr('senza.components.elastic_load_balancer.ACM', m_acm)
 
     result = component_weighted_dns_elastic_load_balancer(definition,
                                                           configuration,

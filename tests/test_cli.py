@@ -12,7 +12,7 @@ from senza.cli import AccountArguments, cli
 from senza.traffic import PERCENT_RESOLUTION, StackVersion
 
 from fixtures import (HOSTED_ZONE_EXAMPLE_ORG, HOSTED_ZONE_EXAMPLE_NET,
-                      HOSTED_ZONE_ZO_NE)
+                      HOSTED_ZONE_ZO_NE, boto_client)
 
 
 def test_invalid_definition():
@@ -370,7 +370,7 @@ def test_print_auto(monkeypatch):
     assert 'my-referenced-role' in data['Resources']['AppServerInstanceProfile']['Properties']['Roles']
 
 
-def test_print_default_value(monkeypatch):
+def test_print_default_value(monkeypatch, boto_client):
     senza.traffic.DNS_ZONE_CACHE = {}
 
     def my_resource(rtype, *args):
@@ -392,16 +392,6 @@ def test_print_default_value(monkeypatch):
             return sns
         return MagicMock()
 
-    def my_client(rtype, *args):
-        if rtype == 'route53':
-            route53 = MagicMock()
-            route53.list_hosted_zones.return_value = {'HostedZones': [HOSTED_ZONE_ZO_NE],
-                                                      'IsTruncated': False,
-                                                      'MaxItems': '100'}
-            return route53
-        return MagicMock()
-
-    monkeypatch.setattr('boto3.client', my_client)
     monkeypatch.setattr('boto3.resource', my_resource)
 
     data = {'SenzaInfo': {'StackName': 'test',

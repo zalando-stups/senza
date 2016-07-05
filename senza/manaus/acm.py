@@ -66,6 +66,9 @@ class ACMCertificate:
     def __eq__(self, other: "ACMCertificate"):
         return self.arn == other.arn
 
+    def __repr__(self):
+        return "<ACMCertificate:{domain_name} ({arn})>".format_map(vars(self))
+
     @classmethod
     def from_boto_dict(cls,
                        certificate: Dict[str, Any]) -> "ACMCertificate":
@@ -147,13 +150,24 @@ class ACM:
     See http://boto3.readthedocs.io/en/latest/reference/services/acm.html
     """
 
-    def __init__(self):
-        self.client = boto3.client('acm')
+    @staticmethod
+    def get_certificates(valid_only: bool=True,
+                         domain_name: Optional[str]=None) -> Iterator[ACMCertificate]:
+        """
+        Gets certificates from ACM. By default it returns all valid certificates
 
-    def get_certificates(self) -> Iterator[ACMCertificate]:
+        :param valid_only: Return only valid certificates
+        :param domain_name: Return only certificates that match the domain
+        """
         # TODO implement pagination
-        # TODO limit status by default
-        certificates = self.client.list_certificates()['CertificateSummaryList']
+        client = boto3.client('acm')
+        certificates = client.list_certificates()['CertificateSummaryList']
         for summary in certificates:
             arn = summary['CertificateArn']
-            yield ACMCertificate.get_by_arn(arn)
+            certificate = ACMCertificate.get_by_arn(arn)
+            if valid_only and not certificate.is_valid():
+                pass
+            elif domain_name is not None and not certificate.matches(domain_name):
+                pass
+            else:
+                yield certificate

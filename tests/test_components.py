@@ -24,6 +24,8 @@ from senza.components.taupage_auto_scaling_group import (check_application_id,
 from senza.components.weighted_dns_elastic_load_balancer import \
     component_weighted_dns_elastic_load_balancer
 
+from fixtures import HOSTED_ZONE_ZO_NE_COM, HOSTED_ZONE_ZO_NE_DEV
+
 
 def test_invalid_component():
     assert get_component('Foobar') is None
@@ -250,9 +252,7 @@ def test_weighted_dns_load_balancer(monkeypatch):
     def my_client(rtype, *args):
         if rtype == 'route53':
             route53 = MagicMock()
-            route53.list_hosted_zones.return_value = {'HostedZones': [{'Id': '/hostedzone/123456',
-                                                                       'Name': 'domain.',
-                                                                       'ResourceRecordSetCount': 23}],
+            route53.list_hosted_zones.return_value = {'HostedZones': [HOSTED_ZONE_ZO_NE_COM],
                                                       'IsTruncated': False,
                                                       'MaxItems': '100'}
             return route53
@@ -264,8 +264,8 @@ def test_weighted_dns_load_balancer(monkeypatch):
         "Name": "test_lb",
         "SecurityGroups": "",
         "HTTPPort": "9999",
-        'MainDomain': 'main.domain',
-        'VersionDomain': 'version.domain'
+        'MainDomain': 'great.api.zo.ne.com',
+        'VersionDomain': 'version.api.zo.ne.com'
     }
     info = {'StackName': 'foobar', 'StackVersion': '0.1'}
     definition = {"Resources": {}}
@@ -294,12 +294,8 @@ def test_weighted_dns_load_balancer_with_different_domains(monkeypatch):
     def my_client(rtype, *args):
         if rtype == 'route53':
             route53 = MagicMock()
-            route53.list_hosted_zones.return_value = {'HostedZones': [{'Id': '/hostedzone/123456',
-                                                                       'Name': 'zo.ne.dev.',
-                                                                       'ResourceRecordSetCount': 23},
-                                                                      {'Id': '/hostedzone/123457',
-                                                                       'Name': 'zo.ne.com.',
-                                                                       'ResourceRecordSetCount': 23}],
+            route53.list_hosted_zones.return_value = {'HostedZones': [HOSTED_ZONE_ZO_NE_DEV,
+                                                                      HOSTED_ZONE_ZO_NE_COM],
                                                       'IsTruncated': False,
                                                       'MaxItems': '100'}
             return route53
@@ -343,22 +339,13 @@ def test_weighted_dns_load_balancer_with_different_domains(monkeypatch):
         'VersionDomain': 'this.does.not.exists.com'
     }
     senza.traffic.DNS_ZONE_CACHE = {}
-    try:
+    with pytest.raises(AttributeError):
         result = component_weighted_dns_elastic_load_balancer(definition,
                                                               configuration,
                                                               args,
                                                               info,
                                                               False,
                                                               AccountArguments('dummyregion'))
-    except ValueError:
-        pass
-    except:
-        assert False, 'raise unknown exception'
-    else:
-
-        print(result)
-        print(configuration)
-        assert False, 'doesn\'t raise a ValueError exception'
 
 
 def test_component_taupage_auto_scaling_group_user_data_without_ref():

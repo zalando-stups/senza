@@ -1,14 +1,18 @@
-import datetime
-import os
-from click.testing import CliRunner
 import collections
-from unittest.mock import MagicMock
-import yaml
+import datetime
 import json
-from senza.cli import cli, AccountArguments
+import os
+from unittest.mock import MagicMock
+
 import botocore.exceptions
-from senza.traffic import PERCENT_RESOLUTION, StackVersion
 import senza.traffic
+import yaml
+from click.testing import CliRunner
+from senza.cli import AccountArguments, cli
+from senza.traffic import PERCENT_RESOLUTION, StackVersion
+
+from fixtures import (HOSTED_ZONE_EXAMPLE_ORG, HOSTED_ZONE_EXAMPLE_NET,
+                      HOSTED_ZONE_ZO_NE)
 
 
 def test_invalid_definition():
@@ -309,9 +313,7 @@ def test_print_auto(monkeypatch):
     def my_client(rtype, *args):
         if rtype == 'route53':
             route53 = MagicMock()
-            route53.list_hosted_zones.return_value = {'HostedZones': [{'Id': '/hostedzone/123456',
-                                                                       'Name': 'zo.ne.',
-                                                                       'ResourceRecordSetCount': 23}],
+            route53.list_hosted_zones.return_value = {'HostedZones': [HOSTED_ZONE_ZO_NE],
                                                       'IsTruncated': False,
                                                       'MaxItems': '100'}
             return route53
@@ -393,9 +395,7 @@ def test_print_default_value(monkeypatch):
     def my_client(rtype, *args):
         if rtype == 'route53':
             route53 = MagicMock()
-            route53.list_hosted_zones.return_value = {'HostedZones': [{'Id': '/hostedzone/123456',
-                                                                       'Name': 'zo.ne.',
-                                                                       'ResourceRecordSetCount': 23}],
+            route53.list_hosted_zones.return_value = {'HostedZones': [HOSTED_ZONE_ZO_NE],
                                                       'IsTruncated': False,
                                                       'MaxItems': '100'}
             return route53
@@ -605,12 +605,13 @@ def test_init_opt2(monkeypatch):
             return ec2
         elif rtype == 'route53':
             route53 = MagicMock()
-            route53.list_hosted_zones.return_value = {'HostedZones': [{'Name': 'example.org.', 'Id': '/hostedzone/123'}]}
+            route53.list_hosted_zones.return_value = {'HostedZones': [HOSTED_ZONE_EXAMPLE_ORG]}
             return route53
         return MagicMock()
 
     monkeypatch.setattr('boto3.client', lambda *args: MagicMock())
     monkeypatch.setattr('boto3.resource', my_resource)
+    monkeypatch.setattr('senza.cli.AccountArguments',  MagicMock())
 
     runner = CliRunner()
 
@@ -892,8 +893,7 @@ def test_domains(monkeypatch):
             return cf
         elif rtype == 'route53':
             route53 = MagicMock()
-            route53.list_hosted_zones.return_value = {'HostedZones': [{'Name': 'example.org.',
-                                                                               'Id': '/hostedzone/123'}]}
+            route53.list_hosted_zones.return_value = {'HostedZones': [HOSTED_ZONE_EXAMPLE_ORG]}
             route53.list_resource_record_sets.return_value = {
                 'IsTruncated': False,
                 'MaxItems': '100',
@@ -1378,7 +1378,7 @@ def test_AccountArguments(monkeypatch):
     senza_aws.get_account_alias.return_value = 'test-cli'
     senza_aws.get_account_id.return_value = '123456'
     boto3 = MagicMock()
-    boto3.list_hosted_zones.return_value = {'HostedZones': [{'Name': 'test.example.net'}]}
+    boto3.list_hosted_zones.return_value = {'HostedZones': [HOSTED_ZONE_EXAMPLE_NET]}
     monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
     monkeypatch.setattr('senza.cli.get_account_alias', MagicMock(return_value='test-cli'))
     monkeypatch.setattr('senza.cli.get_account_id', MagicMock(return_value='98741256325'))
@@ -1388,7 +1388,7 @@ def test_AccountArguments(monkeypatch):
     assert test.Region == 'test-region'
     assert test.AccountAlias == 'test-cli'
     assert test.AccountID == '98741256325'
-    assert test.Domain == 'test.example.net'
+    assert test.Domain == 'example.net'
     assert test.TeamID == 'cli'
 
 

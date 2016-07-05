@@ -21,6 +21,12 @@ class Route53HostedZone:
         self.config = config
         self.resource_record_set_count = resource_record_set_count
 
+        # extra properties
+        self.domain_name = name.rstrip('.')
+
+    def __repr__(self):
+        return '<Route53HostedZone: {name}>'.format_map(vars(self))
+
     @classmethod
     def from_boto_dict(cls, hosted_zone_dict: Dict[str, Any]) -> 'Route53HostedZone':
         id = hosted_zone_dict['Id']
@@ -28,6 +34,9 @@ class Route53HostedZone:
         caller_reference = hosted_zone_dict['CallerReference']
         config = hosted_zone_dict['Config']
         resource_record_set_count = hosted_zone_dict['ResourceRecordSetCount']
+
+        def __repr__(self):
+            return '<Route53HostedZone: {name}>'.format_map(vars(self))
 
         return cls(id, name, caller_reference, config,
                    resource_record_set_count)
@@ -57,6 +66,7 @@ class Route53Record:
         self.ttl = ttl
         self.type = type
 
+        # Optional
         self.alias_target = alias_target  # Alias resource record sets only
         self.failover = failover  # Failover resource record sets only
         self.geo_location = geo_location  # Geo location resource record sets only
@@ -98,10 +108,27 @@ class Route53:
     def __init__(self):
         self.client = boto3.client('route53')
 
-    def get_hosted_zones(self) -> Iterator[Route53HostedZone]:
-        hosted_zones = self.client.list_hosted_zones()["HostedZones"]
+    @staticmethod
+    def get_hosted_zones(domain_name: Optional[str]=None) -> Iterator[Route53HostedZone]:
+        """
+        Gets hosted zones from Route53. If a ``domain_name`` is provided
+        only hosted zones that match the domain name will be yielded
+        """
+
+        if domain_name is not None:
+            domain_name = '{}.'.format(domain_name.rstrip('.'))
+
+        client = boto3.client('route53')
+        result = client.list_hosted_zones()
+        hosted_zones = result["HostedZones"]
+        while result.get('IsTruncated', False):
+            recordfilter = {'Marker': result['NextMarker']}
+            result = client.list_hosted_zones(**recordfilter)
+            hosted_zones.extend(result['HostedZones'])
         for zone in hosted_zones:
-            yield Route53HostedZone.from_boto_dict(zone)
+            hosted_zone = Route53HostedZone.from_boto_dict(zone)
+            if domain_name is None or domain_name.endswith(hosted_zone.name):
+                yield hosted_zone
 
     def get_records(self, *,
                     name: Optional[str]=None) -> Iterator[Route53Record]:

@@ -107,8 +107,15 @@ class ACMCertificate:
         Gets a ACMCertificate based on ARN alone
         """
         client = boto3.client('acm')
-        certificate = client.describe_certificate(arn)['Certificate']
+        certificate = client.describe_certificate(CertificateArn=arn)['Certificate']
         return cls.from_boto_dict(certificate)
+
+    @staticmethod
+    def arn_is_acm_certificate(arn: Optional[str]=None) -> bool:
+        if arn is None:
+            return False
+        else:
+            return arn.startswith("arn:aws:acm:")
 
     def is_valid(self, when: Optional[datetime]=None) -> bool:
         """

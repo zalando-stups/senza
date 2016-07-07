@@ -1,9 +1,10 @@
-
 import click
 from clickclick import fatal_error
 
-from senza.aws import find_ssl_certificate_arn, resolve_security_groups
-from ..manaus.acm import ACM
+from senza.aws import resolve_security_groups
+from ..manaus import ClientError
+from ..manaus.iam import IAM, IAMServerCertificate
+from ..manaus.acm import ACM, ACMCertificate
 
 SENZA_PROPERTIES = frozenset(['Domains', 'HealthCheckPath', 'HealthCheckPort', 'HealthCheckProtocol',
                               'HTTPPort', 'Name', 'SecurityGroups', 'SSLCertificateId', 'Type'])
@@ -52,33 +53,47 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
 
     ssl_cert = configuration.get('SSLCertificateId')
 
-    pattern = None
-    if not ssl_cert and main_zone:
-        name = '{sub}.{zone}'.format(sub=subdomain, zone=main_zone.rstrip('.'))
-        certificates = ACM.get_certificates(domain_name=name)
+    if ACMCertificate.arn_is_acm_certificate(ssl_cert):
+        # check if certificate really exists
         try:
-            # TODO sorting
-            ssl_cert = next(certificates).arn
-        except StopIteration:
-            pass
+            ACMCertificate.get_by_arn(ssl_cert)
+        except ClientError as e:
+            error_msg = e.response['Error']['Message']
+            fatal_error(error_msg)
+    elif IAMServerCertificate.arn_is_server_certificate(ssl_cert):
+        # TODO check if certificate exists
+        pass
+    elif ssl_cert is not None:
+        certificate = IAMServerCertificate.get_by_name(ssl_cert)
+        ssl_cert = certificate.arn
+    elif main_zone is not None:
         if main_zone:
-            pattern = main_zone.lower().rstrip('.').replace('.', '-')
+            iam_pattern = main_zone.lower().rstrip('.').replace('.', '-')
+            name = '{sub}.{zone}'.format(sub=subdomain,
+                                         zone=main_zone.rstrip('.'))
+            acm_certificates = sorted(ACM.get_certificates(domain_name=name))
         else:
-            pattern = ''
-    elif ssl_cert and not ssl_cert.startswith('arn:'):
-        pattern = ssl_cert
+            iam_pattern = ''
+            acm_certificates = []
 
-    if not ssl_cert:
-        ssl_cert = "abc"  # TODO remove once the iam fallback is back again
-        #fatal_error('Could not find any matching '
-        #            'SSL certificate for "{}"'.format(name))
+        iam_certificates = sorted(IAM.get_certificates(name=iam_pattern))
+        if not iam_certificates:
+            # if there are no iam certificates matching the pattern
+            # try to use any certificate
+            iam_certificates = sorted(IAM.get_certificates())
 
-    # TODO iam fallback
-    #if pattern is not None:
-    #    ssl_cert = find_ssl_certificate_arn(args.region, pattern)
-    #
-    #    if not ssl_cert:
-    #        fatal_error('Could not find any matching SSL certificate for "{}"'.format(pattern))
+        # the priority is acm_certificate first and iam_certificate second
+        certificates = (acm_certificates +
+                        iam_certificates)  # type: List[Union[ACMCertificate, IAMServerCertificate]]
+        try:
+            certificate = certificates[0]
+            ssl_cert = certificate.arn
+        except IndexError:
+            if main_zone:
+                fatal_error('Could not find any matching '
+                            'SSL certificate for "{}"'.format(name))
+            else:
+                fatal_error('Could not find any SSL certificate')
 
     health_check_protocol = "HTTP"
     allowed_health_check_protocols = ("HTTP", "TCP", "UDP", "SSL")

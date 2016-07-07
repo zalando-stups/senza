@@ -82,6 +82,14 @@ HOSTED_ZONE_ZO_NE_DEV = {'Config': {'PrivateZone': False},
                          'Id': '/hostedzone/123456',
                          'Name': 'zo.ne.dev.'}
 
+SERVER_CERT_ZO_NE = MagicMock(name='zo-ne')
+SERVER_CERT_ZO_NE.server_certificate_metadata = {'Arn': 'arn:aws:123',
+                                                 'ServerCertificateName': 'zo-ne',
+                                                 'Expiration': datetime(2017, 4, 1, 12, 14, 14),
+                                                 'Path': '/',
+                                                 'ServerCertificateId': '000',
+                                                 'UploadDate': datetime(2017, 3, 1, 12, 14, 14)}
+
 
 @pytest.fixture
 def boto_client(monkeypatch):
@@ -93,7 +101,7 @@ def boto_client(monkeypatch):
                 'IsTruncated': False,
                 'MaxItems': '100'}
             return route53
-        if rtype == 'acm':
+        elif rtype == 'acm':
             acm = MagicMock()
             summary_list = {'CertificateSummaryList': [
                 {'CertificateArn': 'arn:aws:acm:eu-west-1:cert1'},
@@ -103,6 +111,50 @@ def boto_client(monkeypatch):
                 {'Certificate': CERT1_ZO_NE},
                 {'Certificate': ''}]
             return acm
+        elif rtype == 'cloudformation':
+            cf = MagicMock()
+            resource = {
+                'StackResourceDetail': {'ResourceStatus': 'CREATE_COMPLETE',
+                                        'ResourceType': 'AWS::IAM::Role',
+                                        'PhysicalResourceId': 'my-referenced-role'}}
+            cf.describe_stack_resource.return_value = resource
+            return cf
         return MagicMock()
 
     monkeypatch.setattr('boto3.client', my_client)
+
+
+@pytest.fixture
+def boto_resource(monkeypatch):
+    def my_resource(rtype, *args):
+        if rtype == 'ec2':
+            ec2 = MagicMock()
+            ec2.security_groups.filter.return_value = [
+                MagicMock(name='app-sg', id='sg-007')]
+            ec2.vpcs.all.return_value = [MagicMock(vpc_id='vpc-123')]
+            ec2.images.filter.return_value = [
+                MagicMock(name='Taupage-AMI-123', id='ami-123')]
+            ec2.subnets.filter.return_value = [MagicMock(tags=[{'Key': 'Name', 'Value': 'internal-myregion-1a'}],
+                                                         id='subnet-abc123',
+                                                         availability_zone='myregion-1a'),
+                                               MagicMock(tags=[{'Key': 'Name',
+                                                                'Value': 'internal-myregion-1b'}],
+                                                         id='subnet-def456',
+                                                         availability_zone='myregion-1b'),
+                                               MagicMock(tags=[{'Key': 'Name',
+                                                                'Value': 'dmz-myregion-1a'}],
+                                                         id='subnet-ghi789',
+                                                         availability_zone='myregion-1a')]
+            return ec2
+        elif rtype == 'iam':
+            iam = MagicMock()
+            iam.server_certificates.all.return_value = [SERVER_CERT_ZO_NE]
+            return iam
+        elif rtype == 'sns':
+            sns = MagicMock()
+            topic = MagicMock(arn='arn:123:mytopic')
+            sns.topics.all.return_value = [topic]
+            return sns
+        return MagicMock()
+
+    monkeypatch.setattr('boto3.resource', my_resource)

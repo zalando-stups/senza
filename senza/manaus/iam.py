@@ -82,8 +82,8 @@ class IAMServerCertificate:
         if arn is None:
             return False
         else:
-            return (arn.startswith("arn:aws:iam:")
-                    and 'server-certificate' in arn)
+            return (arn.startswith("arn:aws:iam:") and
+                    'server-certificate' in arn)
 
     def is_valid(self, when: Optional[datetime]=None) -> bool:
         """

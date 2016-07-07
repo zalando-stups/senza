@@ -120,22 +120,6 @@ def resolve_security_groups(security_groups: list, region: str):
     return result
 
 
-def find_ssl_certificate_arn(region, pattern):
-    '''Find the a matching SSL cert and return its ARN'''
-    iam = boto3.resource('iam')
-    candidates = set()
-    certs = list(iam.server_certificates.all())
-    for cert in certs:
-        # only consider matching SSL certs or use the only one available
-        if pattern == cert.name or len(certs) == 1:
-            candidates.add(cert.server_certificate_metadata['Arn'])
-    if candidates:
-        # return first match (alphabetically sorted
-        return sorted(candidates)[0]
-    else:
-        return None
-
-
 def parse_time(s: str) -> float:
     '''
     >>> parse_time('2015-04-14T19:09:01.000Z') > 0

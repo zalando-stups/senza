@@ -24,7 +24,7 @@ from senza.components.taupage_auto_scaling_group import (check_application_id,
 from senza.components.weighted_dns_elastic_load_balancer import \
     component_weighted_dns_elastic_load_balancer
 
-from fixtures import HOSTED_ZONE_ZO_NE_COM, HOSTED_ZONE_ZO_NE_DEV
+from fixtures import HOSTED_ZONE_ZO_NE_COM, HOSTED_ZONE_ZO_NE_DEV, boto_resource
 
 
 def test_invalid_component():
@@ -264,7 +264,7 @@ def test_component_redis_cluster(monkeypatch):
     assert 'SubnetIds' in result['Resources']['RedisSubnetGroup']['Properties']
 
 
-def test_weighted_dns_load_balancer(monkeypatch):
+def test_weighted_dns_load_balancer(monkeypatch, boto_resource):
     senza.traffic.DNS_ZONE_CACHE = {}
 
     def my_client(rtype, *args):
@@ -311,7 +311,7 @@ def test_weighted_dns_load_balancer(monkeypatch):
     assert 'MainDomain' not in result["Resources"]["test_lb"]["Properties"]
 
 
-def test_weighted_dns_load_balancer_with_different_domains(monkeypatch):
+def test_weighted_dns_load_balancer_with_different_domains(monkeypatch, boto_resource):
     senza.traffic.DNS_ZONE_CACHE = {}
 
     def my_client(rtype, *args):

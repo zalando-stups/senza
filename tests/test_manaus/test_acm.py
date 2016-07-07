@@ -168,4 +168,5 @@ def test_get_certificates(monkeypatch):
                                                  domain_name="app.senza.example.net"))
     assert len(certificates_net) == 1
     assert certificates_net[0].arn == 'arn:aws:acm:eu-west-1:cert2'
+
     # TODO finish tests

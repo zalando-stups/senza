@@ -46,17 +46,16 @@ def test_certificate_from_name(monkeypatch):
 
 
 def test_from_boto_server_certificate(monkeypatch):
-    mock_server_certificate = MagicMock()
-    mock_server_certificate.certificate_body = 'certificate_body'
-    mock_server_certificate.certificate_chain = 'certificate_chain'
-    mock_server_certificate.server_certificate_metadata = {
-                 'Arn': 'arn:aws:iam::0000:server-certificate/senza-example-com',
-                 'Expiration': datetime(2022, 6, 29, 0, 0),
-                 'Path': '/',
-                 'ServerCertificateId': 'CERTIFICATEID',
-                 'ServerCertificateName': 'senza-example-com',
-                 'UploadDate': datetime(2015, 7, 2, 16, 0, 40)}
-    certificate = IAMServerCertificate.from_boto_server_certificate(mock_server_certificate)
+    mock_cert = MagicMock()
+    mock_cert.certificate_body = 'certificate_body'
+    mock_cert.certificate_chain = 'certificate_chain'
+    mock_cert.server_certificate_metadata = {'Arn': 'arn:aws:iam::0000:server-certificate/senza-example-com',
+                                             'Expiration': datetime(2022, 6, 29, 0, 0),
+                                             'Path': '/',
+                                             'ServerCertificateId': 'CERTIFICATEID',
+                                             'ServerCertificateName': 'senza-example-com',
+                                             'UploadDate': datetime(2015, 7, 2, 16, 0, 40)}
+    certificate = IAMServerCertificate.from_boto_server_certificate(mock_cert)
 
     assert certificate.arn == 'arn:aws:iam::0000:server-certificate/senza-example-com'
     assert certificate.name == 'senza-example-com'

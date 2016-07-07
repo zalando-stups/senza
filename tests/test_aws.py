@@ -185,3 +185,34 @@ def test_resolve_referenced_resource(monkeypatch):
     stack['Outputs'] = []
     assert resolve_referenced_resource(ref, 'region') is None
 
+
+def test_resolve_referenced_resource_with_update_complete_status(monkeypatch):
+    resource_id = 'some-resource'
+    boto3 = MagicMock()
+    boto3.describe_stack_resource.return_value = {
+        'StackResourceDetail': {
+            'ResourceStatus': 'UPDATE_COMPLETE',
+            'ResourceType': 'AWS::EC2::Something',
+            'PhysicalResourceId': resource_id
+        }
+    }
+    boto3.describe_stacks.return_value = {'Stacks': [{'StackStatus': 'CREATE_COMPLETE'}]}
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+    ref = {'Stack': 'stack', 'LogicalId': 'id'}
+
+    assert resource_id == resolve_referenced_resource(ref, 'any-region')
+
+
+def test_resolve_referenced_output_when_stack_is_in_update_complete_status(monkeypatch):
+    output_value = 'some-resource'
+    output_key = 'some-key'
+    boto3 = MagicMock()
+    boto3.describe_stacks.return_value = {
+        'Stacks': [
+            {'StackStatus': 'UPDATE_COMPLETE', 'Outputs': [{'OutputKey': output_key, 'OutputValue': output_value}]}
+        ]
+    }
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+    ref = {'Stack': 'stack', 'Output': output_key}
+
+    assert output_value == resolve_referenced_resource(ref, 'any-region')

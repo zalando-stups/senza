@@ -100,7 +100,9 @@ class IAM:
     def get_certificates(valid_only: bool=True,
                          name: Optional[str] = None) -> Iterator[IAMServerCertificate]:
         resource = boto3.resource('iam')
-        for certificate in resource.server_certificates.all():
+
+        for server_certificate in resource.server_certificates.all():
+            certificate = IAMServerCertificate.from_boto_server_certificate(server_certificate)
 
             if name is not None and certificate.name != name:
                 continue
@@ -108,4 +110,4 @@ class IAM:
             if valid_only and not certificate.is_valid():
                 continue
 
-            yield IAMServerCertificate.from_boto_server_certificate(certificate)
+            yield certificate

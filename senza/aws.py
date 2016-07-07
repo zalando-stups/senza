@@ -18,7 +18,7 @@ def resolve_referenced_resource(ref: dict, region: str):
         resource = cf.describe_stack_resource(
             StackName=ref['Stack'],
             LogicalResourceId=ref['LogicalId'])['StackResourceDetail']
-        if resource['ResourceStatus'] != 'CREATE_COMPLETE':
+        if not is_status_complete(resource['ResourceStatus']):
             raise ValueError('Resource "{}" is not ready ("{}")'.format(ref['LogicalId'], resource['ResourceStatus']))
 
         resource_id = resource['PhysicalResourceId']
@@ -33,7 +33,7 @@ def resolve_referenced_resource(ref: dict, region: str):
         cf = boto3.client('cloudformation', region)
         stack = cf.describe_stacks(
             StackName=ref['Stack'])['Stacks'][0]
-        if stack['StackStatus'] != 'CREATE_COMPLETE':
+        if not is_status_complete(stack['StackStatus']):
             raise ValueError('Stack "{}" is not ready ("{}")'.format(ref['Stack'], stack['StackStatus']))
 
         for output in stack.get('Outputs', []):
@@ -43,6 +43,10 @@ def resolve_referenced_resource(ref: dict, region: str):
         return None
     else:
         return ref
+
+
+def is_status_complete(status: str):
+    return status in ('CREATE_COMPLETE', 'UPDATE_COMPLETE')
 
 
 def get_security_group(region: str, sg_name: str):

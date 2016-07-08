@@ -1,10 +1,10 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 from senza.manaus.acm import ACM, ACMCertificate, ACMCertificateStatus
 
 CERT1 = {'CertificateArn': 'arn:aws:acm:eu-west-1:cert1',
-         'CreatedAt': datetime(2016, 4, 1, 12, 13, 14),
+         'CreatedAt': datetime(2016, 4, 1, 12, 13, 14, tzinfo=timezone.utc),
          'DomainName': '*.senza.example.com',
          'DomainValidationOptions': [{'DomainName': '*.senza.example.com',
                                       'ValidationDomain': 'example.com',
@@ -31,11 +31,11 @@ CERT1 = {'CertificateArn': 'arn:aws:acm:eu-west-1:cert1',
                                           'admin@example.com',
                                           'administrator@example.com']}],
          'InUseBy': ['arn:aws:elasticloadbalancing:eu-west-1:lb'],
-         'IssuedAt': datetime(2016, 4, 1, 12, 14, 14),
+         'IssuedAt': datetime(2016, 4, 1, 12, 14, 14, tzinfo=timezone.utc),
          'Issuer': 'SenzaTest',
          'KeyAlgorithm': 'RSA-2048',
-         'NotAfter': datetime(2017, 4, 1, 12, 14, 14),
-         'NotBefore': datetime(2016, 4, 1, 12, 14, 14),
+         'NotAfter': datetime(2017, 4, 1, 12, 14, 14, tzinfo=timezone.utc),
+         'NotBefore': datetime(2016, 4, 1, 12, 14, 14, tzinfo=timezone.utc),
          'Serial': '00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00',
          'SignatureAlgorithm': 'SHA256WITHRSA',
          'Status': 'ISSUED',
@@ -89,23 +89,29 @@ CERT2 = {'CertificateArn': 'arn:aws:acm:eu-west-1:cert2',
 def test_certificate_valid():
     certificate1 = ACMCertificate.from_boto_dict(CERT1)
     assert certificate1.domain_name == '*.senza.example.com'
-    assert certificate1.is_valid(when=datetime(2016, 4, 5, 12, 14, 14))
-    assert not certificate1.is_valid(when=datetime(2018, 4, 5, 12, 14, 14))
-    assert not certificate1.is_valid(when=datetime(2013, 4, 2, 10, 11, 12))
+    assert certificate1.is_valid(when=datetime(2016, 4, 5, 12, 14, 14,
+                                               tzinfo=timezone.utc))
+    assert not certificate1.is_valid(when=datetime(2018, 4, 5, 12, 14, 14,
+                                                   tzinfo=timezone.utc))
+    assert not certificate1.is_valid(when=datetime(2013, 4, 2, 10, 11, 12,
+                                                   tzinfo=timezone.utc))
 
     cert1_revoked = CERT1.copy()
     cert1_revoked['Status'] = 'REVOKED'
 
     certificate1_revoked = ACMCertificate.from_boto_dict(cert1_revoked)
     assert certificate1_revoked.domain_name == '*.senza.example.com'
-    assert not certificate1_revoked.is_valid(when=datetime(2016, 4, 5, 12, 14, 14))
-    assert not certificate1_revoked.is_valid(when=datetime(2018, 4, 5, 12, 14, 14))
-    assert not certificate1_revoked.is_valid(when=datetime(2013, 4, 2, 10, 11, 12))
+    assert not certificate1_revoked.is_valid(when=datetime(2016, 4, 5, 12, 14, 14,
+                                                           tzinfo=timezone.utc))
+    assert not certificate1_revoked.is_valid(when=datetime(2018, 4, 5, 12, 14, 14,
+                                                           tzinfo=timezone.utc))
+    assert not certificate1_revoked.is_valid(when=datetime(2013, 4, 2, 10, 11, 12,
+                                                           tzinfo=timezone.utc))
 
 
 def test_certificate_comparison():
     cert2 = CERT1.copy()
-    cert2['CreatedAt'] = datetime(2016, 4, 2, 12, 13, 14)
+    cert2['CreatedAt'] = datetime(2016, 4, 2, 12, 13, 14, tzinfo=timezone.utc)
 
     certificate1 = ACMCertificate.from_boto_dict(CERT1)
     certificate2 = ACMCertificate.from_boto_dict(cert2)
@@ -123,9 +129,12 @@ def test_certificate_get_by_arn(monkeypatch):
 
     certificate1 = ACMCertificate.get_by_arn('arn:aws:acm:eu-west-1:cert')
     assert certificate1.domain_name == '*.senza.example.com'
-    assert certificate1.is_valid(when=datetime(2016, 4, 5, 12, 14, 14))
-    assert not certificate1.is_valid(when=datetime(2018, 4, 5, 12, 14, 14))
-    assert not certificate1.is_valid(when=datetime(2013, 4, 2, 10, 11, 12))
+    assert certificate1.is_valid(when=datetime(2016, 4, 5, 12, 14, 14,
+                                               tzinfo=timezone.utc))
+    assert not certificate1.is_valid(when=datetime(2018, 4, 5, 12, 14, 14,
+                                                   tzinfo=timezone.utc))
+    assert not certificate1.is_valid(when=datetime(2013, 4, 2, 10, 11, 12,
+                                                   tzinfo=timezone.utc))
     assert certificate1.status == ACMCertificateStatus.issued
 
 
@@ -149,7 +158,8 @@ def test_get_certificates(monkeypatch):
     monkeypatch.setattr('boto3.client', m_client)
 
     m_datetime = MagicMock()
-    m_datetime.now.return_value = datetime(2016, 4, 5, 12, 14, 14)
+    m_datetime.now.return_value = datetime(2016, 4, 5, 12, 14, 14,
+                                           tzinfo=timezone.utc)
     monkeypatch.setattr('senza.manaus.acm.datetime', m_datetime)
 
     acm = ACM()

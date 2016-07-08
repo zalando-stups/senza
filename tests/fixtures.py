@@ -1,10 +1,10 @@
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock
 
 import pytest
 
 CERT1_ZO_NE = {'CertificateArn': 'arn:aws:acm:eu-west-1:cert1',
-               'CreatedAt': datetime(2016, 4, 1, 12, 13, 14),
+               'CreatedAt': datetime(2016, 4, 1, 12, 13, 14, tzinfo=timezone.utc),
                'DomainName': '*.zo.ne',
                'DomainValidationOptions': [
                    {'DomainName': '*.zo.ne',
@@ -16,11 +16,11 @@ CERT1_ZO_NE = {'CertificateArn': 'arn:aws:acm:eu-west-1:cert1',
                         'admin@zo.ne',
                         'administrator@zo.ne']}, ],
                'InUseBy': ['arn:aws:elasticloadbalancing:eu-west-1:lb'],
-               'IssuedAt': datetime(2016, 4, 1, 12, 14, 14),
+               'IssuedAt': datetime(2016, 4, 1, 12, 14, 14, tzinfo=timezone.utc),
                'Issuer': 'SenzaTest',
                'KeyAlgorithm': 'RSA-2048',
-               'NotAfter': datetime(2017, 4, 1, 12, 14, 14),
-               'NotBefore': datetime(2016, 4, 1, 12, 14, 14),
+               'NotAfter': datetime(2017, 4, 1, 12, 14, 14, tzinfo=timezone.utc),
+               'NotBefore': datetime(2016, 4, 1, 12, 14, 14, tzinfo=timezone.utc),
                'Serial': '00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00',
                'SignatureAlgorithm': 'SHA256WITHRSA',
                'Status': 'ISSUED',
@@ -28,7 +28,7 @@ CERT1_ZO_NE = {'CertificateArn': 'arn:aws:acm:eu-west-1:cert1',
                'SubjectAlternativeNames': []}
 
 CERT1_ZO_NE_REVOKED = {'CertificateArn': 'arn:aws:acm:eu-west-1:cert1',
-                       'CreatedAt': datetime(2016, 4, 1, 12, 13, 14),
+                       'CreatedAt': datetime(2016, 4, 1, 12, 13, 14, tzinfo=timezone.utc),
                        'DomainName': '*.zo.ne',
                        'DomainValidationOptions': [
                            {'DomainName': '*.zo.ne',
@@ -41,11 +41,11 @@ CERT1_ZO_NE_REVOKED = {'CertificateArn': 'arn:aws:acm:eu-west-1:cert1',
                                 'administrator@zo.ne']}, ],
                        'InUseBy': [
                            'arn:aws:elasticloadbalancing:eu-west-1:lb'],
-                       'IssuedAt': datetime(2016, 4, 1, 12, 14, 14),
+                       'IssuedAt': datetime(2016, 4, 1, 12, 14, 14, tzinfo=timezone.utc),
                        'Issuer': 'SenzaTest',
                        'KeyAlgorithm': 'RSA-2048',
-                       'NotAfter': datetime(2017, 4, 1, 12, 14, 14),
-                       'NotBefore': datetime(2016, 4, 1, 12, 14, 14),
+                       'NotAfter': datetime(2017, 4, 1, 12, 14, 14, tzinfo=timezone.utc),
+                       'NotBefore': datetime(2016, 4, 1, 12, 14, 14, tzinfo=timezone.utc),
                        'Serial': '00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00',
                        'SignatureAlgorithm': 'SHA256WITHRSA',
                        'Status': 'REVOKED',
@@ -85,10 +85,12 @@ HOSTED_ZONE_ZO_NE_DEV = {'Config': {'PrivateZone': False},
 SERVER_CERT_ZO_NE = MagicMock(name='zo-ne')
 SERVER_CERT_ZO_NE.server_certificate_metadata = {'Arn': 'arn:aws:123',
                                                  'ServerCertificateName': 'zo-ne',
-                                                 'Expiration': datetime(2017, 4, 1, 12, 14, 14),
+                                                 'Expiration': datetime(2017, 4, 1, 12, 14, 14,
+                                                                        tzinfo=timezone(timedelta(hours=2))),
                                                  'Path': '/',
                                                  'ServerCertificateId': '000',
-                                                 'UploadDate': datetime(2017, 3, 1, 12, 14, 14)}
+                                                 'UploadDate': datetime(2017, 3, 1, 12, 14, 14,
+                                                                        tzinfo=timezone.utc)}
 
 
 @pytest.fixture

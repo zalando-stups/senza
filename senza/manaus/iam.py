@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from typing import Optional, Dict, Any, Union, Iterator
 import boto3
@@ -89,7 +89,7 @@ class IAMServerCertificate:
         """
         Checks if the certificate is still valid
         """
-        when = when if when is not None else datetime.now()
+        when = when if when is not None else datetime.now(timezone.utc)
 
         return when < self.expiration
 

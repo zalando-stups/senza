@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 from senza.manaus.iam import IAM, IAMServerCertificate
@@ -104,33 +104,33 @@ def test_get_certificates(monkeypatch):
     mock_certificate1.certificate_chain = 'certificate_chain'
     mock_certificate1.server_certificate_metadata = {
         'Arn': 'arn:aws:iam::0000:server-certificate/senza-example-com',
-        'Expiration': datetime(2022, 6, 29, 0, 0),
+        'Expiration': datetime(2022, 6, 29, 0, 0, tzinfo=timezone.utc),
         'Path': '/',
         'ServerCertificateId': 'CERTIFICATEID',
         'ServerCertificateName': 'senza-example-com',
-        'UploadDate': datetime(2015, 7, 2, 16, 0, 40)}
+        'UploadDate': datetime(2015, 7, 2, 16, 0, 40, tzinfo=timezone.utc)}
 
     mock_certificate2 = MagicMock()
     mock_certificate2.certificate_body = 'certificate_body'
     mock_certificate2.certificate_chain = 'certificate_chain'
     mock_certificate2.server_certificate_metadata = {
         'Arn': 'arn:aws:iam::0000:server-certificate/senza-example-net',
-        'Expiration': datetime(2022, 6, 29, 0, 0),
+        'Expiration': datetime(2022, 6, 29, 0, 0, tzinfo=timezone.utc),
         'Path': '/',
         'ServerCertificateId': 'CERTIFICATEID',
         'ServerCertificateName': 'senza-example-net',
-        'UploadDate': datetime(2015, 7, 2, 16, 0, 40)}
+        'UploadDate': datetime(2015, 7, 2, 16, 0, 40, tzinfo=timezone.utc)}
 
     mock_certificate3 = MagicMock()
     mock_certificate3.certificate_body = 'certificate_body'
     mock_certificate3.certificate_chain = 'certificate_chain'
     mock_certificate3.server_certificate_metadata = {
         'Arn': 'arn:aws:iam::0000:server-certificate/senza-example-org',
-        'Expiration': datetime(2015, 6, 1, 0, 0),
+        'Expiration': datetime(2015, 6, 1, 0, 0, tzinfo=timezone.utc),
         'Path': '/',
         'ServerCertificateId': 'CERTIFICATEID',
         'ServerCertificateName': 'senza-example-org',
-        'UploadDate': datetime(2015, 7, 2, 16, 0, 40)}
+        'UploadDate': datetime(2015, 7, 2, 16, 0, 40, tzinfo=timezone.utc)}
 
     m_resource = MagicMock()
     m_resource.return_value = m_resource
@@ -140,7 +140,8 @@ def test_get_certificates(monkeypatch):
     monkeypatch.setattr('boto3.resource', m_resource)
 
     m_datetime = MagicMock()
-    m_datetime.now.return_value = datetime(2016, 4, 5, 12, 14, 14)
+    m_datetime.now.return_value = datetime(2016, 4, 5, 12, 14, 14,
+                                           tzinfo=timezone.utc)
     monkeypatch.setattr('senza.manaus.acm.datetime', m_datetime)
 
     certificates = list(IAM.get_certificates())

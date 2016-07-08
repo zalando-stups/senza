@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Iterator, List, Dict, Any, Optional
 from functools import total_ordering
@@ -120,7 +120,7 @@ class ACMCertificate:
         """
         Checks if the certificate is still valid
         """
-        when = when if when is not None else datetime.now()
+        when = when if when is not None else datetime.now(timezone.utc)
 
         if self.status != ACMCertificateStatus.issued:
             return False

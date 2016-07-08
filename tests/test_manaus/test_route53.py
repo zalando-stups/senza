@@ -1,9 +1,8 @@
+from copy import deepcopy
 from unittest.mock import MagicMock
 
-from senza.manaus.route53 import Route53HostedZone, Route53Record, Route53
+from senza.manaus.route53 import Route53, Route53HostedZone, Route53Record
 
-
-# TODO test hosted zone
 
 def test_hosted_zone_from_boto_dict():
     hosted_zone_dict = {'Config': {'PrivateZone': False},
@@ -58,6 +57,61 @@ def test_route53_hosted_zones(monkeypatch):
     assert len(hosted_zones) == 2
     assert hosted_zones[0].id == '/hostedzone/random1'
     assert hosted_zones[1].name == 'example.net.'
+
+    hosted_zones_com = list(route53.get_hosted_zones('example.com'))
+    assert len(hosted_zones_com) == 1
+    assert hosted_zones_com[0].name == 'example.com.'
+
+    hosted_zones_com = list(route53.get_hosted_zones('example.com.'))
+    assert len(hosted_zones_com) == 1
+    assert hosted_zones_com[0].name == 'example.com.'
+
+
+def test_route53_hosted_zones_paginated(monkeypatch):
+    m_client = MagicMock()
+    m_client.return_value = m_client
+    hosted_zone1 = {'Config': {'PrivateZone': False},
+                    'CallerReference': '0000',
+                    'ResourceRecordSetCount': 42,
+                    'Id': '/hostedzone/random1',
+                    'Name': 'example.com.'}
+    hosted_zone2 = {'Config': {'PrivateZone': False},
+                    'CallerReference': '0000',
+                    'ResourceRecordSetCount': 7,
+                    'Id': '/hostedzone/random2',
+                    'Name': 'example.net.'}
+    side_effect = [{'MaxItems': '100',
+                    'ResponseMetadata': {
+                        'HTTPStatusCode': 200,
+                        'RequestId': 'FakeId'},
+                    'HostedZones': [hosted_zone1],
+                    'NextMarker': 'Whatever this is a mock anyway',
+                    'IsTruncated': True},
+                   {'MaxItems': '100',
+                    'ResponseMetadata': {
+                        'HTTPStatusCode': 200,
+                        'RequestId': 'FakeId'},
+                    'HostedZones': [hosted_zone2],
+                    'IsTruncated': False}
+                   ]
+    m_client.list_hosted_zones.side_effect = deepcopy(side_effect)
+    monkeypatch.setattr('boto3.client', m_client)
+
+    route53 = Route53()
+    hosted_zones = list(route53.get_hosted_zones())
+    assert len(hosted_zones) == 2
+    assert hosted_zones[0].id == '/hostedzone/random1'
+    assert hosted_zones[1].name == 'example.net.'
+
+    m_client.list_hosted_zones.side_effect = deepcopy(side_effect)
+    hosted_zones_com = list(route53.get_hosted_zones('example.net'))
+    assert len(hosted_zones_com) == 1
+    assert hosted_zones_com[0].name == 'example.net.'
+
+    m_client.list_hosted_zones.side_effect = deepcopy(side_effect)
+    hosted_zones_com = list(route53.get_hosted_zones('example.com.'))
+    assert len(hosted_zones_com) == 1
+    assert hosted_zones_com[0].name == 'example.com.'
 
 
 def test_get_records(monkeypatch):

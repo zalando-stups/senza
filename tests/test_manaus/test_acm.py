@@ -169,4 +169,8 @@ def test_get_certificates(monkeypatch):
     assert len(certificates_net) == 1
     assert certificates_net[0].arn == 'arn:aws:acm:eu-west-1:cert2'
 
-    # TODO finish tests
+
+def test_arn_is_acm_certificate():
+    assert ACMCertificate.arn_is_acm_certificate('arn:aws:acm:certificate')
+    assert not ACMCertificate.arn_is_acm_certificate('arn:aws:iam:certificate')
+    assert not ACMCertificate.arn_is_acm_certificate(None)

@@ -24,7 +24,6 @@ class ACMCertificate:
     http://boto3.readthedocs.io/en/latest/reference/services/acm.html#ACM.Client.list_certificates
     http://boto3.readthedocs.io/en/latest/reference/services/acm.html#ACM.Client.describe_certificate
     """
-    # TODO match method to find if a pattern or domain name match the certificate
     def __init__(self,
                  domain_name: str,
                  arn: str,

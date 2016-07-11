@@ -687,11 +687,12 @@ def create_cf_template(definition, region, version, parameter, force, parameter_
 @click.argument('stack_ref', nargs=-1)
 @region_option
 @click.option('--dry-run', is_flag=True, help='No-op mode: show what would be deleted')
+@click.option('-g', '--ignore-non-existent', is_flag=True, help='Do not show error when stack does not exist')
 @click.option('-f', '--force', is_flag=True, help='Allow deleting multiple stacks')
 @click.option('-i', '--interactive', is_flag=True,
               help='Prompt before every deletion')
 @stacktrace_visible_option
-def delete(stack_ref, region, dry_run, force, interactive):
+def delete(stack_ref, region, dry_run, force, interactive, ignore_non_existent):
     '''Delete a single Cloud Formation stack'''
 
     stack_refs = get_stack_refs(stack_ref)
@@ -708,7 +709,7 @@ def delete(stack_ref, region, dry_run, force, interactive):
         fatal_error('Error: {} matching stacks found. '.format(len(stacks)) +
                     'Please use the "--force" flag if you really want to delete multiple stacks.')
 
-    if not stacks:
+    if not stacks and not ignore_non_existent:
         fatal_error('Error: Stack {} not found!'.format(stack_refs[0].name))
 
     for stack in stacks:

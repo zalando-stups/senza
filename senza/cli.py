@@ -319,7 +319,19 @@ class AccountArguments:
     def VpcID(self):
         if self.__VpcID is None:
             ec2 = EC2(self.Region)
-            vpc = ec2.get_default_vpn()
+            try:
+                vpc = ec2.get_default_vpc()
+            except VPCError as error:
+                if sys.stdin.isatty() and error.number_of_vpcs:
+                    # if running in interactive terminal and there are VPCs
+                    # to choose from
+                    vpcs = ec2.get_all_vpcs()
+                    options = [(vpc.vpc_id, str(vpc)) for vpc in vpcs]
+                    print("Can't find a default VPC")
+                    vpc = choice("Select VPC to use",
+                                 options=options)
+                else:  # if not running in interactive terminal (e.g Jenkins)
+                    raise
             self.__VpcID = vpc.vpc_id
         return self.__VpcID
 

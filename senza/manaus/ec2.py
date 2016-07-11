@@ -23,6 +23,9 @@ class EC2VPC:
 
         self.name = self.tags.get('Name', self.vpc_id)
 
+    def __str__(self):
+        return '{name} ({vpc_id})'.format_map(vars(self))
+
     def __repr__(self):
         return '<EC2VPC: {name} ({vpc_id})>'.format_map(vars(self))
 

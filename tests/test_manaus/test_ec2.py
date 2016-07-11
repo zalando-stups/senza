@@ -10,13 +10,15 @@ def test_from_boto_vpc():
     mock_vpc.vpc_id = 'vpc-id'
     mock_vpc.is_default = True
     mock_vpc.tags = [{'Key': 'mykey', 'Value': 'myvalue'},
-                     {'Key': 'theanswer', 'Value': '42'}]
+                     {'Key': 'theanswer', 'Value': '42'},
+                     {'Key': 'Name', 'Value': 'my-vpc'}]
     vpc = EC2VPC.from_boto_vpc(mock_vpc)
 
     assert vpc.vpc_id == 'vpc-id'
     assert vpc.is_default
     assert vpc.tags['mykey'] == 'myvalue'
     assert vpc.tags['theanswer'] == '42'
+    assert vpc.name == 'my-vpc'
 
 
 def test_get_default_vpc(monkeypatch):

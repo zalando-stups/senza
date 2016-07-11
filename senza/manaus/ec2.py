@@ -21,8 +21,10 @@ class EC2VPC:
         self.is_default = is_default
         self.tags = OrderedDict([(t['Key'], t['Value']) for t in tags])  # type: Dict[str, str]
 
+        self.name = self.tags.get('Name', self.vpc_id)
+
     def __repr__(self):
-        return '<EC2VPC: {vpc_id}>'.format_map(vars(self))
+        return '<EC2VPC: {name} ({vpc_id})>'.format_map(vars(self))
 
     @classmethod
     def from_boto_vpc(cls, vpc) -> "EC2VPC":

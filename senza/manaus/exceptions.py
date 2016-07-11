@@ -1,6 +1,6 @@
 class ManausException(Exception):
     """
-    Base class for Manaus execeptions
+    Base class for Manaus exceptions
     """
 
 
@@ -36,3 +36,12 @@ class RecordNotFound(ManausException):
 
     def __init__(self, name: str):
         super().__init__('Route 53 Record not found: {}'.format(name))
+
+
+class VPCError(ManausException, AttributeError):
+    """
+    Error raised when there are issues with VPCs configuration
+    """
+
+    def __init__(self, message):
+        super().__init__(message)

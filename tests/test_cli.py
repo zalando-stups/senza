@@ -1093,6 +1093,11 @@ def test_delete(monkeypatch):
                                catch_exceptions=False)
         assert 'OK' in result.output
 
+        # stack name does not exist
+        result = runner.invoke(cli, ['delete', 'not-exist', 'v2', '--region=aa-fakeregion-1',
+                                     '--force'], catch_exceptions=False)
+        assert 'Stack not-exist not found!' in result.output
+
 
 def test_delete_interactive(monkeypatch):
 

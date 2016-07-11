@@ -708,6 +708,9 @@ def delete(stack_ref, region, dry_run, force, interactive):
         fatal_error('Error: {} matching stacks found. '.format(len(stacks)) +
                     'Please use the "--force" flag if you really want to delete multiple stacks.')
 
+    if not stacks:
+        fatal_error('Error: Stack {} not found!'.format(stack_refs[0].name))
+
     for stack in stacks:
         if interactive and not click.confirm("Delete '{}'?".format(stack.StackName)):
             continue

@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Dict, List
+from typing import Dict, List, Iterator
 
 import boto3
 
@@ -41,9 +41,18 @@ class EC2:
     def __init__(self, region: str):
         self.region = region
 
-    def get_default_vpn(self) -> EC2VPC:
+    def get_all_vpcs(self) -> Iterator[EC2VPC]:
         """
-        Get one VPN from the account, either the default or, if only one
+        Get all VPCs from the account
+        """
+        resource = boto3.resource('ec2', self.region)
+
+        for vpc in resource.vpcs.all():
+            yield EC2VPC.from_boto_vpc(vpc)
+
+    def get_default_vpc(self) -> EC2VPC:
+        """
+        Get one VPC from the account, either the default or, if only one
         exists, that one.
         """
         resource = boto3.resource('ec2', self.region)
@@ -60,10 +69,11 @@ class EC2:
                 first_vpc = vpc
 
         if number_of_vpcs == 0:
-            raise VPCError("Can't find any VPC!")
+            raise VPCError("Can't find any VPC!", number_of_vpcs)
         elif number_of_vpcs == 1:
             # Use the only one VPC if it's not the default VPC found
             return EC2VPC.from_boto_vpc(first_vpc)
         else:
             raise VPCError("Multiple VPCs are only supported if one "
-                           "VPC is the default VPC (IsDefault=true)!")
+                           "VPC is the default VPC (IsDefault=true)!",
+                           number_of_vpcs)

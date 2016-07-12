@@ -10,7 +10,7 @@ IAM_CERT1 = {'CertificateBody': 'body',
                  'Expiration': datetime(2022, 6, 29, 0, 0),
                  'Path': '/',
                  'ServerCertificateId': 'CERTIFICATEID',
-                 'ServerCertificateName': 'senza-example-com',
+                 'ServerCertificateName': 'senza-example-com-20150701',
                  'UploadDate': datetime(2015, 7, 1, 16, 0, 40)}}
 
 IAM_CERT1_EXP = {'CertificateBody': 'body',
@@ -20,7 +20,7 @@ IAM_CERT1_EXP = {'CertificateBody': 'body',
                      'Expiration': datetime(2015, 6, 29, 0, 0),
                      'Path': '/',
                      'ServerCertificateId': 'CERTIFICATEID',
-                     'ServerCertificateName': 'senza-example-com',
+                     'ServerCertificateName': 'senza-example-com-20150701',
                      'UploadDate': datetime(2015, 7, 1, 16, 0, 40)}}
 
 IAM_CERT2 = {'CertificateBody': 'body',
@@ -30,7 +30,7 @@ IAM_CERT2 = {'CertificateBody': 'body',
                  'Expiration': datetime(2022, 6, 29, 0, 0),
                  'Path': '/',
                  'ServerCertificateId': 'CERTIFICATEID',
-                 'ServerCertificateName': 'senza-example-com',
+                 'ServerCertificateName': 'senza-example-com-20150702',
                  'UploadDate': datetime(2015, 7, 2, 16, 0, 40)}}
 
 
@@ -41,7 +41,7 @@ def test_certificate_from_name(monkeypatch):
     monkeypatch.setattr('boto3.client', m_client)
 
     certificate1 = IAMServerCertificate.get_by_name('senza-example-com')
-    assert certificate1.name == 'senza-example-com'
+    assert certificate1.name == 'senza-example-com-20150701'
     assert certificate1.arn == 'arn:aws:iam::0000:server-certificate/senza-example-com'
 
 

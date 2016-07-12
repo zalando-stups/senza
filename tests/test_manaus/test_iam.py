@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
+from botocore.exceptions import ClientError
 from senza.manaus.iam import IAM, IAMServerCertificate
 
 IAM_CERT1 = {'CertificateBody': 'body',
@@ -26,7 +27,7 @@ IAM_CERT1_EXP = {'CertificateBody': 'body',
 IAM_CERT2 = {'CertificateBody': 'body',
              'CertificateChain': 'chain',
              'ServerCertificateMetadata': {
-                 'Arn': 'arn:aws:iam::0000:server-certificate/senza-example-com',
+                 'Arn': 'arn:aws:iam::0001:server-certificate/senza-example-com',
                  'Expiration': datetime(2022, 6, 29, 0, 0),
                  'Path': '/',
                  'ServerCertificateId': 'CERTIFICATEID',
@@ -80,8 +81,9 @@ def test_order(monkeypatch):
     m_client.get_server_certificate.return_value = {'ServerCertificate': IAM_CERT2}
     certificate2 = IAMServerCertificate.get_by_name('senza-example-com')
 
-    assert sorted([certificate1, certificate2]) == [certificate2, certificate1]
-    assert sorted([certificate2, certificate1]) == [certificate2, certificate1]
+    assert certificate2 > certificate1
+    assert sorted([certificate1, certificate2]) == [certificate1, certificate2]
+    assert sorted([certificate2, certificate1]) == [certificate1, certificate2]
 
 
 def test_valid(monkeypatch):
@@ -142,7 +144,7 @@ def test_get_certificates(monkeypatch):
     m_datetime = MagicMock()
     m_datetime.now.return_value = datetime(2016, 4, 5, 12, 14, 14,
                                            tzinfo=timezone.utc)
-    monkeypatch.setattr('senza.manaus.acm.datetime', m_datetime)
+    monkeypatch.setattr('senza.manaus.iam.datetime', m_datetime)
 
     certificates = list(IAM.get_certificates())
     for certificate in certificates:
@@ -158,3 +160,75 @@ def test_get_certificates(monkeypatch):
 
     certificates_org = list(IAM.get_certificates(name='senza-example-org'))
     assert len(certificates_org) == 0
+
+
+def test_get_with_suffix(monkeypatch):
+    mock_certificate1 = MagicMock()
+    mock_certificate1.certificate_body = 'certificate_body'
+    mock_certificate1.certificate_chain = 'certificate_chain'
+    mock_certificate1.server_certificate_metadata = {
+        'Arn': 'arn:aws:iam::0000:server-certificate/senza-example-com',
+        'Expiration': datetime(2022, 6, 29, 0, 0, tzinfo=timezone.utc),
+        'Path': '/',
+        'ServerCertificateId': 'CERTIFICATEID',
+        'ServerCertificateName': 'senza-example-com',
+        'UploadDate': datetime(2015, 7, 2, 16, 0, 40, tzinfo=timezone.utc)}
+
+    mock_certificate2 = MagicMock()
+    mock_certificate2.certificate_body = 'certificate_body'
+    mock_certificate2.certificate_chain = 'certificate_chain'
+    mock_certificate2.server_certificate_metadata = {
+        'Arn': 'arn:aws:iam::0000:server-certificate/senza-example-net',
+        'Expiration': datetime(2022, 6, 29, 0, 0, tzinfo=timezone.utc),
+        'Path': '/',
+        'ServerCertificateId': 'CERTIFICATEID',
+        'ServerCertificateName': 'senza-example-net',
+        'UploadDate': datetime(2015, 7, 2, 16, 0, 40, tzinfo=timezone.utc)}
+
+    mock_certificate3 = MagicMock()
+    mock_certificate3.certificate_body = 'certificate_body'
+    mock_certificate3.certificate_chain = 'certificate_chain'
+    mock_certificate3.server_certificate_metadata = {
+        'Arn': 'arn:aws:iam::0000:server-certificate/senza-example-org',
+        'Expiration': datetime(2015, 6, 1, 0, 0, tzinfo=timezone.utc),
+        'Path': '/',
+        'ServerCertificateId': 'CERTIFICATEID',
+        'ServerCertificateName': 'senza-example-org-20150702',
+        'UploadDate': datetime(2015, 7, 2, 16, 0, 40, tzinfo=timezone.utc)}
+
+    mock_certificate4 = MagicMock()
+    mock_certificate4.certificate_body = 'certificate_body'
+    mock_certificate4.certificate_chain = 'certificate_chain'
+    mock_certificate4.server_certificate_metadata = {
+        'Arn': 'arn:aws:iam::0001:server-certificate/senza-example-org',
+        'Expiration': datetime(2015, 6, 1, 0, 0, tzinfo=timezone.utc),
+        'Path': '/',
+        'ServerCertificateId': 'CERTIFICATEID',
+        'ServerCertificateName': 'senza-example-org-20150703',
+        'UploadDate': datetime(2015, 7, 3, 16, 0, 40, tzinfo=timezone.utc)}
+
+    m_resource = MagicMock()
+    m_resource.return_value = m_resource
+    m_resource.server_certificates.all.return_value = [mock_certificate1,
+                                                       mock_certificate4,
+                                                       mock_certificate2,
+                                                       mock_certificate3]
+    monkeypatch.setattr('boto3.resource', m_resource)
+
+    m_client = MagicMock()
+    m_client.return_value = m_client
+    error = {'Error': {'Type': 'Sender',
+                       'Message': 'The Server Certificate with name hello'
+                                  ' cannot be found.',
+                       'Code': 'NoSuchEntity'}}
+    m_client.get_server_certificate.side_effect = ClientError(error,
+                                                              'test')
+    monkeypatch.setattr('boto3.client', m_client)
+
+    m_datetime = MagicMock()
+    m_datetime.now.return_value = datetime(2014, 4, 5, 12, 14, 14,
+                                           tzinfo=timezone.utc)
+    monkeypatch.setattr('senza.manaus.iam.datetime', m_datetime)
+
+    certificate1 = IAMServerCertificate.get_by_name('senza-example-org')
+    assert certificate1.name == 'senza-example-org-20150703'

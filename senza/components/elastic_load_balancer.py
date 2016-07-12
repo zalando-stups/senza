@@ -71,7 +71,8 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
             iam_pattern = main_zone.lower().rstrip('.').replace('.', '-')
             name = '{sub}.{zone}'.format(sub=subdomain,
                                          zone=main_zone.rstrip('.'))
-            acm_certificates = sorted(ACM.get_certificates(domain_name=name))
+            acm_certificates = sorted(ACM.get_certificates(domain_name=name),
+                                      reverse=True)
         else:
             iam_pattern = ''
             acm_certificates = []
@@ -80,7 +81,7 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
         if not iam_certificates:
             # if there are no iam certificates matching the pattern
             # try to use any certificate
-            iam_certificates = sorted(IAM.get_certificates())
+            iam_certificates = sorted(IAM.get_certificates(), reverse=True)
 
         # the priority is acm_certificate first and iam_certificate second
         certificates = (acm_certificates +

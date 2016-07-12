@@ -104,7 +104,7 @@ class IAM:
         for server_certificate in resource.server_certificates.all():
             certificate = IAMServerCertificate.from_boto_server_certificate(server_certificate)
 
-            if name is not None and certificate.name != name:
+            if name is not None and not certificate.name.startswith(name):
                 continue
 
             if valid_only and not certificate.is_valid():

@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from botocore.exceptions import ClientError
 from typing import Optional, Dict, Any, Union, Iterator
 import boto3
 
@@ -65,10 +66,21 @@ class IAMServerCertificate:
         Get IAMServerCertificate using the name of the server certificate
         """
         client = boto3.client('iam')
-        response = client.get_server_certificate(ServerCertificateName=name)
-        server_certificate = response['ServerCertificate']
 
-        return cls.from_boto_dict(server_certificate)
+        try:
+            response = client.get_server_certificate(ServerCertificateName=name)
+            server_certificate = response['ServerCertificate']
+            certificate = cls.from_boto_dict(server_certificate)
+        except ClientError as error:
+            # IAM.get_certificates can get certificates with a suffix
+            certificates = IAM.get_certificates(name=name)
+            try:
+                # try to return the latest certificate that matches the name
+                certificate = next(certificates)
+            except StopIteration:
+                raise error
+
+        return certificate
 
     @staticmethod
     def arn_is_server_certificate(arn: Optional[str] = None):

@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
+import pytest
 
 from botocore.exceptions import ClientError
 from senza.manaus.iam import IAM, IAMServerCertificate
@@ -232,3 +233,7 @@ def test_get_with_suffix(monkeypatch):
 
     certificate1 = IAMServerCertificate.get_by_name('senza-example-org')
     assert certificate1.name == 'senza-example-org-20150703'
+
+    with pytest.raises(ClientError):
+        m_resource.server_certificates.all.return_value = []
+        IAMServerCertificate.get_by_name('senza-example-org')

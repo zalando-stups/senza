@@ -73,11 +73,12 @@ class IAMServerCertificate:
             certificate = cls.from_boto_dict(server_certificate)
         except ClientError as error:
             # IAM.get_certificates can get certificates with a suffix
-            certificates = IAM.get_certificates(name=name)
+            certificates = sorted(IAM.get_certificates(name=name),
+                                  reverse=True)
             try:
                 # try to return the latest certificate that matches the name
-                certificate = next(certificates)
-            except StopIteration:
+                certificate = certificates[0]
+            except IndexError:
                 raise error
 
         return certificate

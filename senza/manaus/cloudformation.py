@@ -15,7 +15,7 @@ class CloudFormationStack:
 
     def __init__(self,
                  stack_id: str,
-                 stack_name: str,
+                 name: str,
                  description: str,
                  parameters: Dict[str, str],
                  creation_time: datetime,
@@ -29,7 +29,7 @@ class CloudFormationStack:
                  outputs: Optional[List[Dict]],
                  tags: Dict[str, str]):
         self.stack_id = stack_id
-        self.stack_name = stack_name
+        self.name = name
         self.description = description
         self.parameters = parameters
         self.creation_time = creation_time
@@ -41,21 +41,16 @@ class CloudFormationStack:
         self.timeout_in_minutes = timeout_in_minutes
         self.capabilities = capabilities
         self.outputs = outputs
+        self.tags = tags
+
+    def __repr__(self):
+        return "<CloudFormationStack: {name}>".format_map(vars(self))
 
     @classmethod
-    def get_by_stack_name(cls,
-                          name: str,
-                          region: Optional[str]=None) -> "CloudFormationStack":
-        """
-        See:
-        http://boto3.readthedocs.io/en/latest/reference/services/cloudformation.html#CloudFormation.Client.describe_stacks
-        """
-        client = boto3.client('cloudformation', region)
-        stacks = client.describe_stacks(StackName=name)
-        stack = stacks['Stacks'][0]  # type: dict
-
+    def from_boto_dict(cls,
+                       stack: Dict) -> "CloudFormationStack":
         stack_id = stack['StackId']
-        stack_name = stack['StackName']
+        name = stack['StackName']
         description = stack['Description']
         parameters = OrderedDict([(p['ParameterKey'], p['ParameterValue'])
                                   for p in stack['Parameters']
@@ -71,7 +66,22 @@ class CloudFormationStack:
         outputs = stack.get('Outputs')
         tags = OrderedDict([(t['Key'], t['Value']) for t in stack['Tags']])
 
-        return cls(stack_id, stack_name, description, parameters,
+        return cls(stack_id, name, description, parameters,
                    creation_time, last_updated_time, status,
                    stack_status_reason, disable_rollback, notification_arns,
                    timeout_in_minutes, capabilities, outputs, tags)
+
+    @classmethod
+    def get_by_stack_name(cls,
+                          name: str,
+                          region: Optional[str]=None) -> "CloudFormationStack":
+        """
+        See:
+        http://boto3.readthedocs.io/en/latest/reference/services/cloudformation.html#CloudFormation.Client.describe_stacks
+        """
+        client = boto3.client('cloudformation', region)
+
+        stacks = client.describe_stacks(StackName=name)
+        stack = stacks['Stacks'][0]  # type: dict
+
+        return cls.from_boto_dict(stack)

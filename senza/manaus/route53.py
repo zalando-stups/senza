@@ -141,3 +141,24 @@ class Route53:
                 if name is not None and record.name != name:
                     continue
                 yield record
+
+
+# TODO method to convert cname to alias
+
+#             {'AliasTarget': {
+#                 'DNSName': 'hello-bus-v49testsenza-1456711526.eu-central-1.elb.amazonaws.com.',
+#                 'EvaluateTargetHealth': False,
+#                 'HostedZoneId': 'Z215JYRZR1TBD5'},
+#              'Name': 'hello-bus-v49testsenza-test.bus.zalan.do.',
+#              'Type': 'A'},
+#
+#
+# {'Name': 'hello-bus-v50.bus.zalan.do.',
+#  'ResourceRecords': [
+#      {'Value': 'hello-bus-v50-1586593886.eu-central-1.elb.amazonaws.com'}],
+#  'TTL': 20,
+#  'Type': 'CNAME'},
+
+# for each cloud formation stack:
+# domains = [resource for resource in resources if resource['Name'].startswith(app+'.') and resource['Type'] == 'CNAME']
+# new = AliasTarget

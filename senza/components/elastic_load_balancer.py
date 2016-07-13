@@ -96,41 +96,14 @@ def component_elastic_load_balancer(definition,
         name = '{}{}'.format(lb_name, name)
 
         # TODO: detect if there's already a cname and use a cname record in those cases
-
-        definition["Resources"][name] = {
-            "Type": "AWS::Route53::RecordSet",
-            "Properties": {
-                "Type": "A",
-                "Name": "{0}.{1}".format(domain["Subdomain"], domain["Zone"]),
-                "HostedZoneName": "{0}".format(domain["Zone"]),
-                 "AliasTarget": {"HostedZoneId": {"Fn::GetAtt": [lb_name,
-                                                                 "CanonicalHostedZoneNameID"]},
-                                      "DNSName": {"Fn::GetAtt": [lb_name, "DNSName"]}}
-                     },
-
-            }
-
-        # record_set = {
-        #     "Name": "{0}.{1}".format(domain["Subdomain"], domain["Zone"]),
-        #     "Type": "A",
-        #     "AliasTarget": {"HostedZoneId": {"Fn::GetAtt": [lb_name,
-        #                                                     "CanonicalHostedZoneNameID"]},
-        #                     "DNSName": {"Fn::GetAtt": [lb_name, "DNSName"]}}
-        #     }
-
-        # definition["Resources"][name] = {
-        #     "Type": "AWS::Route53::RecordSetGroup",
-        #     "Properties": {
-        #         "HostedZoneName": "{0}".format(domain["Zone"]),
-        #         "RecordSets": [record_set]
-        #     },
-        # }
-        #
-        # if domain["Type"] == "weighted":
-        #     record_set['Weight'] = 0
-        #     record_set['SetIdentifier'] = "{0}-{1}".format(info["StackName"],
-        #                                                    info["StackVersion"])
-        #     main_zone = domain['Zone']
+        properties = {"Type": "A",
+                      "Name": "{0}.{1}".format(domain["Subdomain"], domain["Zone"]),
+                      "HostedZoneName": "{0}".format(domain["Zone"]),
+                      "AliasTarget": {"HostedZoneId": {"Fn::GetAtt": [lb_name,
+                                                                      "CanonicalHostedZoneNameID"]},
+                                      "DNSName": {"Fn::GetAtt": [lb_name, "DNSName"]}}}
+        definition["Resources"][name] = {"Type": "AWS::Route53::RecordSet",
+                                         "Properties": properties}
 
         if domain["Type"] == "weighted":
             definition["Resources"][name]["Properties"]['Weight'] = 0

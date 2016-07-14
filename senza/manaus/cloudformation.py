@@ -1,7 +1,9 @@
-from typing import Optional, List, Dict
+from typing import Optional, List, Dict, Iterator
 from collections import OrderedDict
 from datetime import datetime
 import boto3
+
+from .route53 import Route53
 
 
 class CloudFormationStack:
@@ -16,7 +18,7 @@ class CloudFormationStack:
     def __init__(self,
                  stack_id: str,
                  name: str,
-                 description: str,
+                 description: Optional[str],
                  parameters: Dict[str, str],
                  creation_time: datetime,
                  last_updated_time: Optional[datetime],
@@ -25,7 +27,7 @@ class CloudFormationStack:
                  disable_rollback: bool,
                  notification_arns: List[str],
                  timeout_in_minutes: Optional[int],
-                 capabilities: List[str],
+                 capabilities: Optional[List[str]],
                  outputs: Optional[List[Dict]],
                  tags: Dict[str, str],
                  *,
@@ -56,9 +58,9 @@ class CloudFormationStack:
                        region: Optional[str]=None) -> "CloudFormationStack":
         stack_id = stack['StackId']
         name = stack['StackName']
-        description = stack['Description']
+        description = stack.get('Description')
         parameters = OrderedDict([(p['ParameterKey'], p['ParameterValue'])
-                                  for p in stack['Parameters']
+                                  for p in stack.get('Parameters', [])
                                   if not p.get('UsePreviousValue')])
         creation_time = stack['CreationTime']
         last_updated_time = stack.get('LastUpdatedTime')
@@ -67,7 +69,7 @@ class CloudFormationStack:
         disable_rollback = stack['DisableRollback']
         notification_arns = stack['NotificationARNs']
         timeout_in_minutes = stack.get('TimeoutInMinutes')
-        capabilities = stack['Capabilities']
+        capabilities = stack.get('Capabilities')
         outputs = stack.get('Outputs')
         tags = OrderedDict([(t['Key'], t['Value']) for t in stack['Tags']])
 
@@ -91,6 +93,20 @@ class CloudFormationStack:
         stack = stacks['Stacks'][0]  # type: dict
 
         return cls.from_boto_dict(stack, region)
+
+    @property
+    def resources(self, resource_types: Optional[List[str]] = None) -> Iterator:
+        client = boto3.client('cloudformation', self.region)
+        response = client.list_stack_resources(StackName=self.stack_id)
+        resources = response['StackResourceSummaries']  # type: List[Dict]
+        for resource in resources:
+            resource_type = resource["ResourceType"]
+            if resource_type == 'AWS::Route53::RecordSet':
+                records = Route53.get_records(name=resource['PhysicalResourceId'])
+                yield next(records)
+            else:
+                # Ignore resources that are still not implemented in manaus
+                pass
 
 
 class CloudFormation:

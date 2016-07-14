@@ -50,9 +50,9 @@ class Route53Record:
 
     def __init__(self,
                  name: str,
-                 resource_records: List[Dict[str, str]],
-                 ttl: int,
                  type: str,
+                 ttl: Optional[int]=None,
+                 resource_records: Optional[List[Dict[str, str]]]=None,
                  alias_target: Optional[Dict[str, Union[str, bool]]]=None,
                  failover: Optional[str]=None,
                  geo_location: Optional[Dict[str, str]]=None,
@@ -61,12 +61,12 @@ class Route53Record:
                  set_identifier: Optional[str]=None,
                  traffic_policy_instance_id: Optional[str]=None,
                  weight: Optional[int]=None):
+
         self.name = name
-        self.resource_records = resource_records
-        self.ttl = ttl
         self.type = type
 
-        # Optional
+        self.ttl = ttl
+        self.resource_records = resource_records
         self.alias_target = alias_target  # Alias resource record sets only
         self.failover = failover  # Failover resource record sets only
         self.geo_location = geo_location  # Geo location resource record sets only
@@ -85,10 +85,10 @@ class Route53Record:
         Returns a Route53Record based on the dict returned by boto3
         """
         name = record_dict['Name']
-        resource_records = record_dict['ResourceRecords']
-        ttl = record_dict['TTL']
         type = record_dict['Type']
 
+        ttl = record_dict.get('TTL')
+        resource_records = record_dict.get('ResourceRecords')
         alias_target = record_dict.get('AliasTarget')
         failover = record_dict.get('Failover')
         geo_location = record_dict.get('GeoLocation')
@@ -98,7 +98,7 @@ class Route53Record:
         traffic_policy_instance_id = record_dict.get('TrafficPolicyInstanceId')
         weight = record_dict.get('weight')
 
-        return cls(name, resource_records, ttl, type,
+        return cls(name, type, ttl, resource_records,
                    alias_target, failover, geo_location, health_check_id,
                    region, set_identifier, traffic_policy_instance_id, weight)
 
@@ -125,16 +125,21 @@ class Route53:
             recordfilter = {'Marker': result['NextMarker']}
             result = client.list_hosted_zones(**recordfilter)
             hosted_zones.extend(result['HostedZones'])
+
         for zone in hosted_zones:
             hosted_zone = Route53HostedZone.from_boto_dict(zone)
             if domain_name is None or domain_name.endswith(hosted_zone.name):
                 yield hosted_zone
 
-    def get_records(self, *,
+    @classmethod
+    def get_records(cls, *,
                     name: Optional[str]=None) -> Iterator[Route53Record]:
-        for zone in self.get_hosted_zones():
+        client = boto3.client('route53')
+        if name is not None and not name.endswith('.'):
+            name += '.'
+        for zone in cls.get_hosted_zones():
             # TODO use paginator
-            response = self.client.list_resource_record_sets(HostedZoneId=zone.id)
+            response = client.list_resource_record_sets(HostedZoneId=zone.id)
             resources = response["ResourceRecordSets"]  # type: List[Dict[str, Any]]
             for resource in resources:
                 record = Route53Record.from_boto_dict(resource)

@@ -148,3 +148,7 @@ def test_get_records(monkeypatch):
     records = list(route53.get_records(name='domain.example.net.'))
     assert len(records) == 1
     assert records[0].name == 'domain.example.net.'
+
+    records = list(route53.get_records(name='domain.example.net'))
+    assert len(records) == 1
+    assert records[0].name == 'domain.example.net.'

@@ -39,23 +39,21 @@ def test_get_by_stack_name(monkeypatch):
 
 
 def test_get_stacks(monkeypatch):
-    status_filter = [
-                "CREATE_IN_PROGRESS",
-                "CREATE_FAILED",
-                "CREATE_COMPLETE",
-                "ROLLBACK_IN_PROGRESS",
-                "ROLLBACK_FAILED",
-                "ROLLBACK_COMPLETE",
-                "DELETE_IN_PROGRESS",
-                "DELETE_FAILED",
-                "UPDATE_IN_PROGRESS",
-                "UPDATE_COMPLETE_CLEANUP_IN_PROGRESS",
-                "UPDATE_COMPLETE",
-                "UPDATE_ROLLBACK_IN_PROGRESS",
-                "UPDATE_ROLLBACK_FAILED",
-                "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS",
-                "UPDATE_ROLLBACK_COMPLETE"
-            ]
+    status_filter = ["CREATE_IN_PROGRESS",
+                     "CREATE_FAILED",
+                     "CREATE_COMPLETE",
+                     "ROLLBACK_IN_PROGRESS",
+                     "ROLLBACK_FAILED",
+                     "ROLLBACK_COMPLETE",
+                     "DELETE_IN_PROGRESS",
+                     "DELETE_FAILED",
+                     "UPDATE_IN_PROGRESS",
+                     "UPDATE_COMPLETE_CLEANUP_IN_PROGRESS",
+                     "UPDATE_COMPLETE",
+                     "UPDATE_ROLLBACK_IN_PROGRESS",
+                     "UPDATE_ROLLBACK_FAILED",
+                     "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS",
+                     "UPDATE_ROLLBACK_COMPLETE"]
     stack1 = {'StackId': 'arn:aws:cloudformation:eu-central-1:0000:stack/app-1/0000',
               'CreationTime': datetime(2016, 7, 13,
                                        9, 42, 45, 59000,

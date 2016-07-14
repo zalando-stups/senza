@@ -76,6 +76,33 @@ class Route53Record:
         self.traffic_policy_instance_id = traffic_policy_instance_id
         self.weight = weight  # Weighted resource record sets only
 
+    @property
+    def boto_dict(self):
+        """
+        Generates the dict to change records set
+
+        See:
+         http://boto3.readthedocs.io/en/latest/reference/services/route53.html#Route53.Client.change_resource_record_sets
+        """
+        # TODO Route53.change method
+        boto_dict = {"Name": self.name,
+                     "Type": self.type}
+
+        optional_parameters = [('SetIdentifier', self.set_identifier),
+                               ('Weight', self.weight),
+                               ('Region', self.region),
+                               ('GeoLocation', self.geo_location),
+                               ('Failover', self.failover),
+                               ('TTL', self.ttl),
+                               ('ResourceRecords', self.resource_records),
+                               ('AliasTarget', self.alias_target)]
+
+        for key, value in optional_parameters:
+            if value is not None:
+                boto_dict[key] = value
+
+        return boto_dict
+
     def __repr__(self):
         return '<Route53Record: {name}>'.format_map(vars(self))
 

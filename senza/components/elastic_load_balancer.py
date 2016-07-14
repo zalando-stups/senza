@@ -6,6 +6,7 @@ from ..cli import AccountArguments, TemplateArguments
 from ..manaus import ClientError
 from ..manaus.iam import IAM, IAMServerCertificate
 from ..manaus.acm import ACM, ACMCertificate
+from ..manaus.route53 import Route53
 
 SENZA_PROPERTIES = frozenset(['Domains', 'HealthCheckPath', 'HealthCheckPort', 'HealthCheckProtocol',
                               'HTTPPort', 'Name', 'SecurityGroups', 'SSLCertificateId', 'Type'])
@@ -95,9 +96,15 @@ def component_elastic_load_balancer(definition,
     for name, domain in configuration.get('Domains', {}).items():
         name = '{}{}'.format(lb_name, name)
 
-        # TODO: detect if there's already a cname and use a cname record in those cases
+        domain_name = "{0}.{1}".format(domain["Subdomain"], domain["Zone"])
+        records = Route53.get_records(name=domain_name)
+        for record in records:
+            if record.type != 'A':
+                # TODO convert to A record
+                raise Exception("{} has {} records".format(domain_name, record.type))
+
         properties = {"Type": "A",
-                      "Name": "{0}.{1}".format(domain["Subdomain"], domain["Zone"]),
+                      "Name": name,
                       "HostedZoneName": "{0}".format(domain["Zone"]),
                       "AliasTarget": {"HostedZoneId": {"Fn::GetAtt": [lb_name,
                                                                       "CanonicalHostedZoneNameID"]},

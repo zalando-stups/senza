@@ -1,9 +1,14 @@
 from typing import Optional, List, Dict, Iterator
 from collections import OrderedDict
 from datetime import datetime
+from enum import Enum
 import boto3
 
 from .route53 import Route53
+
+
+class ResourceType(str, Enum):
+    route53_record_set = 'AWS::Route53::RecordSet'
 
 
 class CloudFormationStack:
@@ -101,7 +106,10 @@ class CloudFormationStack:
         resources = response['StackResourceSummaries']  # type: List[Dict]
         for resource in resources:
             resource_type = resource["ResourceType"]
-            if resource_type == 'AWS::Route53::RecordSet':
+            if resource_types is not None and resource_type not in resource_types:
+                continue
+
+            if resource_type == ResourceType.route53_record_set:
                 records = Route53.get_records(name=resource['PhysicalResourceId'])
                 yield next(records)
             else:

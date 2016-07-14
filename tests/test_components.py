@@ -24,6 +24,8 @@ from senza.components.taupage_auto_scaling_group import (check_application_id,
 from senza.components.weighted_dns_elastic_load_balancer import \
     component_weighted_dns_elastic_load_balancer
 
+from fixtures import HOSTED_ZONE_ZO_NE_COM, HOSTED_ZONE_ZO_NE_DEV, boto_resource
+
 
 def test_invalid_component():
     assert get_component('Foobar') is None
@@ -67,25 +69,33 @@ def test_component_load_balancer_healthcheck(monkeypatch):
 
     mock_string_result = MagicMock()
     mock_string_result.return_value = "foo"
-    monkeypatch.setattr('senza.components.elastic_load_balancer.find_ssl_certificate_arn', mock_string_result)
     monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    m_acm = MagicMock()
+    m_acm_certificate = MagicMock()
+    m_acm_certificate.arn = "foo"
+    m_acm.get_certificates.return_value = iter([m_acm_certificate])
+    monkeypatch.setattr('senza.components.elastic_load_balancer.ACM', m_acm)
 
     result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
     # Defaults to HTTP
     assert "HTTP:9999/healthcheck" == result["Resources"]["test_lb"]["Properties"]["HealthCheck"]["Target"]
 
     # Support own health check port
+    m_acm.get_certificates.return_value = iter([m_acm_certificate])
     configuration["HealthCheckPort"] = "1234"
     result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
     assert "HTTP:1234/healthcheck" == result["Resources"]["test_lb"]["Properties"]["HealthCheck"]["Target"]
     del(configuration["HealthCheckPort"])
 
     # Supports other AWS protocols
+    m_acm.get_certificates.return_value = iter([m_acm_certificate])
     configuration["HealthCheckProtocol"] = "TCP"
     result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
     assert "TCP:9999/healthcheck" == result["Resources"]["test_lb"]["Properties"]["HealthCheck"]["Target"]
 
     # Will fail on incorrect protocol
+    m_acm.get_certificates.return_value = iter([m_acm_certificate])
     configuration["HealthCheckProtocol"] = "MYFANCYPROTOCOL"
     try:
         component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
@@ -112,8 +122,13 @@ def test_component_load_balancer_idletimeout(monkeypatch):
 
     mock_string_result = MagicMock()
     mock_string_result.return_value = "foo"
-    monkeypatch.setattr('senza.components.elastic_load_balancer.find_ssl_certificate_arn', mock_string_result)
     monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    m_acm = MagicMock()
+    m_acm_certificate = MagicMock()
+    m_acm_certificate.arn = "foo"
+    m_acm.get_certificates.return_value = iter([m_acm_certificate])
+    monkeypatch.setattr('senza.components.elastic_load_balancer.ACM', m_acm)
 
     # issue 105: support additional ELB properties
     result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
@@ -136,8 +151,13 @@ def test_component_load_balancer_namelength(monkeypatch):
 
     mock_string_result = MagicMock()
     mock_string_result.return_value = "foo"
-    monkeypatch.setattr('senza.components.elastic_load_balancer.find_ssl_certificate_arn', mock_string_result)
     monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    m_acm = MagicMock()
+    m_acm_certificate = MagicMock()
+    m_acm_certificate.arn = "foo"
+    m_acm.get_certificates.return_value = iter([m_acm_certificate])
+    monkeypatch.setattr('senza.components.elastic_load_balancer.ACM', m_acm)
 
     result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
     lb_name = result['Resources']['test_lb']['Properties']['LoadBalancerName']
@@ -244,15 +264,13 @@ def test_component_redis_cluster(monkeypatch):
     assert 'SubnetIds' in result['Resources']['RedisSubnetGroup']['Properties']
 
 
-def test_weighted_dns_load_balancer(monkeypatch):
+def test_weighted_dns_load_balancer(monkeypatch, boto_resource):
     senza.traffic.DNS_ZONE_CACHE = {}
 
     def my_client(rtype, *args):
         if rtype == 'route53':
             route53 = MagicMock()
-            route53.list_hosted_zones.return_value = {'HostedZones': [{'Id': '/hostedzone/123456',
-                                                                       'Name': 'domain.',
-                                                                       'ResourceRecordSetCount': 23}],
+            route53.list_hosted_zones.return_value = {'HostedZones': [HOSTED_ZONE_ZO_NE_COM],
                                                       'IsTruncated': False,
                                                       'MaxItems': '100'}
             return route53
@@ -264,8 +282,8 @@ def test_weighted_dns_load_balancer(monkeypatch):
         "Name": "test_lb",
         "SecurityGroups": "",
         "HTTPPort": "9999",
-        'MainDomain': 'main.domain',
-        'VersionDomain': 'version.domain'
+        'MainDomain': 'great.api.zo.ne.com',
+        'VersionDomain': 'version.api.zo.ne.com'
     }
     info = {'StackName': 'foobar', 'StackVersion': '0.1'}
     definition = {"Resources": {}}
@@ -275,8 +293,13 @@ def test_weighted_dns_load_balancer(monkeypatch):
 
     mock_string_result = MagicMock()
     mock_string_result.return_value = "foo"
-    monkeypatch.setattr('senza.components.elastic_load_balancer.find_ssl_certificate_arn', mock_string_result)
     monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    m_acm = MagicMock()
+    m_acm_certificate = MagicMock()
+    m_acm_certificate.arn = "foo"
+    m_acm.get_certificates.return_value = iter([m_acm_certificate])
+    monkeypatch.setattr('senza.components.elastic_load_balancer.ACM', m_acm)
 
     result = component_weighted_dns_elastic_load_balancer(definition,
                                                           configuration,
@@ -288,18 +311,14 @@ def test_weighted_dns_load_balancer(monkeypatch):
     assert 'MainDomain' not in result["Resources"]["test_lb"]["Properties"]
 
 
-def test_weighted_dns_load_balancer_with_different_domains(monkeypatch):
+def test_weighted_dns_load_balancer_with_different_domains(monkeypatch, boto_resource):
     senza.traffic.DNS_ZONE_CACHE = {}
 
     def my_client(rtype, *args):
         if rtype == 'route53':
             route53 = MagicMock()
-            route53.list_hosted_zones.return_value = {'HostedZones': [{'Id': '/hostedzone/123456',
-                                                                       'Name': 'zo.ne.dev.',
-                                                                       'ResourceRecordSetCount': 23},
-                                                                      {'Id': '/hostedzone/123457',
-                                                                       'Name': 'zo.ne.com.',
-                                                                       'ResourceRecordSetCount': 23}],
+            route53.list_hosted_zones.return_value = {'HostedZones': [HOSTED_ZONE_ZO_NE_DEV,
+                                                                      HOSTED_ZONE_ZO_NE_COM],
                                                       'IsTruncated': False,
                                                       'MaxItems': '100'}
             return route53
@@ -322,8 +341,13 @@ def test_weighted_dns_load_balancer_with_different_domains(monkeypatch):
 
     mock_string_result = MagicMock()
     mock_string_result.return_value = "foo"
-    monkeypatch.setattr('senza.components.elastic_load_balancer.find_ssl_certificate_arn', mock_string_result)
     monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    m_acm = MagicMock()
+    m_acm_certificate = MagicMock()
+    m_acm_certificate.arn = "foo"
+    m_acm.get_certificates.return_value = iter([m_acm_certificate])
+    monkeypatch.setattr('senza.components.elastic_load_balancer.ACM', m_acm)
 
     result = component_weighted_dns_elastic_load_balancer(definition,
                                                           configuration,
@@ -343,22 +367,13 @@ def test_weighted_dns_load_balancer_with_different_domains(monkeypatch):
         'VersionDomain': 'this.does.not.exists.com'
     }
     senza.traffic.DNS_ZONE_CACHE = {}
-    try:
+    with pytest.raises(AttributeError):
         result = component_weighted_dns_elastic_load_balancer(definition,
                                                               configuration,
                                                               args,
                                                               info,
                                                               False,
                                                               AccountArguments('dummyregion'))
-    except ValueError:
-        pass
-    except:
-        assert False, 'raise unknown exception'
-    else:
-
-        print(result)
-        print(configuration)
-        assert False, 'doesn\'t raise a ValueError exception'
 
 
 def test_component_taupage_auto_scaling_group_user_data_without_ref():

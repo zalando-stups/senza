@@ -1,14 +1,18 @@
-import datetime
-import os
-from click.testing import CliRunner
 import collections
-from unittest.mock import MagicMock
-import yaml
+import datetime
 import json
-from senza.cli import cli, AccountArguments
+import os
+from unittest.mock import MagicMock
+
 import botocore.exceptions
-from senza.traffic import PERCENT_RESOLUTION, StackVersion
 import senza.traffic
+import yaml
+from click.testing import CliRunner
+from senza.cli import AccountArguments, cli
+from senza.traffic import PERCENT_RESOLUTION, StackVersion
+
+from fixtures import (HOSTED_ZONE_EXAMPLE_ORG, HOSTED_ZONE_EXAMPLE_NET,
+                      HOSTED_ZONE_ZO_NE, boto_client, boto_resource)
 
 
 def test_invalid_definition():
@@ -274,59 +278,8 @@ def test_print_account_info_and_arguments_in_name(monkeypatch):
     assert 'AppImage-dummy-0123456789' in result.output
 
 
-def test_print_auto(monkeypatch):
+def test_print_auto(monkeypatch, boto_client, boto_resource):
     senza.traffic.DNS_ZONE_CACHE = {}
-
-    def my_resource(rtype, *args):
-        if rtype == 'ec2':
-            ec2 = MagicMock()
-            ec2.security_groups.filter.return_value = [MagicMock(name='app-sg', id='sg-007')]
-            ec2.vpcs.all.return_value = [MagicMock(vpc_id='vpc-123')]
-            ec2.images.filter.return_value = [MagicMock(name='Taupage-AMI-123', id='ami-123')]
-            ec2.subnets.filter.return_value = [MagicMock(tags=[{'Key': 'Name', 'Value': 'internal-myregion-1a'}],
-                                                         id='subnet-abc123',
-                                                         availability_zone='myregion-1a'),
-                                               MagicMock(tags=[{'Key': 'Name', 'Value': 'internal-myregion-1b'}],
-                                                         id='subnet-def456',
-                                                         availability_zone='myregion-1b'),
-                                               MagicMock(tags=[{'Key': 'Name', 'Value': 'dmz-myregion-1a'}],
-                                                         id='subnet-ghi789',
-                                                         availability_zone='myregion-1a')
-                                               ]
-            return ec2
-        elif rtype == 'iam':
-            iam = MagicMock()
-            iam.server_certificates.all.return_value = [MagicMock(name='zo-ne',
-                                                                  server_certificate_metadata={'Arn': 'arn:aws:123'})]
-            return iam
-        elif rtype == 'sns':
-            sns = MagicMock()
-            topic = MagicMock(arn='arn:123:mytopic')
-            sns.topics.all.return_value = [topic]
-            return sns
-        return MagicMock()
-
-    def my_client(rtype, *args):
-        if rtype == 'route53':
-            route53 = MagicMock()
-            route53.list_hosted_zones.return_value = {'HostedZones': [{'Id': '/hostedzone/123456',
-                                                                       'Name': 'zo.ne.',
-                                                                       'ResourceRecordSetCount': 23}],
-                                                      'IsTruncated': False,
-                                                      'MaxItems': '100'}
-            return route53
-        elif rtype == 'cloudformation':
-            cf = MagicMock()
-            resource = {'StackResourceDetail': {'ResourceStatus':'CREATE_COMPLETE',
-              'ResourceType': 'AWS::IAM::Role',
-              'PhysicalResourceId':'my-referenced-role'}}
-            cf.describe_stack_resource.return_value = resource
-            return cf
-
-        return MagicMock()
-
-    monkeypatch.setattr('boto3.client', my_client)
-    monkeypatch.setattr('boto3.resource', my_resource)
 
     data = {'SenzaInfo': {'StackName': 'test',
                           'OperatorTopicId': 'mytopic',
@@ -368,41 +321,8 @@ def test_print_auto(monkeypatch):
     assert 'my-referenced-role' in data['Resources']['AppServerInstanceProfile']['Properties']['Roles']
 
 
-def test_print_default_value(monkeypatch):
+def test_print_default_value(monkeypatch, boto_client, boto_resource):
     senza.traffic.DNS_ZONE_CACHE = {}
-
-    def my_resource(rtype, *args):
-        if rtype == 'ec2':
-            ec2 = MagicMock()
-            ec2.vpcs.all.return_value = [MagicMock(vpc_id='vpc-123')]
-            ec2.security_groups.filter.return_value = [MagicMock(name='app-sg', id='sg-007')]
-            ec2.images.filter.return_value = [MagicMock(name='Taupage-AMI-123', id='ami-123')]
-            return ec2
-        elif rtype == 'iam':
-            iam = MagicMock()
-            iam.server_certificates.all.return_value = [MagicMock(name='zo-ne',
-                                                                  server_certificate_metadata={'Arn': 'arn:aws:123'})]
-            return iam
-        elif rtype == 'sns':
-            sns = MagicMock()
-            topic = MagicMock(arn='arn:123:mytopic')
-            sns.topics.all.return_value = [topic]
-            return sns
-        return MagicMock()
-
-    def my_client(rtype, *args):
-        if rtype == 'route53':
-            route53 = MagicMock()
-            route53.list_hosted_zones.return_value = {'HostedZones': [{'Id': '/hostedzone/123456',
-                                                                       'Name': 'zo.ne.',
-                                                                       'ResourceRecordSetCount': 23}],
-                                                      'IsTruncated': False,
-                                                      'MaxItems': '100'}
-            return route53
-        return MagicMock()
-
-    monkeypatch.setattr('boto3.client', my_client)
-    monkeypatch.setattr('boto3.resource', my_resource)
 
     data = {'SenzaInfo': {'StackName': 'test',
                           'OperatorTopicId': 'mytopic',
@@ -605,12 +525,13 @@ def test_init_opt2(monkeypatch):
             return ec2
         elif rtype == 'route53':
             route53 = MagicMock()
-            route53.list_hosted_zones.return_value = {'HostedZones': [{'Name': 'example.org.', 'Id': '/hostedzone/123'}]}
+            route53.list_hosted_zones.return_value = {'HostedZones': [HOSTED_ZONE_EXAMPLE_ORG]}
             return route53
         return MagicMock()
 
     monkeypatch.setattr('boto3.client', lambda *args: MagicMock())
     monkeypatch.setattr('boto3.resource', my_resource)
+    monkeypatch.setattr('senza.cli.AccountArguments',  MagicMock())
 
     runner = CliRunner()
 
@@ -892,8 +813,7 @@ def test_domains(monkeypatch):
             return cf
         elif rtype == 'route53':
             route53 = MagicMock()
-            route53.list_hosted_zones.return_value = {'HostedZones': [{'Name': 'example.org.',
-                                                                               'Id': '/hostedzone/123'}]}
+            route53.list_hosted_zones.return_value = {'HostedZones': [HOSTED_ZONE_EXAMPLE_ORG]}
             route53.list_resource_record_sets.return_value = {
                 'IsTruncated': False,
                 'MaxItems': '100',
@@ -1391,7 +1311,7 @@ def test_AccountArguments(monkeypatch):
     senza_aws.get_account_alias.return_value = 'test-cli'
     senza_aws.get_account_id.return_value = '123456'
     boto3 = MagicMock()
-    boto3.list_hosted_zones.return_value = {'HostedZones': [{'Name': 'test.example.net'}]}
+    boto3.list_hosted_zones.return_value = {'HostedZones': [HOSTED_ZONE_EXAMPLE_NET]}
     monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
     monkeypatch.setattr('senza.cli.get_account_alias', MagicMock(return_value='test-cli'))
     monkeypatch.setattr('senza.cli.get_account_id', MagicMock(return_value='98741256325'))
@@ -1401,7 +1321,7 @@ def test_AccountArguments(monkeypatch):
     assert test.Region == 'test-region'
     assert test.AccountAlias == 'test-cli'
     assert test.AccountID == '98741256325'
-    assert test.Domain == 'test.example.net'
+    assert test.Domain == 'example.net'
     assert test.TeamID == 'cli'
 
 

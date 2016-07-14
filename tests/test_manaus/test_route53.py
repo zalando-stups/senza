@@ -152,3 +152,14 @@ def test_get_records(monkeypatch):
     records = list(route53.get_records(name='domain.example.net'))
     assert len(records) == 1
     assert records[0].name == 'domain.example.net.'
+
+
+def test_route53_record_boto_dict():
+    record1 = Route53Record(name='test1', type='A')
+    assert record1.boto_dict == {'Name': 'test1',
+                                 'Type': 'A'}
+
+    record2 = Route53Record(name='test1', type='A', ttl=42)
+    assert record2.boto_dict == {'Name': 'test1',
+                                 'Type': 'A',
+                                 'TTL': 42}

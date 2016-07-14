@@ -15,8 +15,8 @@ def test_template_helper_get_mint_bucket_name(monkeypatch):
     s3 = MagicMock()
     s3.return_value.Bucket.return_value.load.side_effect = Exception()
     monkeypatch.setattr('boto3.resource', s3)
-    assert ('myorg-stups-mint-123-otherregion' == get_mint_bucket_name('otherregion'),
-            'Return Name of Bucket, if no other Bucket found')
+    assert 'myorg-stups-mint-123-otherregion' == get_mint_bucket_name('otherregion'), \
+           'Return Name of Bucket, if no other Bucket found'
 
     exist_bucket = MagicMock()
     exist_bucket.name = 'myorg-stups-mint-123-myregion'

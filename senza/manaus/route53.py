@@ -35,9 +35,6 @@ class Route53HostedZone:
         config = hosted_zone_dict['Config']
         resource_record_set_count = hosted_zone_dict['ResourceRecordSetCount']
 
-        def __repr__(self):
-            return '<Route53HostedZone: {name}>'.format_map(vars(self))
-
         return cls(id, name, caller_reference, config,
                    resource_record_set_count)
 

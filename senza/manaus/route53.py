@@ -1,4 +1,4 @@
-from typing import Iterator, List, Dict, Any, Optional, Union
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Union
 
 import boto3
 
@@ -26,6 +26,32 @@ class Route53HostedZone:
 
     def __repr__(self):
         return '<Route53HostedZone: {name}>'.format_map(vars(self))
+
+    def upsert(self,
+               changed_records: Iterable["Route53Record"],
+               comment: Optional[str]=None) -> Dict[str, Any]:
+        """
+        Submits changes to be upsterted in Route53. Returns the dict sent to
+        AWS.
+
+        See:
+        http://boto3.readthedocs.io/en/latest/reference/services/route53.html#Route53.Client.change_resource_record_sets
+        """
+
+        client = boto3.client('route53')
+
+        change_batch = {'Changes': []}
+        if comment is not None:
+            change_batch['Comment'] = comment
+        for record in changed_records:
+            change = {'Action': 'UPSERT',
+                      'ResourceRecordSet': record.boto_dict}
+            change_batch['Changes'].append(change)
+
+        client.change_resource_record_sets(HostedZoneId=self.id,
+                                           ChangeBatch=change_batch)
+
+        return change_batch
 
     @classmethod
     def from_boto_dict(cls, hosted_zone_dict: Dict[str, Any]) -> 'Route53HostedZone':

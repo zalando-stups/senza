@@ -1,6 +1,24 @@
+from copy import deepcopy
+from enum import Enum
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Union
 
 import boto3
+
+
+class RecordType(str, Enum):
+    """
+    DNS record type
+    """
+    A = 'A'
+    AAAA = 'AAAA'
+    CNAME = 'CNAME'
+    MX = 'MX'
+    NS = 'NS'
+    PRT = 'PRT'
+    SOA = 'SOA'
+    SPF = 'SPF'
+    SRV = 'SRV'
+    TXT = 'TXT'
 
 
 class Route53HostedZone:
@@ -26,6 +44,17 @@ class Route53HostedZone:
 
     def __repr__(self):
         return '<Route53HostedZone: {name}>'.format_map(vars(self))
+
+    @classmethod
+    def from_boto_dict(cls, hosted_zone_dict: Dict[str, Any]) -> 'Route53HostedZone':
+        id = hosted_zone_dict['Id']
+        name = hosted_zone_dict['Name']
+        caller_reference = hosted_zone_dict['CallerReference']
+        config = hosted_zone_dict['Config']
+        resource_record_set_count = hosted_zone_dict['ResourceRecordSetCount']
+
+        return cls(id, name, caller_reference, config,
+                   resource_record_set_count)
 
     def upsert(self,
                changed_records: Iterable["Route53Record"],
@@ -53,17 +82,6 @@ class Route53HostedZone:
 
         return change_batch
 
-    @classmethod
-    def from_boto_dict(cls, hosted_zone_dict: Dict[str, Any]) -> 'Route53HostedZone':
-        id = hosted_zone_dict['Id']
-        name = hosted_zone_dict['Name']
-        caller_reference = hosted_zone_dict['CallerReference']
-        config = hosted_zone_dict['Config']
-        resource_record_set_count = hosted_zone_dict['ResourceRecordSetCount']
-
-        return cls(id, name, caller_reference, config,
-                   resource_record_set_count)
-
 
 class Route53Record:
     """
@@ -86,7 +104,7 @@ class Route53Record:
                  weight: Optional[int]=None):
 
         self.name = name
-        self.type = type
+        self.type = RecordType[type.upper()]
 
         self.ttl = ttl
         self.resource_records = resource_records
@@ -98,6 +116,9 @@ class Route53Record:
         self.set_identifier = set_identifier  # Weighted, Latency, Geo, and Failover resource record sets only
         self.traffic_policy_instance_id = traffic_policy_instance_id
         self.weight = weight  # Weighted resource record sets only
+
+    def __repr__(self):
+        return '<Route53Record: {name}>'.format_map(vars(self))
 
     @property
     def boto_dict(self):
@@ -126,9 +147,6 @@ class Route53Record:
 
         return boto_dict
 
-    def __repr__(self):
-        return '<Route53Record: {name}>'.format_map(vars(self))
-
     @classmethod
     def from_boto_dict(cls, record_dict: Dict[str, Any]) -> 'Route53Record':
         """
@@ -151,6 +169,28 @@ class Route53Record:
         return cls(name, type, ttl, resource_records,
                    alias_target, failover, geo_location, health_check_id,
                    region, set_identifier, traffic_policy_instance_id, weight)
+
+    def to_alias(self,
+                 target_type: RecordType=RecordType.A) -> "Route53Record":
+        if self.alias_target is not None:
+            # Record is already an Alias
+            return deepcopy(self)
+        elif self.type == RecordType.CNAME:
+            dns_name = self.resource_records[0]['Value']
+            # dns name looks like lb-name-123456.aws-region-1.elb.amazonaws.com
+            sub_domain, _ = dns_name.split('.', maxsplit=1)  # type: str
+            lb_name, _ = sub_domain.rsplit('-', maxsplit=1)
+            alias_target = {"HostedZoneId": {"Fn::GetAtt": [lb_name,
+                                                            "CanonicalHostedZoneNameID"]},
+                            "DNSName": {"Fn::GetAtt": [lb_name, "DNSName"]}}
+            return self.__class__(name=self.name,
+                                  type=target_type,
+                                  alias_target=alias_target,
+                                  traffic_policy_instance_id=self.traffic_policy_instance_id,
+                                  weight=self.weight)
+        else:
+            raise NotImplementedError("Conversion of {} records to Alias is "
+                                      "still not implemented".format(self.type))
 
 
 class Route53:
@@ -196,24 +236,3 @@ class Route53:
                 if name is not None and record.name != name:
                     continue
                 yield record
-
-
-# TODO method to convert cname to alias
-
-#             {'AliasTarget': {
-#                 'DNSName': 'hello-bus-v49testsenza-1456711526.eu-central-1.elb.amazonaws.com.',
-#                 'EvaluateTargetHealth': False,
-#                 'HostedZoneId': 'Z215JYRZR1TBD5'},
-#              'Name': 'hello-bus-v49testsenza-test.bus.zalan.do.',
-#              'Type': 'A'},
-#
-#
-# {'Name': 'hello-bus-v50.bus.zalan.do.',
-#  'ResourceRecords': [
-#      {'Value': 'hello-bus-v50-1586593886.eu-central-1.elb.amazonaws.com'}],
-#  'TTL': 20,
-#  'Type': 'CNAME'},
-
-# for each cloud formation stack:
-# domains = [resource for resource in resources if resource['Name'].startswith(app+'.') and resource['Type'] == 'CNAME']
-# new = AliasTarget

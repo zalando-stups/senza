@@ -1,7 +1,9 @@
 from copy import deepcopy
 from unittest.mock import MagicMock
 
-from senza.manaus.route53 import Route53, Route53HostedZone, Route53Record
+import pytest
+from senza.manaus.route53 import (RecordType, Route53, Route53HostedZone,
+                                  Route53Record)
 
 
 def test_hosted_zone_from_boto_dict():
@@ -198,3 +200,34 @@ def test_hosted_zone_changes(monkeypatch):
         HostedZoneId='/hostedzone/random1',
         ChangeBatch={'Changes': expected_changes,
                      'Comment': 'test'})
+
+
+def test_to_alias():
+    record_dict = {'Name': 'hello-bus-v50.bus.zalan.do.',
+                   'ResourceRecords': [{'Value': 'mylb-123.region.example.com'}],
+                   'TTL': 20,
+                   'Type': 'CNAME'}
+
+    cname_record = Route53Record.from_boto_dict(record_dict)
+
+    record2_dict = {'Name': 'hello-bus-v50.bus.zalan.do.',
+                    'Type': 'SOA'}
+
+    soa_record = Route53Record.from_boto_dict(record2_dict)
+
+    alias_record = cname_record.to_alias()
+    assert alias_record.name == cname_record.name
+    assert alias_record.type == RecordType.A
+    assert not alias_record.resource_records
+    expected_target = {'DNSName': {'Fn::GetAtt': ['mylb',
+                                                  'DNSName']},
+                       'HostedZoneId': {'Fn::GetAtt': ['mylb',
+                                                       'CanonicalHostedZoneNameID']}}
+    assert alias_record.alias_target == expected_target
+
+    alias_record2 = alias_record.to_alias()
+    assert alias_record.boto_dict == alias_record2.boto_dict
+    assert alias_record is not alias_record2
+
+    with pytest.raises(NotImplementedError):
+        soa_record.to_alias()

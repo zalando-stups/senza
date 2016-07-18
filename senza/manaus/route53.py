@@ -4,6 +4,8 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional, Union
 
 import boto3
 
+from .constants import ELB_REGION_HOSTED_ZONE
+
 
 class RecordType(str, Enum):
     """
@@ -101,7 +103,8 @@ class Route53Record:
                  region: Optional[str]=None,
                  set_identifier: Optional[str]=None,
                  traffic_policy_instance_id: Optional[str]=None,
-                 weight: Optional[int]=None):
+                 weight: Optional[int]=None,
+                 hosted_zone: Optional["Route53HostedZone"]=None):
 
         self.name = name
         self.type = RecordType[type.upper()]
@@ -117,6 +120,8 @@ class Route53Record:
         self.traffic_policy_instance_id = traffic_policy_instance_id
         self.weight = weight  # Weighted resource record sets only
 
+        self.hosted_zone = hosted_zone
+
     def __repr__(self):
         return '<Route53Record: {name}>'.format_map(vars(self))
 
@@ -128,9 +133,9 @@ class Route53Record:
         See:
          http://boto3.readthedocs.io/en/latest/reference/services/route53.html#Route53.Client.change_resource_record_sets
         """
-        # TODO Route53.change method
+
         boto_dict = {"Name": self.name,
-                     "Type": self.type}
+                     "Type": self.type.value}
 
         optional_parameters = [('SetIdentifier', self.set_identifier),
                                ('Weight', self.weight),
@@ -148,7 +153,9 @@ class Route53Record:
         return boto_dict
 
     @classmethod
-    def from_boto_dict(cls, record_dict: Dict[str, Any]) -> 'Route53Record':
+    def from_boto_dict(cls,
+                       record_dict: Dict[str, Any],
+                       hosted_zone: Optional["Route53HostedZone"] = None) -> 'Route53Record':
         """
         Returns a Route53Record based on the dict returned by boto3
         """
@@ -168,10 +175,17 @@ class Route53Record:
 
         return cls(name, type, ttl, resource_records,
                    alias_target, failover, geo_location, health_check_id,
-                   region, set_identifier, traffic_policy_instance_id, weight)
+                   region, set_identifier, traffic_policy_instance_id, weight,
+                   hosted_zone=hosted_zone)
 
     def to_alias(self,
                  target_type: RecordType=RecordType.A) -> "Route53Record":
+        """
+        Converts record to an Alias record.
+
+        By default it converts the record to an A type Alias but this can
+        be overridden by provident a `target_type`.
+        """
         if self.alias_target is not None:
             # Record is already an Alias
             return deepcopy(self)
@@ -180,9 +194,16 @@ class Route53Record:
             # dns name looks like lb-name-123456.aws-region-1.elb.amazonaws.com
             sub_domain, _ = dns_name.split('.', maxsplit=1)  # type: str
             lb_name, _ = sub_domain.rsplit('-', maxsplit=1)
-            alias_target = {"HostedZoneId": {"Fn::GetAtt": [lb_name,
-                                                            "CanonicalHostedZoneNameID"]},
-                            "DNSName": {"Fn::GetAtt": [lb_name, "DNSName"]}}
+
+            if dns_name.endswith(".elb.amazonaws.com"):
+                _, region, _ = dns_name.split('.', maxsplit=2)
+                hosted_zone_id = ELB_REGION_HOSTED_ZONE[region]
+            else:
+                _, hosted_zone_id = self.hosted_zone.id.rsplit('/', maxsplit=1)
+
+            alias_target = {"HostedZoneId": hosted_zone_id,
+                            "DNSName": dns_name,
+                            "EvaluateTargetHealth": False}
             return self.__class__(name=self.name,
                                   type=target_type,
                                   alias_target=alias_target,
@@ -199,7 +220,8 @@ class Route53:
         self.client = boto3.client('route53')
 
     @staticmethod
-    def get_hosted_zones(domain_name: Optional[str]=None) -> Iterator[Route53HostedZone]:
+    def get_hosted_zones(domain_name: Optional[str]=None,
+                         id: Optional[str]=None) -> Iterator[Route53HostedZone]:
         """
         Gets hosted zones from Route53. If a ``domain_name`` is provided
         only hosted zones that match the domain name will be yielded
@@ -218,8 +240,14 @@ class Route53:
 
         for zone in hosted_zones:
             hosted_zone = Route53HostedZone.from_boto_dict(zone)
-            if domain_name is None or domain_name.endswith(hosted_zone.name):
-                yield hosted_zone
+
+            if domain_name and domain_name.endswith(hosted_zone.name):
+                continue
+
+            if id and hosted_zone.id != id:
+                continue
+
+            yield hosted_zone
 
     @classmethod
     def get_records(cls, *,
@@ -232,7 +260,8 @@ class Route53:
             response = client.list_resource_record_sets(HostedZoneId=zone.id)
             resources = response["ResourceRecordSets"]  # type: List[Dict[str, Any]]
             for resource in resources:
-                record = Route53Record.from_boto_dict(resource)
+                record = Route53Record.from_boto_dict(resource,
+                                                      hosted_zone=zone)
                 if name is not None and record.name != name:
                     continue
                 yield record

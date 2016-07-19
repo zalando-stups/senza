@@ -109,7 +109,7 @@ SenzaComponents:
         root: True
         sysctl:
           vm.overcommit_memory: 2
-          vm.overcommit_ratio: 60
+          vm.overcommit_ratio: 200
           vm.dirty_ratio: 8
           vm.dirty_background_ratio: 1
           vm.swappiness: 1

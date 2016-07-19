@@ -58,6 +58,32 @@ class Route53HostedZone:
         return cls(id, name, caller_reference, config,
                    resource_record_set_count)
 
+    def delete(self,
+               changed_records: Iterable["Route53Record"],
+               comment: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Submits changes to be deleted in Route53. Returns the dict sent to
+        AWS.
+
+        See:
+        http://boto3.readthedocs.io/en/latest/reference/services/route53.html#Route53.Client.change_resource_record_sets
+        """
+
+        client = boto3.client('route53')
+
+        change_batch = {'Changes': []}
+        if comment is not None:
+            change_batch['Comment'] = comment
+        for record in changed_records:
+            change = {'Action': 'DELETE',
+                      'ResourceRecordSet': record.boto_dict}
+            change_batch['Changes'].append(change)
+
+        client.change_resource_record_sets(HostedZoneId=self.id,
+                                           ChangeBatch=change_batch)
+
+        return change_batch
+
     def upsert(self,
                changed_records: Iterable["Route53Record"],
                comment: Optional[str]=None) -> Dict[str, Any]:
@@ -171,7 +197,7 @@ class Route53Record:
         region = record_dict.get('Region')
         set_identifier = record_dict.get('SetIdentifier')
         traffic_policy_instance_id = record_dict.get('TrafficPolicyInstanceId')
-        weight = record_dict.get('weight')
+        weight = record_dict.get('Weight')
 
         return cls(name, type, ttl, resource_records,
                    alias_target, failover, geo_location, health_check_id,

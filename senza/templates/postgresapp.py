@@ -102,10 +102,12 @@ SenzaComponents:
           PGPASSWORD_STANDBY: "{{pgpassword_standby}}"
           BACKUP_SCHEDULE: "00 01 * * *"
           PATRONI_CONFIGURATION: | ## https://github.com/zalando/patroni#yaml-configuration
-            # postgresql:
-            #   pg_hba:
-            #   - hostnossl all all all reject
-            #   - hostssl   all all all md5
+            postgresql:
+            # pg_hba:
+            # - hostnossl all all all reject
+            # - hostssl   all all all md5
+              parameters:
+                log_connections: on
         root: True
         sysctl:
           vm.overcommit_memory: 2
@@ -243,7 +245,6 @@ Resources:
           - Effect: Allow
             Action:
               - "kms:Decrypt"
-              - "kms:Encrypt"
             Resource:
               - {{kms_arn}}
           {{/kms_arn}}

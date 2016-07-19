@@ -420,14 +420,14 @@ def gather_user_variables(variables, region, account_info):
 
     # Find all Security Groups attached to the zmon worker with 'zmon' in their name
     ec2 = boto3.client('ec2', region)
-    filters = [{'Name': 'tag-key', 'Values': ['StackName']}, {'Name': 'tag-value', 'Values': ['zmon-worker']}]
+    filters = [{'Name': 'tag-key', 'Values': ['StackName']}, {'Name': 'tag-value', 'Values': ['zmon-appliance']}]
     zmon_sgs = list()
     for reservation in ec2.describe_instances(Filters=filters).get('Reservations', []):
         for instance in reservation.get('Instances', []):
             zmon_sgs += [sg['GroupId'] for sg in instance.get('SecurityGroups', []) if 'zmon' in sg['GroupName']]
 
     if len(zmon_sgs) == 0:
-        warning('Could not find zmon security group')
+        warning('Could not find zmon security group, do you have the zmon-appliance deployed?')
     else:
         click.confirm('Do you want to allow access to the Spilo nodes from zmon?', default=True)
         if len(zmon_sgs) > 1:

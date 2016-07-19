@@ -4,6 +4,13 @@ class SenzaException(Exception):
     """
 
 
+class InvalidState(SenzaException):
+    """
+    Exception raised when executing an action would try to change a stack
+    to an invalid state
+    """
+
+
 class VPCError(SenzaException, AttributeError):
     """
     Error raised when there are issues with VPCs configuration

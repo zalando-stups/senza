@@ -1,8 +1,10 @@
 import click
 from clickclick import fatal_error
+from collections import defaultdict
 
 from senza.aws import resolve_security_groups
 from ..cli import AccountArguments, TemplateArguments
+from ..exceptions import InvalidState
 from ..manaus import ClientError
 from ..manaus.iam import IAM, IAMServerCertificate
 from ..manaus.acm import ACM, ACMCertificate
@@ -98,13 +100,33 @@ def component_elastic_load_balancer(definition,
 
         domain_name = "{0}.{1}".format(domain["Subdomain"], domain["Zone"])
         records = Route53.get_records(name=domain_name)
+        converted_records = defaultdict(lambda: {'to_delete': [],
+                                                 'to_upsert': []})
         for record in records:
             if record.type != 'A':
-                # TODO convert to A record
-                raise Exception("{} has {} records".format(domain_name, record.type))
+                converted_records[record.hosted_zone]['to_delete'].append(record)
+                converted_records[record.hosted_zone]['to_upsert'].append(record.to_alias())
+
+        if converted_records:
+                for hosted_zone, records in converted_records.items():
+                    if click.confirm("\n  {name} ({hz}): {n} records need "
+                                     "to be converted to "
+                                     "Alias records".format(name=domain_name,
+                                                            hz=hosted_zone.name,
+                                                            n=len(records['to_upsert']))):
+                        hosted_zone.delete(records['to_delete'],
+                                           comment="Records that will be "
+                                                   "converted to Alias")
+                        # TODO fix the delete
+
+                        hosted_zone.upsert(records['to_upsert'],
+                                           comment="Converted non alias records")
+                    else:
+                        raise InvalidState("Can't create domains because there are "
+                                           "non A Type records.")
 
         properties = {"Type": "A",
-                      "Name": name,
+                      "Name": domain_name,
                       "HostedZoneName": "{0}".format(domain["Zone"]),
                       "AliasTarget": {"HostedZoneId": {"Fn::GetAtt": [lb_name,
                                                                       "CanonicalHostedZoneNameID"]},

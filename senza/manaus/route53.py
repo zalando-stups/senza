@@ -234,6 +234,7 @@ class Route53Record:
                                   type=target_type,
                                   alias_target=alias_target,
                                   traffic_policy_instance_id=self.traffic_policy_instance_id,
+                                  set_identifier=self.set_identifier,
                                   weight=self.weight)
         else:
             raise NotImplementedError("Conversion of {} records to Alias is "
@@ -267,7 +268,7 @@ class Route53:
         for zone in hosted_zones:
             hosted_zone = Route53HostedZone.from_boto_dict(zone)
 
-            if domain_name and domain_name.endswith(hosted_zone.name):
+            if domain_name and not domain_name.endswith(hosted_zone.name):
                 continue
 
             if id and hosted_zone.id != id:

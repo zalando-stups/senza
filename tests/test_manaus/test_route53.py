@@ -106,9 +106,9 @@ def test_route53_hosted_zones_paginated(monkeypatch):
     assert hosted_zones[1].name == 'example.net.'
 
     m_client.list_hosted_zones.side_effect = deepcopy(side_effect)
-    hosted_zones_com = list(route53.get_hosted_zones('example.net'))
-    assert len(hosted_zones_com) == 1
-    assert hosted_zones_com[0].name == 'example.net.'
+    hosted_zones_net = list(route53.get_hosted_zones('example.net'))
+    assert len(hosted_zones_net) == 1
+    assert hosted_zones_net[0].name == 'example.net.'
 
     m_client.list_hosted_zones.side_effect = deepcopy(side_effect)
     hosted_zones_com = list(route53.get_hosted_zones('example.com.'))
@@ -203,26 +203,30 @@ def test_hosted_zone_changes(monkeypatch):
 
 
 def test_to_alias():
-    record_dict = {'Name': 'hello-bus-v50.bus.zalan.do.',
+    hz = Route53HostedZone(id='/hostedzone/abc',
+                           name='example.com',
+                           caller_reference='000',
+                           config={},
+                           resource_record_set_count=42)
+    record_dict = {'Name': 'example.com.',
                    'ResourceRecords': [{'Value': 'mylb-123.region.example.com'}],
                    'TTL': 20,
                    'Type': 'CNAME'}
 
-    cname_record = Route53Record.from_boto_dict(record_dict)
+    cname_record = Route53Record.from_boto_dict(record_dict, hosted_zone=hz)
 
     record2_dict = {'Name': 'hello-bus-v50.bus.zalan.do.',
                     'Type': 'SOA'}
 
-    soa_record = Route53Record.from_boto_dict(record2_dict)
+    soa_record = Route53Record.from_boto_dict(record2_dict, hosted_zone=hz)
 
     alias_record = cname_record.to_alias()
     assert alias_record.name == cname_record.name
     assert alias_record.type == RecordType.A
     assert not alias_record.resource_records
-    expected_target = {'DNSName': {'Fn::GetAtt': ['mylb',
-                                                  'DNSName']},
-                       'HostedZoneId': {'Fn::GetAtt': ['mylb',
-                                                       'CanonicalHostedZoneNameID']}}
+    expected_target = {'DNSName': 'mylb-123.region.example.com',
+                       'EvaluateTargetHealth': False,
+                       'HostedZoneId': 'abc'}
     assert alias_record.alias_target == expected_target
 
     alias_record2 = alias_record.to_alias()

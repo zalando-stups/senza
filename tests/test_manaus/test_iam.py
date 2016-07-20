@@ -237,3 +237,22 @@ def test_get_with_suffix(monkeypatch):
     with pytest.raises(ClientError):
         m_resource.server_certificates.all.return_value = []
         IAMServerCertificate.get_by_name('senza-example-org')
+
+
+def test_equality(monkeypatch):
+    m_client = MagicMock()
+    m_client.return_value = m_client
+    monkeypatch.setattr('boto3.client', m_client)
+
+    m_client.get_server_certificate.return_value = {'ServerCertificate': IAM_CERT1}
+    certificate1 = IAMServerCertificate.get_by_name('senza-example-com')
+
+    m_client.get_server_certificate.return_value = {'ServerCertificate': IAM_CERT1_EXP}
+    certificate1_exp = IAMServerCertificate.get_by_name('senza-example-com')
+    certificate1_exp.arn = certificate1.arn
+
+    m_client.get_server_certificate.return_value = {'ServerCertificate': IAM_CERT2}
+    certificate2 = IAMServerCertificate.get_by_name('senza-example-com')
+
+    assert certificate1 == certificate1_exp  # only the arn is compared
+    assert certificate1 != certificate2

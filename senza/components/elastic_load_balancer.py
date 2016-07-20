@@ -109,18 +109,22 @@ def component_elastic_load_balancer(definition,
 
         if converted_records:
                 for hosted_zone, records in converted_records.items():
-                    if click.confirm("\n  {name} ({hz}): {n} records need "
+                    s = 's' if records != 1 else ''
+                    if click.confirm("\n  {name} ({hz}): {n} record{s} need "
                                      "to be converted to "
                                      "Alias records".format(name=domain_name,
                                                             hz=hosted_zone.name,
-                                                            n=len(records['to_upsert']))):
+                                                            n=len(records['to_upsert']),
+                                                            s=s)):
                         hosted_zone.delete(records['to_delete'],
                                            comment="Records that will be "
                                                    "converted to Alias")
-                        # TODO fix the delete
+
+                        print("  Deleted old record{s}".format(s=s))
 
                         hosted_zone.upsert(records['to_upsert'],
                                            comment="Converted non alias records")
+                        print("  Inserted alias record{s}".format(s=s))
                     else:
                         raise InvalidState("Can't create domains because there are "
                                            "non A Type records.")

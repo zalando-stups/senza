@@ -19,7 +19,6 @@ class ELB:
             # dns_name = app-name.REGION.elb.amazonaws.com
             _, region, _ = dns_name.split('.', maxsplit=2)
 
-        # TODO get hosted zone by id
         hosted_zone_id = ELB_REGION_HOSTED_ZONE[region]
         hosted_zone = next(Route53.get_hosted_zones(id=hosted_zone_id))
         return hosted_zone

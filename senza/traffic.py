@@ -1,10 +1,12 @@
-from json import JSONEncoder
-import click
-from clickclick import warning, action, ok, print_table, Action
 import collections
-from .aws import get_stacks, StackReference, get_tag
+from json import JSONEncoder
 
 import boto3
+import click
+from clickclick import Action, action, ok, print_table, warning
+
+from .aws import StackReference, get_stacks, get_tag
+from .manaus.route53 import Route53
 
 PERCENT_RESOLUTION = 2
 FULL_PERCENTAGE = PERCENT_RESOLUTION * 100
@@ -112,31 +114,32 @@ def compensate(calculation_error, compensations, identifier, new_record_weights,
 
 def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_weights, percentage):
     action('Setting weights for {dns_names}..', dns_names=', '.join(dns_names))
-    dns_changes = {}
+    dns_changes = collections.defaultdict(lambda: [])
     for idx, dns_name in enumerate(dns_names):
         domain = dns_name.split('.', 1)[1]
         zone = get_zone(domain)
         did_the_upsert = False
-        for r in get_records(domain):
-            if r['Type'] == 'CNAME' and r['Name'] == dns_name:
-                w = new_record_weights[r['SetIdentifier']]
+        for r in Route53.get_records(name=dns_name):
+            print(r)
+            if r.type in ['CNAME', 'A', 'AAAA']:
+                w = new_record_weights[r.set_identifier]
                 if w:
-                    if int(r['Weight']) != w:
-                        r['Weight'] = w
-                        if dns_changes.get(zone['Id']) is None:
-                            dns_changes[zone['Id']] = []
+                    if int(r.weight) != w:
+                        r.weight = w
                         dns_changes[zone['Id']].append({'Action': 'UPSERT',
-                                                        'ResourceRecordSet': r})
-                    if identifier == r['SetIdentifier']:
+                                                        'ResourceRecordSet': r.boto_dict})
+                    if identifier == r.set_identifier:
                         did_the_upsert = True
                 else:
                     if dns_changes.get(zone['Id']) is None:
                         dns_changes[zone['Id']] = []
                     dns_changes[zone['Id']].append({'Action': 'DELETE',
-                                                    'ResourceRecordSet': r.copy()})
+                                                    'ResourceRecordSet': r.boto_dict.copy()})
         if new_record_weights[identifier] > 0 and not did_the_upsert:
             if dns_changes.get(zone['Id']) is None:
                 dns_changes[zone['Id']] = []
+            # TODO A TYPE BY DEFAULT
+            # TODO FIX TABLE
             dns_changes[zone['Id']].append({'Action': 'UPSERT',
                                             'ResourceRecordSet': {'Name': dns_name,
                                                                   'Type': 'CNAME',

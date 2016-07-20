@@ -68,6 +68,10 @@ def test_route53_hosted_zones(monkeypatch):
     assert len(hosted_zones_com) == 1
     assert hosted_zones_com[0].name == 'example.com.'
 
+    hosted_zones_by_id = list(route53.get_hosted_zones(id='/hostedzone/random1'))
+    assert len(hosted_zones_by_id) == 1
+    assert hosted_zones_by_id[0].name == 'example.com.'
+
 
 def test_route53_hosted_zones_paginated(monkeypatch):
     m_client = MagicMock()
@@ -167,7 +171,7 @@ def test_route53_record_boto_dict():
                                  'TTL': 42}
 
 
-def test_hosted_zone_changes(monkeypatch):
+def test_hosted_zone_upsert(monkeypatch):
     m_client = MagicMock()
     m_client.return_value = m_client
     monkeypatch.setattr('boto3.client', m_client)
@@ -194,6 +198,41 @@ def test_hosted_zone_changes(monkeypatch):
     change_batch2 = hosted_zone.upsert([record1], comment="test")
     assert change_batch2['Comment'] == "test"
     assert change_batch2['Changes'] == [{'Action': 'UPSERT',
+                                         'ResourceRecordSet': {'Name': 'test1',
+                                                               'Type': 'A'}}]
+    m_client.change_resource_record_sets.assert_called_once_with(
+        HostedZoneId='/hostedzone/random1',
+        ChangeBatch={'Changes': expected_changes,
+                     'Comment': 'test'})
+
+
+def test_hosted_zone_delete(monkeypatch):
+    m_client = MagicMock()
+    m_client.return_value = m_client
+    monkeypatch.setattr('boto3.client', m_client)
+
+    hosted_zone_dict = {'Config': {'PrivateZone': False},
+                        'CallerReference': '0000',
+                        'ResourceRecordSetCount': 42,
+                        'Id': '/hostedzone/random1',
+                        'Name': 'example.com.'}
+
+    record1 = Route53Record(name='test1', type='A')
+
+    hosted_zone = Route53HostedZone.from_boto_dict(hosted_zone_dict)
+    change_batch1 = hosted_zone.delete([record1])
+    expected_changes = [{'Action': 'DELETE',
+                         'ResourceRecordSet': {'Name': 'test1',
+                                               'Type': 'A'}}]
+    assert 'Comment' not in change_batch1
+    assert change_batch1['Changes'] == expected_changes
+    m_client.change_resource_record_sets.assert_called_once_with(HostedZoneId='/hostedzone/random1',
+                                                                 ChangeBatch={'Changes': expected_changes})
+
+    m_client.change_resource_record_sets.reset_mock()
+    change_batch2 = hosted_zone.delete([record1], comment="test")
+    assert change_batch2['Comment'] == "test"
+    assert change_batch2['Changes'] == [{'Action': 'DELETE',
                                          'ResourceRecordSet': {'Name': 'test1',
                                                                'Type': 'A'}}]
     m_client.change_resource_record_sets.assert_called_once_with(
@@ -235,3 +274,11 @@ def test_to_alias():
 
     with pytest.raises(NotImplementedError):
         soa_record.to_alias()
+
+    record_elb_dict = {'Name': 'app.example.com',
+                       'ResourceRecords': [{'Value': 'mylb-123.eu-central-1.elb.amazonaws.com'}],
+                       'TTL': 20,
+                       'Type': 'CNAME'}
+    elb_record = Route53Record.from_boto_dict(record_elb_dict, hosted_zone=hz)
+    alias_elb_record = elb_record.to_alias()
+    assert alias_elb_record.alias_target['HostedZoneId'] == 'Z215JYRZR1TBD5'

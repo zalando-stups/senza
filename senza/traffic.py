@@ -24,19 +24,19 @@ def get_weights(dns_names: list, identifier: str, all_identifiers) -> ({str: int
     partial_sum = 0
     known_record_weights = {}
     for dns_name in dns_names:
-        for record in get_records(dns_name.split('.', 1)[1]):
+        for record in Route53.get_records(name=dns_name):
             # TODO support A Type
-            if record['Type'] == 'CNAME' and record['Name'] == dns_name:
+            if record.type in [RecordType.CNAME, RecordType.A, RecordType.AAAA]:
                 try:
-                    if record['Weight']:
-                        weight = int(record['Weight'])
+                    if record.weight:
+                        weight = record.weight
                     else:
                         weight = 0
                 except KeyError:
                     continue
                 else:
-                    known_record_weights[record['SetIdentifier']] = weight
-                    if record['SetIdentifier'] != identifier and weight > 0:
+                    known_record_weights[record.set_identifier] = weight
+                    if record.set_identifier != identifier and weight > 0:
                         # we should ignore all versions that do not get any
                         # traffic to not give traffic to disabled versions when
                         # redistributing traffic weights

@@ -34,10 +34,10 @@ class Route53HostedZone:
 
     def __init__(self,
                  id: str,
-                 name: str,
-                 caller_reference: str,
-                 config: Dict[str, Any],
-                 resource_record_set_count: int):
+                 name: Optional[str]=None,
+                 caller_reference: Optional[str]=None,
+                 config: Optional[Dict[str, Any]]=None,
+                 resource_record_set_count: Optional[int]=None):
         self.id = id
         self.name = name
         self.caller_reference = caller_reference
@@ -45,10 +45,11 @@ class Route53HostedZone:
         self.resource_record_set_count = resource_record_set_count
 
         # extra properties
-        self.domain_name = name.rstrip('.')
+        self.domain_name = name.rstrip('.') if name else None
 
     def __repr__(self):
-        return '<Route53HostedZone: {name}>'.format_map(vars(self))
+        identifier = self.name or self.id
+        return '<Route53HostedZone: {name}>'.format(name=identifier)
 
     @classmethod
     def from_boto_dict(cls, hosted_zone_dict: Dict[str, Any]) -> 'Route53HostedZone':

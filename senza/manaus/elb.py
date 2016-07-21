@@ -1,7 +1,7 @@
 from typing import Optional
 
 from .constants import ELB_REGION_HOSTED_ZONE
-from .route53 import Route53HostedZone, Route53
+from .route53 import Route53HostedZone
 
 
 # see http://docs.aws.amazon.com/general/latest/gr/rande.html#elb_region
@@ -20,5 +20,5 @@ class ELB:
             _, region, _ = dns_name.split('.', maxsplit=2)
 
         hosted_zone_id = ELB_REGION_HOSTED_ZONE[region]
-        hosted_zone = next(Route53.get_hosted_zones(id=hosted_zone_id))
+        hosted_zone = Route53HostedZone(id=hosted_zone_id)
         return hosted_zone

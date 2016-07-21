@@ -6,7 +6,10 @@ import click
 from clickclick import Action, action, ok, print_table, warning
 
 from .aws import StackReference, get_stacks, get_tag
-from .manaus.route53 import Route53, RecordType, convert_domain_records_to_alias
+from .manaus.elb import ELB
+from .manaus.route53 import (Route53, Route53Record, RecordType,
+                             convert_domain_records_to_alias)
+
 
 PERCENT_RESOLUTION = 2
 FULL_PERCENTAGE = PERCENT_RESOLUTION * 100
@@ -144,13 +147,16 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_we
                 dns_changes[zone['Id']] = []
             # TODO A TYPE BY DEFAULT
             # TODO FIX TABLE
+            elb_hosted_zone = ELB.get_hosted_zone_for(dns_name=lb_dns_name[idx])
+            record = Route53Record(name=dns_name,
+                                   type=RecordType.A,
+                                   set_identifier=identifier,
+                                   weight=new_record_weights[identifier],
+                                   alias_target={"HostedZoneId": elb_hosted_zone.id,
+                                                 "DNSName": lb_dns_name[idx],
+                                                 "EvaluateTargetHealth": False})
             dns_changes[zone['Id']].append({'Action': 'UPSERT',
-                                            'ResourceRecordSet': {'Name': dns_name,
-                                                                  'Type': 'CNAME',
-                                                                  'SetIdentifier': identifier,
-                                                                  'Weight': new_record_weights[identifier],
-                                                                  'TTL': 20,
-                                                                  'ResourceRecords': [{'Value': lb_dns_name[idx]}]}})
+                                            'ResourceRecordSet': record.boto_dict})
     if dns_changes:
         route53 = boto3.client('route53')
         for hosted_zone_id, change in dns_changes.items():

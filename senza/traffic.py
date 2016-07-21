@@ -6,7 +6,7 @@ import click
 from clickclick import Action, action, ok, print_table, warning
 
 from .aws import StackReference, get_stacks, get_tag
-from .manaus.route53 import Route53
+from .manaus.route53 import Route53, RecordType, convert_domain_records_to_alias
 
 PERCENT_RESOLUTION = 2
 FULL_PERCENTAGE = PERCENT_RESOLUTION * 100
@@ -25,6 +25,7 @@ def get_weights(dns_names: list, identifier: str, all_identifiers) -> ({str: int
     known_record_weights = {}
     for dns_name in dns_names:
         for record in get_records(dns_name.split('.', 1)[1]):
+            # TODO support A Type
             if record['Type'] == 'CNAME' and record['Name'] == dns_name:
                 try:
                     if record['Weight']:
@@ -36,8 +37,9 @@ def get_weights(dns_names: list, identifier: str, all_identifiers) -> ({str: int
                 else:
                     known_record_weights[record['SetIdentifier']] = weight
                     if record['SetIdentifier'] != identifier and weight > 0:
-                        # we should ignore all versions that do not get any traffic
-                        # not to put traffic on the disabled versions when redistributing traffic weights
+                        # we should ignore all versions that do not get any
+                        # traffic to not give traffic to disabled versions when
+                        # redistributing traffic weights
                         partial_sum += weight
                         partial_count += 1
     if identifier not in known_record_weights:
@@ -119,9 +121,11 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_we
         domain = dns_name.split('.', 1)[1]
         zone = get_zone(domain)
         did_the_upsert = False
+
+        convert_domain_records_to_alias(dns_name)
+
         for r in Route53.get_records(name=dns_name):
-            print(r)
-            if r.type in ['CNAME', 'A', 'AAAA']:
+            if r.type in [RecordType.CNAME, RecordType.A, RecordType.AAAA]:
                 w = new_record_weights[r.set_identifier]
                 if w:
                     if int(r.weight) != w:

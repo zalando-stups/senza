@@ -1,10 +1,13 @@
+from collections import defaultdict
 from copy import deepcopy
 from enum import Enum
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Union
 
+from click import confirm
 import boto3
 
 from .constants import ELB_REGION_HOSTED_ZONE
+from .exceptions import InvalidState
 
 
 class RecordType(str, Enum):
@@ -292,3 +295,36 @@ class Route53:
                 if name is not None and record.name != name:
                     continue
                 yield record
+
+
+def convert_domain_records_to_alias(domain_name: str):
+    records = Route53.get_records(name=domain_name)
+    converted_records = defaultdict(lambda: {'delete': [],
+                                             'upsert': []})
+    for record in records:
+        if record.type != 'A':
+            alias_record = record.to_alias()
+            converted_records[record.hosted_zone]['delete'].append(record)
+            converted_records[record.hosted_zone]['upsert'].append(alias_record)
+
+    if converted_records:
+        for hosted_zone, records in converted_records.items():
+            s = 's' if records != 1 else ''
+            # TODO convert if not interactive
+            if confirm("\n  {name} ({hz}): {n} record{s} need to be converted "
+                       "to Alias records".format(name=domain_name,
+                                                 hz=hosted_zone.name,
+                                                 n=len(records['upsert']),
+                                                 s=s)):
+                hosted_zone.delete(records['delete'],
+                                   comment="Records that will be converted "
+                                           "to Alias")
+
+                print("  Deleted old record{s}".format(s=s))
+
+                hosted_zone.upsert(records['upsert'],
+                                   comment="Converted non alias records")
+                print("  Inserted alias record{s}".format(s=s))
+            else:
+                raise InvalidState("Can't change domains because there are "
+                                   "non A Type records.")

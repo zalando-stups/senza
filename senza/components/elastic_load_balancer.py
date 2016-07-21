@@ -1,14 +1,12 @@
 import click
 from clickclick import fatal_error
-from collections import defaultdict
 
 from senza.aws import resolve_security_groups
 from ..cli import AccountArguments, TemplateArguments
-from ..exceptions import InvalidState
 from ..manaus import ClientError
 from ..manaus.iam import IAM, IAMServerCertificate
 from ..manaus.acm import ACM, ACMCertificate
-from ..manaus.route53 import Route53
+from ..manaus.route53 import convert_domain_records_to_alias
 
 SENZA_PROPERTIES = frozenset(['Domains', 'HealthCheckPath', 'HealthCheckPort', 'HealthCheckProtocol',
                               'HTTPPort', 'Name', 'SecurityGroups', 'SSLCertificateId', 'Type'])
@@ -99,35 +97,8 @@ def component_elastic_load_balancer(definition,
         name = '{}{}'.format(lb_name, name)
 
         domain_name = "{0}.{1}".format(domain["Subdomain"], domain["Zone"])
-        records = Route53.get_records(name=domain_name)
-        converted_records = defaultdict(lambda: {'to_delete': [],
-                                                 'to_upsert': []})
-        for record in records:
-            if record.type != 'A':
-                converted_records[record.hosted_zone]['to_delete'].append(record)
-                converted_records[record.hosted_zone]['to_upsert'].append(record.to_alias())
 
-        if converted_records:
-                for hosted_zone, records in converted_records.items():
-                    s = 's' if records != 1 else ''
-                    if click.confirm("\n  {name} ({hz}): {n} record{s} need "
-                                     "to be converted to "
-                                     "Alias records".format(name=domain_name,
-                                                            hz=hosted_zone.name,
-                                                            n=len(records['to_upsert']),
-                                                            s=s)):
-                        hosted_zone.delete(records['to_delete'],
-                                           comment="Records that will be "
-                                                   "converted to Alias")
-
-                        print("  Deleted old record{s}".format(s=s))
-
-                        hosted_zone.upsert(records['to_upsert'],
-                                           comment="Converted non alias records")
-                        print("  Inserted alias record{s}".format(s=s))
-                    else:
-                        raise InvalidState("Can't create domains because there are "
-                                           "non A Type records.")
+        convert_domain_records_to_alias(domain_name)
 
         properties = {"Type": "A",
                       "Name": domain_name,

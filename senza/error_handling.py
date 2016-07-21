@@ -7,6 +7,7 @@ from botocore.exceptions import ClientError, NoCredentialsError
 from clickclick import error
 
 from .exceptions import PiuNotFound
+from .manaus.exceptions import InvalidState
 
 
 def store_exception(exception: Exception) -> str:
@@ -93,6 +94,9 @@ class HandleExceptions:
                   file=sys.stderr)
             print("sudo pip3 install --upgrade stups-piu",
                   file=sys.stderr)
+            sys.exit(1)
+        except InvalidState as e:
+            error('Invalid State: {}'.format(e))
             sys.exit(1)
         except Exception as e:
             # Catch All

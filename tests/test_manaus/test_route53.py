@@ -2,8 +2,10 @@ from copy import deepcopy
 from unittest.mock import MagicMock
 
 import pytest
+from senza.manaus.exceptions import InvalidState
 from senza.manaus.route53 import (RecordType, Route53, Route53HostedZone,
-                                  Route53Record)
+                                  Route53Record,
+                                  convert_domain_records_to_alias)
 
 
 def test_hosted_zone_from_boto_dict():
@@ -282,3 +284,44 @@ def test_to_alias():
     elb_record = Route53Record.from_boto_dict(record_elb_dict, hosted_zone=hz)
     alias_elb_record = elb_record.to_alias()
     assert alias_elb_record.alias_target['HostedZoneId'] == 'Z215JYRZR1TBD5'
+
+
+def test_convert_domain_records_to_alias(monkeypatch):
+    mock_route53 = MagicMock()
+    mock_hz1 = MagicMock(name='example.com')
+    mock_record1 = MagicMock(name='app1.example.com',
+                             type=RecordType.CNAME,
+                             weight=100,
+                             hosted_zone=mock_hz1,
+                             set_identifier='app-1')
+    mock_record1_alias = MagicMock(name='app1.example.com',
+                                   type=RecordType.A,
+                                   weight=100,
+                                   hosted_zone=mock_hz1,
+                                   set_identifier='app-1')
+    mock_record1.to_alias.return_value = mock_record1_alias
+    mock_record2 = MagicMock(name='app1.example.com',
+                             type=RecordType.A,
+                             weight=100,
+                             hosted_zone=mock_hz1,
+                             set_identifier='app-1')
+    mock_route53.get_records.return_value = [mock_record1, mock_record2]
+    monkeypatch.setattr('senza.manaus.route53.Route53', mock_route53)
+
+    mock_confirm = MagicMock(return_value=True)
+    monkeypatch.setattr('senza.manaus.route53.confirm', mock_confirm)
+
+    mock_isatty = MagicMock(return_value=True)
+    monkeypatch.setattr('sys.stdin.isatty', mock_isatty)
+
+    convert_domain_records_to_alias("app1.example.com")
+
+    mock_hz1.delete.assert_called_once_with([mock_record1],
+                                            comment='Records that will be converted to Alias')
+
+    mock_hz1.upsert.assert_called_once_with([mock_record1_alias],
+                                            comment='Convert non alias records')
+
+    mock_confirm.return_value = False
+    with pytest.raises(InvalidState):
+        convert_domain_records_to_alias("app1.example.com")

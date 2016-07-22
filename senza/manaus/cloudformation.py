@@ -100,19 +100,17 @@ class CloudFormationStack:
         return cls.from_boto_dict(stack, region)
 
     @property
-    def resources(self, resource_types: Optional[List[str]] = None) -> Iterator:
+    def resources(self) -> Iterator:
         client = boto3.client('cloudformation', self.region)
         response = client.list_stack_resources(StackName=self.stack_id)
         resources = response['StackResourceSummaries']  # type: List[Dict]
         for resource in resources:
             resource_type = resource["ResourceType"]
-            if resource_types is not None and resource_type not in resource_types:
-                continue
-
             if resource_type == ResourceType.route53_record_set:
                 records = Route53.get_records(name=resource['PhysicalResourceId'])
                 yield next(records)
             else:
+                # TODO implement the other resource types
                 # Ignore resources that are still not implemented in manaus
                 pass
 

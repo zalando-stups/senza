@@ -86,7 +86,6 @@ class PyTest(TestCommand):
             params['args'] += self.cov
         if self.junitxml:
             params['args'] += self.junitxml
-        params['args'] += ['--doctest-modules', MAIN_PACKAGE, '-s', '-vv']
         errno = pytest.main(**params)
         sys.exit(errno)
 

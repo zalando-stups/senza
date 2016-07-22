@@ -13,13 +13,10 @@ SENZA_PROPERTIES = frozenset(['Domains', 'HealthCheckPath', 'HealthCheckPort', '
 
 
 def get_load_balancer_name(stack_name: str, stack_version: str):
-    '''
-    >>> get_load_balancer_name('a', '1')
-    'a-1'
-
-    >>> get_load_balancer_name('toolong123456789012345678901234567890', '1')
-    'toolong12345678901234567890123-1'
-    '''
+    """
+    Returns the name of the load balancer for the stack name and version,
+    truncating the name if necessary.
+    """
     # Loadbalancer name cannot exceed 32 characters, try to shorten
     l = 32 - len(stack_version) - 1
     return '{}-{}'.format(stack_name[:l], stack_version)

@@ -125,10 +125,9 @@ def resolve_security_groups(security_groups: list, region: str):
 
 
 def parse_time(s: str) -> float:
-    '''
-    >>> parse_time('2015-04-14T19:09:01.000Z') > 0
-    True
-    '''
+    """
+    Parses an ISO 8601 string and returns a timestamp
+    """
     try:
         utc = datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ')
         ts = time.time()
@@ -140,14 +139,10 @@ def parse_time(s: str) -> float:
 
 
 def get_required_capabilities(data: dict):
-    '''Get capabilities for a given cloud formation template for the "create_stack" call
-
-    >>> get_required_capabilities({})
-    []
-
-    >>> get_required_capabilities({'Resources': {'MyRole': {'Type': 'AWS::IAM::Role', 'a': 'b'}}})
-    ['CAPABILITY_IAM']
-    '''
+    """
+    Get capabilities for a given cloud formation template for the
+    "create_stack" call
+    """
     capabilities = []
     for logical_id, config in data.get('Resources', {}).items():
         if config.get('Type').startswith('AWS::IAM'):
@@ -156,10 +151,6 @@ def get_required_capabilities(data: dict):
 
 
 def resolve_topic_arn(region, topic_name):
-    '''
-    >>> resolve_topic_arn(None, 'arn:123')
-    'arn:123'
-    '''
     topic_arn = None
     if topic_name.startswith('arn:'):
         topic_arn = topic_name
@@ -246,23 +237,7 @@ def get_stacks(stack_refs: list, region, all=False, unique_only=False):
 
 def matches_any(cf_stack_name: str, stack_refs: list):
     """
-    >>> matches_any(None, [StackReference(name='foobar', version=None)])
-    False
-
-    >>> matches_any('foobar-1', [])
-    False
-
-    >>> matches_any('foobar-1', [StackReference(name='foobar', version=None)])
-    True
-
-    >>> matches_any('foobar-1', [StackReference(name='foobar', version='1')])
-    True
-
-    >>> matches_any('foobar-1', [StackReference(name='foobar', version='2')])
-    False
-
-    >>> matches_any('foobar-1', [StackReference(name='foob.r', version='\d')])
-    True
+    Checks if the stack name matches any of the stack references
     """
 
     cf_stack_name = cf_stack_name or ''  # ensure cf_stack_name is a str
@@ -275,20 +250,10 @@ def matches_any(cf_stack_name: str, stack_refs: list):
 
 
 def get_tag(tags: list, key: str, default=None):
-    '''
-    >>> tags = [{'Key': 'aws:cloudformation:stack-id',
-    ...          'Value': 'arn:aws:cloudformation:eu-west-1:123:stack/test-123'},
-    ...         {'Key': 'Name',
-    ...          'Value': 'test-123'},
-    ...         {'Key': 'StackVersion',
-    ...          'Value': '123'}]
-    >>> get_tag(tags, 'StackVersion')
-    '123'
-    >>> get_tag(tags, 'aws:cloudformation:stack-id')
-    'arn:aws:cloudformation:eu-west-1:123:stack/test-123'
-    >>> get_tag(tags, 'notfound') is None
-    True
-    '''
+    """
+    Get value for tag from the [{"Key": key, "Value": value}] format returned
+    by AWS
+    """
     if isinstance(tags, list):
         found = [tag['Value'] for tag in tags if tag['Key'] == key]
         if len(found):

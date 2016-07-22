@@ -99,7 +99,7 @@ def component_elastic_load_balancer(definition,
 
         properties = {"Type": "A",
                       "Name": domain_name,
-                      "HostedZoneName": "{0}".format(domain["Zone"]),
+                      "HostedZoneName": domain["Zone"],
                       "AliasTarget": {"HostedZoneId": {"Fn::GetAtt": [lb_name,
                                                                       "CanonicalHostedZoneNameID"]},
                                       "DNSName": {"Fn::GetAtt": [lb_name, "DNSName"]}}}

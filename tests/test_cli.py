@@ -8,7 +8,9 @@ import botocore.exceptions
 import senza.traffic
 import yaml
 from click.testing import CliRunner
-from senza.cli import AccountArguments, cli
+from senza.cli import (AccountArguments, cli, KeyValParamType, get_stack_refs,
+                       StackReference, all_with_version, is_ip_address,
+                       get_console_line_style, failure_event)
 from senza.manaus.route53 import RecordType, Route53Record
 from senza.traffic import PERCENT_RESOLUTION, StackVersion
 
@@ -1497,3 +1499,72 @@ def test_wait_failure(monkeypatch):
         assert 'ERROR: foo FAIL: myreason' in result.output
         assert 'ERROR: Stack test-1 has status ROLLBACK_COMPLETE' in result.output
         assert 1 == result.exit_code
+
+
+def test_key_val_param():
+    assert KeyValParamType().convert(('a', 'b'), None, None) == ('a', 'b')
+
+
+def test_account_arguments():
+    test = AccountArguments('blubber')
+    assert test.Region == 'blubber'
+
+
+def test_get_stack_reference():
+
+    fb_none = StackReference(name='foobar-stack', version=None)
+    fb_v1 = StackReference(name='foobar-stack', version='v1')
+    fb_v2 = StackReference(name='foobar-stack', version='v2')
+    fb_v99 = StackReference(name='foobar-stack', version='v99')
+    os_none = StackReference(name='other-stack', version=None)
+
+    assert get_stack_refs(['foobar-stack']) == [fb_none]
+
+    assert get_stack_refs(['foobar-stack', 'v1']) == [fb_v1]
+
+    assert get_stack_refs(['foobar-stack', 'v1',
+                           'other-stack']) == [fb_v1, os_none]
+    assert get_stack_refs(['foobar-stack', 'v1', 'v2', 'v99',
+                           'other-stack']) == [fb_v1, fb_v2, fb_v99,
+                                               os_none]
+
+
+def test_all_with_version():
+    assert not all_with_version([StackReference(name='foobar-stack',
+                                                version='1'),
+                                 StackReference(name='other-stack',
+                                                version=None)])
+
+    assert all_with_version([StackReference(name='foobar-stack', version='1'),
+                             StackReference(name='other-stack',
+                                            version='v23')])
+
+    assert all_with_version([StackReference(name='foobar-stack',
+                                            version='1')])
+
+    assert not all_with_version([StackReference(name='other-stack',
+                                                version=None)])
+
+
+def test_is_ip_address():
+    assert not is_ip_address("YOLO")
+    assert is_ip_address('127.0.0.1')
+
+
+def test_get_console_line_style():
+    assert get_console_line_style('foo') == {}
+
+    assert get_console_line_style('ERROR:')['fg'] == 'red'
+
+    assert get_console_line_style('WARNING:')['fg'] == 'yellow'
+
+    assert get_console_line_style('SUCCESS:')['fg'] == 'green'
+
+    assert get_console_line_style('INFO:')['bold']
+
+
+def test_failure_event():
+    assert not failure_event({})
+
+    assert failure_event({'ResourceStatusReason': 'foo',
+                          'ResourceStatus': 'FAIL'})

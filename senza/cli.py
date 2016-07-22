@@ -144,10 +144,6 @@ class DefinitionParamType(click.ParamType):
 
 
 class KeyValParamType(click.ParamType):
-    '''
-    >>> KeyValParamType().convert(('a', 'b'), None, None)
-    ('a', 'b')
-    '''
     name = 'key_val'
 
     def convert(self, value, param, ctx):
@@ -263,10 +259,6 @@ class TemplateArguments:
 class AccountArguments:
     """
     Account arguments to use in the definitions
-
-    >>> test = AccountArguments('blubber')
-    >>> test.Region
-    'blubber'
     """
     def __init__(self, region):
         self.Region = region
@@ -445,19 +437,10 @@ def check_credentials(region):
 
 
 def get_stack_refs(refs: list):
-    '''
-    >>> get_stack_refs(['foobar-stack'])
-    [StackReference(name='foobar-stack', version=None)]
+    """
+    Converts a list of strings in a list of StackReferences
+    """
 
-    >>> get_stack_refs(['foobar-stack', '1'])
-    [StackReference(name='foobar-stack', version='1')]
-
-    >>> get_stack_refs(['foobar-stack', '1', 'other-stack'])
-    [StackReference(name='foobar-stack', version='1'), StackReference(name='other-stack', version=None)]
-    >>> get_stack_refs(['foobar-stack', 'v1', 'v2', 'v99', 'other-stack'])
-    [StackReference(name='foobar-stack', version='v1'), StackReference(name='foobar-stack', version='v2'), \
-StackReference(name='foobar-stack', version='v99'), StackReference(name='other-stack', version=None)]
-    '''
     refs = list(refs)
     refs.reverse()
     stack_refs = []
@@ -486,18 +469,9 @@ StackReference(name='foobar-stack', version='v99'), StackReference(name='other-s
 
 
 def all_with_version(stack_refs: list):
-    '''
-    >>> all_with_version([StackReference(name='foobar-stack', version='1'), \
-                          StackReference(name='other-stack', version=None)])
-    False
-    >>> all_with_version([StackReference(name='foobar-stack', version='1'), \
-                          StackReference(name='other-stack', version='v23')])
-    True
-    >>> all_with_version([StackReference(name='foobar-stack', version='1')])
-    True
-    >>> all_with_version([StackReference(name='other-stack', version=None)])
-    False
-    '''
+    """
+    Checks if all stackreferences have versions
+    """
     for ref in stack_refs:
         if not ref.version:
             return False
@@ -1147,38 +1121,17 @@ def images(stack_ref, region, output, hide_older_than, show_instances):
 
 
 def is_ip_address(x: str):
-    '''
-    >>> is_ip_address(None)
-    False
-
-    >>> is_ip_address('127.0.0.1')
-    True
-    '''
+    """
+    Checks if x is a valid ip address.
+    """
     try:
         ipaddress.ip_address(x)
         return True
-    except:
+    except ValueError:
         return False
 
 
 def get_console_line_style(line: str):
-    '''
-    >>> get_console_line_style('foo')
-    {}
-
-    >>> get_console_line_style('ERROR:')['fg']
-    'red'
-
-    >>> get_console_line_style('WARNING:')['fg']
-    'yellow'
-
-    >>> get_console_line_style('SUCCESS:')['fg']
-    'green'
-
-    >>> get_console_line_style('INFO:')['bold']
-    True
-    '''
-
     if 'ERROR:' in line:
         return {'fg': 'red', 'bold': True}
     elif 'WARNING:' in line:
@@ -1396,13 +1349,6 @@ def scale(stack_ref, region, desired_capacity):
 
 
 def failure_event(event: dict):
-    '''
-    >>> failure_event({})
-    False
-
-    >>> failure_event({'ResourceStatusReason': 'foo', 'ResourceStatus': 'FAIL'})
-    True
-    '''
     status = event.get('ResourceStatus')
     return bool(event.get('ResourceStatusReason') and ('FAIL' in status or 'ROLLBACK' in status))
 

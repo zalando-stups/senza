@@ -28,7 +28,6 @@ def get_weights(dns_names: list, identifier: str, all_identifiers) -> ({str: int
     known_record_weights = {}
     for dns_name in dns_names:
         for record in Route53.get_records(name=dns_name):
-            # TODO support A Type
             if record.type in [RecordType.CNAME, RecordType.A, RecordType.AAAA]:
                 try:
                     if record.weight:
@@ -145,8 +144,6 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_we
         if new_record_weights[identifier] > 0 and not did_the_upsert:
             if dns_changes.get(zone['Id']) is None:
                 dns_changes[zone['Id']] = []
-            # TODO A TYPE BY DEFAULT
-            # TODO FIX TABLE
             elb_hosted_zone = ELB.get_hosted_zone_for(dns_name=lb_dns_name[idx])
             record = Route53Record(name=dns_name,
                                    type=RecordType.A,

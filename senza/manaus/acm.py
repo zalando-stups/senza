@@ -80,16 +80,16 @@ class ACMCertificate:
         arn = certificate['CertificateArn']
         subject_alternative_name = certificate['SubjectAlternativeNames']
         domain_validation_options = certificate['DomainValidationOptions']
-        serial = certificate['Serial']
         subject = certificate['Subject']
-        issuer = certificate['Issuer']
         created_at = certificate['CreatedAt']
-        issued_at = certificate['IssuedAt']
         status = certificate['Status']
-        not_before = certificate['NotBefore']
-        not_after = certificate['NotAfter']
         signature_algorithm = certificate['SignatureAlgorithm']
         in_use_by = certificate['InUseBy']
+        serial = certificate.get('Serial')
+        issuer = certificate.get('Issuer')
+        issued_at = certificate.get('IssuedAt')
+        not_before = certificate.get('NotBefore')
+        not_after = certificate.get('NotAfter')
 
         revoked_at = certificate.get('RevokedAt')
         revocation_reason = certificate.get('RevocationReason')

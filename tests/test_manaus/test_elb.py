@@ -1,38 +1,89 @@
+from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
-
 from senza.manaus.elb import ELB
 
 
 def test_get_hosted_zone(monkeypatch):
     m_client = MagicMock()
     m_client.return_value = m_client
-    hosted_eu_west_1 = {'Config': {'PrivateZone': False},
-                        'CallerReference': '0000',
-                        'ResourceRecordSetCount': 42,
-                        'Id': 'Z32O12XQLNTSW2',
-                        'Name': 'example.com.'}
-    hosted_zone2 = {'Config': {'PrivateZone': False},
-                    'CallerReference': '0000',
-                    'ResourceRecordSetCount': 7,
-                    'Id': 'ZWKZPGTI48KDX',
-                    'Name': 'example.net.'}
-    m_client.list_hosted_zones.return_value = {'MaxItems': '100',
-                                               'ResponseMetadata': {
-                                                   'HTTPStatusCode': 200,
-                                                   'RequestId': 'FakeId'},
-                                               'HostedZones': [hosted_eu_west_1,
-                                                               hosted_zone2],
-                                               'IsTruncated': False}
+    description1 = {'AvailabilityZones': ['eu-central-1a', 'eu-central-1b'],
+                    'BackendServerDescriptions': [],
+                    'CanonicalHostedZoneName': 'example.eu-central-1.elb.amazonaws.com',
+                    'CanonicalHostedZoneNameID': 'Z215JYRZR1TBD5',
+                    'CreatedTime': datetime(2016, 6, 30,
+                                            8, 56, 37, 260000,
+                                            tzinfo=timezone.utc),
+                    'DNSName': 'example.eu-central-1.elb.amazonaws.com',
+                    'HealthCheck': {'HealthyThreshold': 2,
+                                    'Interval': 10,
+                                    'Target': 'HTTP:8080/health_check',
+                                    'Timeout': 5,
+                                    'UnhealthyThreshold': 2},
+                    'Instances': [{'InstanceId': 'i-0000'}],
+                    'ListenerDescriptions': [
+                        {'Listener': {'InstancePort': 8080,
+                                      'InstanceProtocol': 'HTTP',
+                                      'LoadBalancerPort': 443,
+                                      'Protocol': 'HTTPS',
+                                      'SSLCertificateId': 'arn:aws:iam::000:server-certificate/cert'},
+                         'PolicyNames': ['ELBSecurityPolicy-2015-05']}],
+                    'LoadBalancerName': 'example-2',
+                    'Policies': {'AppCookieStickinessPolicies': [],
+                                 'LBCookieStickinessPolicies': [],
+                                 'OtherPolicies': [
+                                     'ELBSecurityPolicy-2015-05']},
+                    'Scheme': 'internet-facing',
+                    'SecurityGroups': ['sg-a97d82c1'],
+                    'SourceSecurityGroup': {'GroupName': 'app-example-lb',
+                                            'OwnerAlias': '000'},
+                    'Subnets': ['subnet-0000', 'subnet-0000'],
+                    'VPCId': 'vpc-0000'}
+
+    description2 = {'AvailabilityZones': ['eu-central-1a', 'eu-central-1b'],
+                    'BackendServerDescriptions': [],
+                    'CanonicalHostedZoneName': 'test.eu-central-1.elb.amazonaws.com',
+                    'CanonicalHostedZoneNameID': 'ABCDWRONG',
+                    'CreatedTime': datetime(2016, 6, 30,
+                                            8, 56, 37, 260000,
+                                            tzinfo=timezone.utc),
+                    'DNSName': 'test.eu-central-1.elb.amazonaws.com',
+                    'HealthCheck': {'HealthyThreshold': 2,
+                                    'Interval': 10,
+                                    'Target': 'HTTP:8080/health_check',
+                                    'Timeout': 5,
+                                    'UnhealthyThreshold': 2},
+                    'Instances': [{'InstanceId': 'i-0000'}],
+                    'ListenerDescriptions': [
+                        {'Listener': {'InstancePort': 8080,
+                                      'InstanceProtocol': 'HTTP',
+                                      'LoadBalancerPort': 443,
+                                      'Protocol': 'HTTPS',
+                                      'SSLCertificateId': 'arn:aws:iam::000:server-certificate/cert'},
+                         'PolicyNames': ['ELBSecurityPolicy-2015-05']}],
+                    'LoadBalancerName': 'test-2',
+                    'Policies': {'AppCookieStickinessPolicies': [],
+                                 'LBCookieStickinessPolicies': [],
+                                 'OtherPolicies': [
+                                     'ELBSecurityPolicy-2015-05']},
+                    'Scheme': 'internet-facing',
+                    'SecurityGroups': ['sg-a97d82c1'],
+                    'SourceSecurityGroup': {'GroupName': 'app-example-lb',
+                                            'OwnerAlias': '576069677832'},
+                    'Subnets': ['subnet-0000', 'subnet-0000'],
+                    'VPCId': 'vpc-0000'}
+
+    m_client.describe_load_balancers.return_value = {'ResponseMetadata': {
+                                                       'HTTPStatusCode': 200,
+                                                       'RequestId': 'FakeId'},
+                                                     'LoadBalancerDescriptions': [
+                                                           description1,
+                                                           description2]}
     monkeypatch.setattr('boto3.client', m_client)
 
-    zone1 = ELB.get_hosted_zone_for(dns_name='lb.eu-west-1.elb.amazonaws.com')
-    assert zone1.id == 'Z32O12XQLNTSW2'
+    elb = ELB.get_by_dns_name('example.eu-central-1.elb.amazonaws.com')
+    assert elb.hosted_zone.id == "Z215JYRZR1TBD5"
 
-    zone2 = ELB.get_hosted_zone_for(region="ap-northeast-2")
-    assert zone2.id == 'ZWKZPGTI48KDX'
-
-    with pytest.raises(ValueError):
-        ELB.get_hosted_zone_for(dns_name='lb.eu-west-1.elb.amazonaws.com',
-                                region="ap-northeast-2")
+    with pytest.raises(KeyError):
+        ELB.get_by_dns_name('example.eu-west-1.elb.amazonaws.com')

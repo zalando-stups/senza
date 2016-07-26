@@ -1,13 +1,12 @@
+import sys
 from collections import defaultdict
 from copy import deepcopy
 from enum import Enum
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Union
-import sys
 
-from click import confirm
 import boto3
+from click import confirm
 
-from .constants import ELB_REGION_HOSTED_ZONE
 from .exceptions import InvalidState
 
 
@@ -217,6 +216,10 @@ class Route53Record:
         By default it converts the record to an A type Alias but this can
         be overridden by provident a `target_type`.
         """
+
+        # this needs to be imported locally to avoid circular imports
+        from .elb import ELB
+
         if self.alias_target is not None:
             # Record is already an Alias
             return deepcopy(self)
@@ -228,7 +231,8 @@ class Route53Record:
 
             if dns_name.endswith(".elb.amazonaws.com"):
                 _, region, _ = dns_name.split('.', maxsplit=2)
-                hosted_zone_id = ELB_REGION_HOSTED_ZONE[region]
+                elb = ELB.get_by_dns_name(dns_name)
+                hosted_zone_id = elb.hosted_zone.id
             else:
                 _, hosted_zone_id = self.hosted_zone.id.rsplit('/', maxsplit=1)
 

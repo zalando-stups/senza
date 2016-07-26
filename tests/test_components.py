@@ -556,6 +556,32 @@ def test_component_auto_scaling_group_metric_type():
     assert result["Resources"]["FooNetworkAlarmLow"]["Properties"]["AlarmDescription"] == expected_low_desc
 
 
+def test_component_auto_scaling_group_optional_metric_type():
+    definition = {"Resources": {}}
+    configuration = {
+        'Name': 'Foo',
+        'InstanceType': 't2.micro',
+        'Image': 'foo',
+        'AutoScaling': {
+            'Minimum': 2,
+            'Maximum': 10,
+        }
+    }
+
+    args = MagicMock()
+    args.region = "foo"
+
+    info = {
+        'StackName': 'FooStack',
+        'StackVersion': 'FooVersion'
+    }
+
+    result = component_auto_scaling_group(definition, configuration, args, info, False, MagicMock())
+
+    assert "FooCPUAlarmHigh" not in result["Resources"]
+    assert "FooNetworkAlarmHigh" not in result["Resources"]
+
+
 def test_to_iso8601_duration():
     with pytest.raises(click.UsageError):
         to_iso8601_duration("")

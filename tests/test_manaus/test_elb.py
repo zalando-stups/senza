@@ -84,6 +84,7 @@ def test_get_hosted_zone(monkeypatch):
 
     elb = ELB.get_by_dns_name('example.eu-central-1.elb.amazonaws.com')
     assert elb.hosted_zone.id == "Z215JYRZR1TBD5"
+    assert elb.region == 'eu-central-1'
 
     with pytest.raises(KeyError):
         ELB.get_by_dns_name('example.eu-west-1.elb.amazonaws.com')

@@ -230,7 +230,6 @@ class Route53Record:
             lb_name, _ = sub_domain.rsplit('-', maxsplit=1)
 
             if dns_name.endswith(".elb.amazonaws.com"):
-                _, region, _ = dns_name.split('.', maxsplit=2)
                 elb = ELB.get_by_dns_name(dns_name)
                 hosted_zone_id = elb.hosted_zone.id
             else:

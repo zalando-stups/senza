@@ -120,11 +120,13 @@ class ELB:
         self.hosted_zone = Route53HostedZone(name=hosted_zone_name,
                                              id=hosted_zone_id)
 
-        # TODO from dns_name
         if listeners is None:
             listeners = [ELBListener.from_boto_dict(each['Listener'])
                          for each in listener_descriptions]
         self.listeners = listeners
+
+        if region is None:
+            _, region, _ = dns_name.split('.', maxsplit=2)
 
         self.region = region
 
@@ -157,8 +159,7 @@ class ELB:
 
     @classmethod
     def get_by_dns_name(cls, dns_name: str) -> "ELB":
-        _, region, _ = dns_name.split('.', maxsplit=2)
-        client = boto3.client('elb', region)
+        client = boto3.client('elb')
 
         # TODO pagination
         response = client.describe_load_balancers()

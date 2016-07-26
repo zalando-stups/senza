@@ -85,6 +85,24 @@ CERT2 = {'CertificateArn': 'arn:aws:acm:eu-west-1:cert2',
                                      '*.senza.aws.example.net',
                                      '*.app.example.net']}
 
+CERT_VALIDATION_TIMED_OUT = {
+    'KeyAlgorithm': 'RSA-2048',
+    'DomainName': 'alpha.example.org',
+    'InUseBy': [],
+    'CreatedAt': datetime(2016, 7,  11, 15,  15,  30),
+    'SubjectAlternativeNames': ['alpha.example.org'],
+    'SignatureAlgorithm': 'SHA256WITHRSA',
+    'Status': 'VALIDATION_TIMED_OUT',
+    'DomainValidationOptions': [{'DomainName': 'alpha.example.org',
+                                 'ValidationEmails': ['administrator@alpha.example.org',
+                                    'hostmaster@alpha.example.org',
+                                    'admin@alpha.example.org',
+                                    'webmaster@alpha.example.org',
+                                    'postmaster@alpha.example.org'],
+                                 'ValidationDomain': 'alpha.example.org'}],
+    'CertificateArn': 'arn:aws:acm:eu-central-1:123123:certificate/f8a0fa1a-381b-44b6-ab10-1b94ba1480a1',
+    'Subject': 'CN=alpha.example.org'}
+
 
 def test_certificate_valid():
     certificate1 = ACMCertificate.from_boto_dict(CERT1)
@@ -107,6 +125,9 @@ def test_certificate_valid():
                                                            tzinfo=timezone.utc))
     assert not certificate1_revoked.is_valid(when=datetime(2013, 4, 2, 10, 11, 12,
                                                            tzinfo=timezone.utc))
+
+    cert_invalid = ACMCertificate.from_boto_dict(CERT_VALIDATION_TIMED_OUT)
+    assert not cert_invalid.is_valid()
 
 
 def test_certificate_comparison():

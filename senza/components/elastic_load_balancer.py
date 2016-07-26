@@ -23,34 +23,7 @@ def get_load_balancer_name(stack_name: str, stack_version: str):
     return '{}-{}'.format(stack_name[:l], stack_version)
 
 
-def component_elastic_load_balancer(definition, configuration, args, info, force, account_info):
-    lb_name = configuration["Name"]
-
-    # domains pointing to the load balancer
-    subdomain = ''
-    main_zone = None
-    for name, domain in configuration.get('Domains', {}).items():
-        name = '{}{}'.format(lb_name, name)
-        definition["Resources"][name] = {
-            "Type": "AWS::Route53::RecordSet",
-            "Properties": {
-                "Type": "CNAME",
-                "TTL": 20,
-                "ResourceRecords": [
-                    {"Fn::GetAtt": [lb_name, "DNSName"]}
-                ],
-                "Name": "{0}.{1}".format(domain["Subdomain"], domain["Zone"]),
-                "HostedZoneName": "{0}".format(domain["Zone"])
-            },
-        }
-
-        if domain["Type"] == "weighted":
-            definition["Resources"][name]["Properties"]['Weight'] = 0
-            definition["Resources"][name]["Properties"]['SetIdentifier'] = "{0}-{1}".format(info["StackName"],
-                                                                                            info["StackVersion"])
-            subdomain = domain['Subdomain']
-            main_zone = domain['Zone']  # type: str
-
+def get_listeners(subdomain, main_zone, configuration):
     ssl_cert = configuration.get('SSLCertificateId')
 
     if ACMCertificate.arn_is_acm_certificate(ssl_cert):
@@ -95,6 +68,46 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
                             'SSL certificate for "{}"'.format(name))
             else:
                 fatal_error('Could not find any SSL certificate')
+    return [
+        {
+            "PolicyNames": [],
+            "SSLCertificateId": ssl_cert,
+            "Protocol": "HTTPS",
+            "InstancePort": configuration["HTTPPort"],
+            "LoadBalancerPort": 443
+        }
+    ]
+
+
+def component_elastic_load_balancer(definition, configuration, args, info, force, account_info):
+    lb_name = configuration["Name"]
+
+    # domains pointing to the load balancer
+    subdomain = ''
+    main_zone = None
+    for name, domain in configuration.get('Domains', {}).items():
+        name = '{}{}'.format(lb_name, name)
+        definition["Resources"][name] = {
+            "Type": "AWS::Route53::RecordSet",
+            "Properties": {
+                "Type": "CNAME",
+                "TTL": 20,
+                "ResourceRecords": [
+                    {"Fn::GetAtt": [lb_name, "DNSName"]}
+                ],
+                "Name": "{0}.{1}".format(domain["Subdomain"], domain["Zone"]),
+                "HostedZoneName": "{0}".format(domain["Zone"])
+            },
+        }
+
+        if domain["Type"] == "weighted":
+            definition["Resources"][name]["Properties"]['Weight'] = 0
+            definition["Resources"][name]["Properties"]['SetIdentifier'] = "{0}-{1}".format(info["StackName"],
+                                                                                            info["StackVersion"])
+            subdomain = domain['Subdomain']
+            main_zone = domain['Zone']  # type: str
+
+    listeners = configuration.get('Listeners') or get_listeners(subdomain, main_zone, configuration)
 
     health_check_protocol = "HTTP"
     allowed_health_check_protocols = ("HTTP", "TCP", "UDP", "SSL")
@@ -157,15 +170,7 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
                 "Timeout": "5",
                 "Target": health_check_target
             },
-            "Listeners": [
-                {
-                    "PolicyNames": [],
-                    "SSLCertificateId": ssl_cert,
-                    "Protocol": "HTTPS",
-                    "InstancePort": configuration["HTTPPort"],
-                    "LoadBalancerPort": 443
-                }
-            ],
+            "Listeners": listeners,
             "ConnectionDrainingPolicy": {
                 "Enabled": True,
                 "Timeout": 60

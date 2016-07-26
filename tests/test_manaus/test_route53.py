@@ -209,6 +209,41 @@ def test_hosted_zone_upsert(monkeypatch):
                      'Comment': 'test'})
 
 
+def test_hosted_zone_create(monkeypatch):
+    m_client = MagicMock()
+    m_client.return_value = m_client
+    monkeypatch.setattr('boto3.client', m_client)
+
+    hosted_zone_dict = {'Config': {'PrivateZone': False},
+                        'CallerReference': '0000',
+                        'ResourceRecordSetCount': 42,
+                        'Id': '/hostedzone/random1',
+                        'Name': 'example.com.'}
+
+    record1 = Route53Record(name='test1', type='A')
+
+    hosted_zone = Route53HostedZone.from_boto_dict(hosted_zone_dict)
+    change_batch1 = hosted_zone.create([record1])
+    expected_changes = [{'Action': 'CREATE',
+                         'ResourceRecordSet': {'Name': 'test1',
+                                               'Type': 'A'}}]
+    assert 'Comment' not in change_batch1
+    assert change_batch1['Changes'] == expected_changes
+    m_client.change_resource_record_sets.assert_called_once_with(HostedZoneId='/hostedzone/random1',
+                                                                 ChangeBatch={'Changes': expected_changes})
+
+    m_client.change_resource_record_sets.reset_mock()
+    change_batch2 = hosted_zone.create([record1], comment="test")
+    assert change_batch2['Comment'] == "test"
+    assert change_batch2['Changes'] == [{'Action': 'CREATE',
+                                         'ResourceRecordSet': {'Name': 'test1',
+                                                               'Type': 'A'}}]
+    m_client.change_resource_record_sets.assert_called_once_with(
+        HostedZoneId='/hostedzone/random1',
+        ChangeBatch={'Changes': expected_changes,
+                     'Comment': 'test'})
+
+
 def test_hosted_zone_delete(monkeypatch):
     m_client = MagicMock()
     m_client.return_value = m_client

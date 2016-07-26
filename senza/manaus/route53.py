@@ -2,12 +2,22 @@ import sys
 from collections import defaultdict
 from copy import deepcopy
 from enum import Enum
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Union
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Union, Tuple
 
 import boto3
 from click import confirm
 
 from .exceptions import InvalidState
+
+
+class ChangeAction(str, Enum):
+    """
+    DNS record type
+    """
+
+    CREATE = 'CREATE'
+    DELETE = 'DELETE'
+    UPSERT = 'UPSERT'
 
 
 class RecordType(str, Enum):
@@ -62,11 +72,11 @@ class Route53HostedZone:
         return cls(id, name, caller_reference, config,
                    resource_record_set_count)
 
-    def delete(self,
-               changed_records: Iterable["Route53Record"],
+    def change(self,
+               changes: Iterable[Tuple[str, "Route53Record"]],
                comment: Optional[str] = None) -> Dict[str, Any]:
         """
-        Submits changes to be deleted in Route53. Returns the dict sent to
+        Submits changes to Route53. Returns the dict sent to
         AWS.
 
         See:
@@ -78,8 +88,8 @@ class Route53HostedZone:
         change_batch = {'Changes': []}
         if comment is not None:
             change_batch['Comment'] = comment
-        for record in changed_records:
-            change = {'Action': 'DELETE',
+        for action, record in changes:
+            change = {'Action': action.upper(),
                       'ResourceRecordSet': record.boto_dict}
             change_batch['Changes'].append(change)
 
@@ -87,6 +97,36 @@ class Route53HostedZone:
                                            ChangeBatch=change_batch)
 
         return change_batch
+
+    def create(self,
+               changed_records: Iterable["Route53Record"],
+               comment: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Submits changes to be created in Route53. Returns the dict sent to
+        AWS.
+
+        See:
+        http://boto3.readthedocs.io/en/latest/reference/services/route53.html#Route53.Client.change_resource_record_sets
+        """
+
+        changes = [(ChangeAction.CREATE, record) for record in changed_records]
+
+        return self.change(changes, comment)
+
+    def delete(self,
+               changed_records: Iterable["Route53Record"],
+               comment: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Submits changes to be deleted in Route53. Returns the dict sent to
+        AWS.
+
+        See:
+        http://boto3.readthedocs.io/en/latest/reference/services/route53.html#Route53.Client.change_resource_record_sets
+        """
+
+        changes = [(ChangeAction.DELETE, record) for record in changed_records]
+
+        return self.change(changes, comment)
 
     def upsert(self,
                changed_records: Iterable["Route53Record"],
@@ -99,20 +139,9 @@ class Route53HostedZone:
         http://boto3.readthedocs.io/en/latest/reference/services/route53.html#Route53.Client.change_resource_record_sets
         """
 
-        client = boto3.client('route53')
+        changes = [(ChangeAction.UPSERT, record) for record in changed_records]
 
-        change_batch = {'Changes': []}
-        if comment is not None:
-            change_batch['Comment'] = comment
-        for record in changed_records:
-            change = {'Action': 'UPSERT',
-                      'ResourceRecordSet': record.boto_dict}
-            change_batch['Changes'].append(change)
-
-        client.change_resource_record_sets(HostedZoneId=self.id,
-                                           ChangeBatch=change_batch)
-
-        return change_batch
+        return self.change(changes, comment)
 
 
 class Route53Record:

@@ -7,7 +7,7 @@ from botocore.exceptions import ClientError, NoCredentialsError
 from clickclick import error
 
 from .exceptions import PiuNotFound
-from .manaus.exceptions import InvalidState
+from .manaus.exceptions import InvalidState, ELBNotFound
 
 
 def store_exception(exception: Exception) -> str:
@@ -97,6 +97,9 @@ class HandleExceptions:
             sys.exit(1)
         except InvalidState as e:
             error('Invalid State: {}'.format(e))
+            sys.exit(1)
+        except ELBNotFound as e:
+            error(e)
             sys.exit(1)
         except Exception as e:
             # Catch All

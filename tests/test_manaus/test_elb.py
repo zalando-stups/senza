@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from senza.manaus.elb import ELB
+from senza.manaus.exceptions import ELBNotFound
 
 
 def test_get_hosted_zone(monkeypatch):
@@ -74,17 +75,15 @@ def test_get_hosted_zone(monkeypatch):
                     'Subnets': ['subnet-0000', 'subnet-0000'],
                     'VPCId': 'vpc-0000'}
 
-    m_client.describe_load_balancers.return_value = {'ResponseMetadata': {
-                                                       'HTTPStatusCode': 200,
-                                                       'RequestId': 'FakeId'},
-                                                     'LoadBalancerDescriptions': [
-                                                           description1,
-                                                           description2]}
+    m_client.describe_load_balancers.return_value = {'ResponseMetadata': {'HTTPStatusCode': 200,
+                                                                          'RequestId': 'FakeId'},
+                                                     'LoadBalancerDescriptions': [description1,
+                                                                                  description2]}
     monkeypatch.setattr('boto3.client', m_client)
 
     elb = ELB.get_by_dns_name('example.eu-central-1.elb.amazonaws.com')
     assert elb.hosted_zone.id == "Z215JYRZR1TBD5"
     assert elb.region == 'eu-central-1'
 
-    with pytest.raises(KeyError):
+    with pytest.raises(ELBNotFound):
         ELB.get_by_dns_name('example.eu-west-1.elb.amazonaws.com')

@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional
 
 import boto3
 
+from .exceptions import ELBNotFound
 from .route53 import Route53HostedZone
 
 
@@ -169,5 +170,4 @@ class ELB:
             if load_balancer['DNSName'] == dns_name:
                 return cls.from_boto_dict(load_balancer)
         else:
-            # TODO better exception
-            raise KeyError('ELB {} not found'.format(dns_name))
+            raise ELBNotFound(dns_name)

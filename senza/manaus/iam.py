@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
+from typing import Any, Dict, Iterator, Optional, Union
 
-from botocore.exceptions import ClientError
-from typing import Optional, Dict, Any, Union, Iterator
 import boto3
+from botocore.exceptions import ClientError
 
 
 class IAMServerCertificate:
@@ -61,11 +61,12 @@ class IAMServerCertificate:
         return cls(metadata, certificate_body, certificate_chain)
 
     @classmethod
-    def get_by_name(cls, name: str) -> "IAMServerCertificate":
+    def get_by_name(cls, region: str, name: str) -> "IAMServerCertificate":
         """
         Get IAMServerCertificate using the name of the server certificate
         """
-        client = boto3.client('iam')
+        client = boto3.client('iam', region)
+        iam = IAM(region)
 
         try:
             response = client.get_server_certificate(ServerCertificateName=name)
@@ -73,7 +74,7 @@ class IAMServerCertificate:
             certificate = cls.from_boto_dict(server_certificate)
         except ClientError as error:
             # IAM.get_certificates can get certificates with a suffix
-            certificates = sorted(IAM.get_certificates(name=name),
+            certificates = sorted(iam.get_certificates(name=name),
                                   reverse=True)
             try:
                 # try to return the latest certificate that matches the name
@@ -109,10 +110,14 @@ class IAMServerCertificate:
 
 class IAM:
 
-    @staticmethod
-    def get_certificates(valid_only: bool=True,
+    def __init__(self, region: str):
+        self.region = region
+
+    def get_certificates(self,
+                         *,
+                         valid_only: bool=True,
                          name: Optional[str] = None) -> Iterator[IAMServerCertificate]:
-        resource = boto3.resource('iam')
+        resource = boto3.resource('iam', self.region)
 
         for server_certificate in resource.server_certificates.all():
             certificate = IAMServerCertificate.from_boto_server_certificate(server_certificate)

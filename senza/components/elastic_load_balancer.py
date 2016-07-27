@@ -1,11 +1,11 @@
 import click
 from clickclick import fatal_error
-
 from senza.aws import resolve_security_groups
+
 from ..cli import AccountArguments, TemplateArguments
 from ..manaus import ClientError
-from ..manaus.iam import IAM, IAMServerCertificate
 from ..manaus.acm import ACM, ACMCertificate
+from ..manaus.iam import IAM, IAMServerCertificate
 from ..manaus.route53 import convert_domain_records_to_alias
 
 SENZA_PROPERTIES = frozenset(['Domains', 'HealthCheckPath', 'HealthCheckPort', 'HealthCheckProtocol',
@@ -37,7 +37,8 @@ def get_listeners(subdomain, main_zone, configuration,
         # TODO check if certificate exists
         pass
     elif ssl_cert is not None:
-        certificate = IAMServerCertificate.get_by_name(ssl_cert)
+        certificate = IAMServerCertificate.get_by_name(account_info.Region,
+                                                       ssl_cert)
         ssl_cert = certificate.arn
     elif main_zone is not None:
         if main_zone:
@@ -50,12 +51,12 @@ def get_listeners(subdomain, main_zone, configuration,
         else:
             iam_pattern = ''
             acm_certificates = []
-
-        iam_certificates = sorted(IAM.get_certificates(name=iam_pattern))
+        iam = IAM(account_info.Region)
+        iam_certificates = sorted(iam.get_certificates(name=iam_pattern))
         if not iam_certificates:
             # if there are no iam certificates matching the pattern
             # try to use any certificate
-            iam_certificates = sorted(IAM.get_certificates(), reverse=True)
+            iam_certificates = sorted(iam.get_certificates(), reverse=True)
 
         # the priority is acm_certificate first and iam_certificate second
         certificates = (acm_certificates +

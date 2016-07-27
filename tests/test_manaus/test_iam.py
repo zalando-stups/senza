@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
-import pytest
 
+import pytest
 from botocore.exceptions import ClientError
 from senza.manaus.iam import IAM, IAMServerCertificate
 
@@ -42,7 +42,8 @@ def test_certificate_from_name(monkeypatch):
     m_client.get_server_certificate.return_value = {'ServerCertificate': IAM_CERT1}
     monkeypatch.setattr('boto3.client', m_client)
 
-    certificate1 = IAMServerCertificate.get_by_name('senza-example-com')
+    certificate1 = IAMServerCertificate.get_by_name('dummy-region',
+                                                    'senza-example-com')
     assert certificate1.name == 'senza-example-com'
     assert certificate1.arn == 'arn:aws:iam::0000:server-certificate/senza-example-com'
 
@@ -77,10 +78,10 @@ def test_order(monkeypatch):
     monkeypatch.setattr('boto3.client', m_client)
 
     m_client.get_server_certificate.return_value = {'ServerCertificate': IAM_CERT1}
-    certificate1 = IAMServerCertificate.get_by_name('senza-example-com')
+    certificate1 = IAMServerCertificate.get_by_name('dummy-region', 'senza-example-com')
 
     m_client.get_server_certificate.return_value = {'ServerCertificate': IAM_CERT2}
-    certificate2 = IAMServerCertificate.get_by_name('senza-example-com')
+    certificate2 = IAMServerCertificate.get_by_name('dummy-region', 'senza-example-com')
 
     assert certificate2 > certificate1
     assert sorted([certificate1, certificate2]) == [certificate1, certificate2]
@@ -93,11 +94,11 @@ def test_valid(monkeypatch):
     m_client.get_server_certificate.return_value = {'ServerCertificate': IAM_CERT1}
     monkeypatch.setattr('boto3.client', m_client)
 
-    certificate1 = IAMServerCertificate.get_by_name('senza-example-com')
+    certificate1 = IAMServerCertificate.get_by_name('dummy-region', 'senza-example-com')
     assert certificate1.is_valid(when=datetime(2016, 7, 1, 12, 12, 12))
 
     m_client.get_server_certificate.return_value = {'ServerCertificate': IAM_CERT1_EXP}
-    certificate_expired = IAMServerCertificate.get_by_name('senza-example-com')
+    certificate_expired = IAMServerCertificate.get_by_name('dummy-region', 'senza-example-com')
     assert not certificate_expired.is_valid(when=datetime(2016, 7, 1, 12, 12, 12))
 
 
@@ -147,19 +148,20 @@ def test_get_certificates(monkeypatch):
                                            tzinfo=timezone.utc)
     monkeypatch.setattr('senza.manaus.iam.datetime', m_datetime)
 
-    certificates = list(IAM.get_certificates())
+    iam = IAM('dummy-region')
+    certificates = list(iam.get_certificates())
     for certificate in certificates:
         assert certificate.is_valid()
     assert len(certificates) == 2
 
-    all_certificates = list(IAM.get_certificates(valid_only=False))
+    all_certificates = list(iam.get_certificates(valid_only=False))
     assert len(all_certificates) == 3
 
-    certificates_net = list(IAM.get_certificates(name='senza-example-net'))
+    certificates_net = list(iam.get_certificates(name='senza-example-net'))
     assert len(certificates_net) == 1
     assert certificates_net[0].name == 'senza-example-net'
 
-    certificates_org = list(IAM.get_certificates(name='senza-example-org'))
+    certificates_org = list(iam.get_certificates(name='senza-example-org'))
     assert len(certificates_org) == 0
 
 
@@ -231,12 +233,12 @@ def test_get_with_suffix(monkeypatch):
                                            tzinfo=timezone.utc)
     monkeypatch.setattr('senza.manaus.iam.datetime', m_datetime)
 
-    certificate1 = IAMServerCertificate.get_by_name('senza-example-org')
+    certificate1 = IAMServerCertificate.get_by_name('dummy-region', 'senza-example-org')
     assert certificate1.name == 'senza-example-org-20150703'
 
     with pytest.raises(ClientError):
         m_resource.server_certificates.all.return_value = []
-        IAMServerCertificate.get_by_name('senza-example-org')
+        IAMServerCertificate.get_by_name('dummy-region', 'senza-example-org')
 
 
 def test_equality(monkeypatch):
@@ -245,14 +247,14 @@ def test_equality(monkeypatch):
     monkeypatch.setattr('boto3.client', m_client)
 
     m_client.get_server_certificate.return_value = {'ServerCertificate': IAM_CERT1}
-    certificate1 = IAMServerCertificate.get_by_name('senza-example-com')
+    certificate1 = IAMServerCertificate.get_by_name('dummy-region', 'senza-example-com')
 
     m_client.get_server_certificate.return_value = {'ServerCertificate': IAM_CERT1_EXP}
-    certificate1_exp = IAMServerCertificate.get_by_name('senza-example-com')
+    certificate1_exp = IAMServerCertificate.get_by_name('dummy-region', 'senza-example-com')
     certificate1_exp.arn = certificate1.arn
 
     m_client.get_server_certificate.return_value = {'ServerCertificate': IAM_CERT2}
-    certificate2 = IAMServerCertificate.get_by_name('senza-example-com')
+    certificate2 = IAMServerCertificate.get_by_name('dummy-region', 'senza-example-com')
 
     assert certificate1 == certificate1_exp  # only the arn is compared
     assert certificate1 != certificate2

@@ -160,7 +160,8 @@ class ELB:
 
     @classmethod
     def get_by_dns_name(cls, dns_name: str) -> "ELB":
-        client = boto3.client('elb')
+        _, region, _ = dns_name.split('.', maxsplit=2)
+        client = boto3.client('elb', region)
 
         # TODO pagination
         response = client.describe_load_balancers()

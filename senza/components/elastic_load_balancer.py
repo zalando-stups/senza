@@ -2,6 +2,7 @@ import click
 from clickclick import fatal_error
 
 from senza.aws import resolve_security_groups
+from ..cli import AccountArguments, TemplateArguments
 from ..manaus import ClientError
 from ..manaus.iam import IAM, IAMServerCertificate
 from ..manaus.acm import ACM, ACMCertificate
@@ -23,13 +24,14 @@ def get_load_balancer_name(stack_name: str, stack_version: str):
     return '{}-{}'.format(stack_name[:l], stack_version)
 
 
-def get_listeners(subdomain, main_zone, configuration):
+def get_listeners(subdomain, main_zone, configuration,
+                  account_info: AccountArguments):
     ssl_cert = configuration.get('SSLCertificateId')
 
     if ACMCertificate.arn_is_acm_certificate(ssl_cert):
         # check if certificate really exists
         try:
-            ACMCertificate.get_by_arn(ssl_cert)
+            ACMCertificate.get_by_arn(account_info.Region, ssl_cert)
         except ClientError as e:
             error_msg = e.response['Error']['Message']
             fatal_error(error_msg)
@@ -44,7 +46,8 @@ def get_listeners(subdomain, main_zone, configuration):
             iam_pattern = main_zone.lower().rstrip('.').replace('.', '-')
             name = '{sub}.{zone}'.format(sub=subdomain,
                                          zone=main_zone.rstrip('.'))
-            acm_certificates = sorted(ACM.get_certificates(domain_name=name),
+            acm = ACM(account_info.Region)
+            acm_certificates = sorted(acm.get_certificates(domain_name=name),
                                       reverse=True)
         else:
             iam_pattern = ''
@@ -79,9 +82,13 @@ def get_listeners(subdomain, main_zone, configuration):
     ]
 
 
-def component_elastic_load_balancer(definition, configuration, args, info, force, account_info):
+def component_elastic_load_balancer(definition,
+                                    configuration: dict,
+                                    args: TemplateArguments,
+                                    info: dict,
+                                    force,
+                                    account_info: AccountArguments):
     lb_name = configuration["Name"]
-
     # domains pointing to the load balancer
     subdomain = ''
     main_zone = None
@@ -107,7 +114,7 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
             subdomain = domain['Subdomain']
             main_zone = domain['Zone']  # type: str
 
-    listeners = configuration.get('Listeners') or get_listeners(subdomain, main_zone, configuration)
+    listeners = configuration.get('Listeners') or get_listeners(subdomain, main_zone, configuration, account_info)
 
     health_check_protocol = "HTTP"
     allowed_health_check_protocols = ("HTTP", "TCP", "UDP", "SSL")

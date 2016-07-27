@@ -148,7 +148,8 @@ def test_certificate_get_by_arn(monkeypatch):
     m_client.describe_certificate.return_value = {'Certificate': CERT1}
     monkeypatch.setattr('boto3.client', m_client)
 
-    certificate1 = ACMCertificate.get_by_arn('arn:aws:acm:eu-west-1:cert')
+    certificate1 = ACMCertificate.get_by_arn('dummy-region',
+                                             'arn:aws:acm:eu-west-1:cert')
     assert certificate1.domain_name == '*.senza.example.com'
     assert certificate1.is_valid(when=datetime(2016, 4, 5, 12, 14, 14,
                                                tzinfo=timezone.utc))
@@ -183,7 +184,7 @@ def test_get_certificates(monkeypatch):
                                            tzinfo=timezone.utc)
     monkeypatch.setattr('senza.manaus.acm.datetime', m_datetime)
 
-    acm = ACM()
+    acm = ACM('dummy-region')
     certificates_default = list(acm.get_certificates())
     assert len(certificates_default) == 1  # Cert2 is excluded because it's REVOKED
     assert certificates_default[0].arn == 'arn:aws:acm:eu-west-1:cert1'

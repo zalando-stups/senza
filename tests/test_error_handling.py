@@ -1,14 +1,13 @@
-from unittest.mock import MagicMock
 import inspect
 import random
 import string
-
-from pytest import fixture
+from unittest.mock import MagicMock
 
 import botocore.exceptions
-
 import senza.error_handling
+from pytest import fixture
 from senza.exceptions import PiuNotFound
+from senza.manaus.exceptions import ELBNotFound, InvalidState
 
 
 def lineno() -> int:
@@ -22,6 +21,7 @@ def lineno() -> int:
 def generate_fake_filename() -> str:
     return ''.join(random.choice(string.ascii_uppercase + string.digits)
                    for _ in range(10))
+
 
 @fixture()
 def mock_tempfile(monkeypatch):
@@ -156,3 +156,29 @@ def test_piu_not_found(capsys):
     out, err = capsys.readouterr()
 
     assert "Command not found: piu" in err
+
+
+def test_elb_not_found(capsys):
+    func = MagicMock(side_effect=ELBNotFound('example.com'))
+
+    try:
+        senza.error_handling.HandleExceptions(func)()
+    except SystemExit:
+        pass
+
+    out, err = capsys.readouterr()
+
+    assert err == 'ELB not found: example.com\n'
+
+
+def test_invalid_state(capsys):
+    func = MagicMock(side_effect=InvalidState('test state'))
+
+    try:
+        senza.error_handling.HandleExceptions(func)()
+    except SystemExit:
+        pass
+
+    out, err = capsys.readouterr()
+
+    assert err == 'Invalid State: test state\n'

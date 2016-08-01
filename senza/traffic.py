@@ -1,10 +1,15 @@
-from json import JSONEncoder
-import click
-from clickclick import warning, action, ok, print_table, Action
 import collections
-from .aws import get_stacks, StackReference, get_tag
+from json import JSONEncoder
 
 import boto3
+import click
+from clickclick import Action, action, ok, print_table, warning
+
+from .aws import StackReference, get_stacks, get_tag
+from .manaus.elb import ELB
+from .manaus.route53 import (Route53, Route53Record, RecordType,
+                             convert_domain_records_to_alias)
+
 
 PERCENT_RESOLUTION = 2
 FULL_PERCENTAGE = PERCENT_RESOLUTION * 100
@@ -22,20 +27,21 @@ def get_weights(dns_names: list, identifier: str, all_identifiers) -> ({str: int
     partial_sum = 0
     known_record_weights = {}
     for dns_name in dns_names:
-        for record in get_records(dns_name.split('.', 1)[1]):
-            if record['Type'] == 'CNAME' and record['Name'] == dns_name:
+        for record in Route53.get_records(name=dns_name):
+            if record.type in [RecordType.CNAME, RecordType.A, RecordType.AAAA]:
                 try:
-                    if record['Weight']:
-                        weight = int(record['Weight'])
+                    if record.weight:
+                        weight = record.weight
                     else:
                         weight = 0
                 except KeyError:
                     continue
                 else:
-                    known_record_weights[record['SetIdentifier']] = weight
-                    if record['SetIdentifier'] != identifier and weight > 0:
-                        # we should ignore all versions that do not get any traffic
-                        # not to put traffic on the disabled versions when redistributing traffic weights
+                    known_record_weights[record.set_identifier] = weight
+                    if record.set_identifier != identifier and weight > 0:
+                        # we should ignore all versions that do not get any
+                        # traffic to not give traffic to disabled versions when
+                        # redistributing traffic weights
                         partial_sum += weight
                         partial_count += 1
     if identifier not in known_record_weights:
@@ -112,38 +118,42 @@ def compensate(calculation_error, compensations, identifier, new_record_weights,
 
 def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_weights, percentage):
     action('Setting weights for {dns_names}..', dns_names=', '.join(dns_names))
-    dns_changes = {}
+    dns_changes = collections.defaultdict(lambda: [])
     for idx, dns_name in enumerate(dns_names):
         domain = dns_name.split('.', 1)[1]
         zone = get_zone(domain)
         did_the_upsert = False
-        for r in get_records(domain):
-            if r['Type'] == 'CNAME' and r['Name'] == dns_name:
-                w = new_record_weights[r['SetIdentifier']]
+
+        convert_domain_records_to_alias(dns_name)
+
+        for r in Route53.get_records(name=dns_name):
+            if r.type in [RecordType.CNAME, RecordType.A, RecordType.AAAA]:
+                w = new_record_weights[r.set_identifier]
                 if w:
-                    if int(r['Weight']) != w:
-                        r['Weight'] = w
-                        if dns_changes.get(zone['Id']) is None:
-                            dns_changes[zone['Id']] = []
+                    if int(r.weight) != w:
+                        r.weight = w
                         dns_changes[zone['Id']].append({'Action': 'UPSERT',
-                                                        'ResourceRecordSet': r})
-                    if identifier == r['SetIdentifier']:
+                                                        'ResourceRecordSet': r.boto_dict})
+                    if identifier == r.set_identifier:
                         did_the_upsert = True
                 else:
                     if dns_changes.get(zone['Id']) is None:
                         dns_changes[zone['Id']] = []
                     dns_changes[zone['Id']].append({'Action': 'DELETE',
-                                                    'ResourceRecordSet': r.copy()})
+                                                    'ResourceRecordSet': r.boto_dict.copy()})
         if new_record_weights[identifier] > 0 and not did_the_upsert:
             if dns_changes.get(zone['Id']) is None:
                 dns_changes[zone['Id']] = []
+            elb_hosted_zone = ELB.get_hosted_zone_for(dns_name=lb_dns_name[idx])
+            record = Route53Record(name=dns_name,
+                                   type=RecordType.A,
+                                   set_identifier=identifier,
+                                   weight=new_record_weights[identifier],
+                                   alias_target={"HostedZoneId": elb_hosted_zone.id,
+                                                 "DNSName": lb_dns_name[idx],
+                                                 "EvaluateTargetHealth": False})
             dns_changes[zone['Id']].append({'Action': 'UPSERT',
-                                            'ResourceRecordSet': {'Name': dns_name,
-                                                                  'Type': 'CNAME',
-                                                                  'SetIdentifier': identifier,
-                                                                  'Weight': new_record_weights[identifier],
-                                                                  'TTL': 20,
-                                                                  'ResourceRecords': [{'Value': lb_dns_name[idx]}]}})
+                                            'ResourceRecordSet': record.boto_dict})
     if dns_changes:
         route53 = boto3.client('route53')
         for hosted_zone_id, change in dns_changes.items():

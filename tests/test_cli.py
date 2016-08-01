@@ -8,11 +8,14 @@ import botocore.exceptions
 import senza.traffic
 import yaml
 from click.testing import CliRunner
-from senza.cli import AccountArguments, cli
+from senza.cli import (AccountArguments, cli, KeyValParamType, get_stack_refs,
+                       StackReference, all_with_version, is_ip_address,
+                       get_console_line_style, failure_event)
+from senza.manaus.route53 import RecordType, Route53Record
 from senza.traffic import PERCENT_RESOLUTION, StackVersion
 
 from fixtures import (HOSTED_ZONE_EXAMPLE_ORG, HOSTED_ZONE_EXAMPLE_NET,
-                      HOSTED_ZONE_ZO_NE, boto_client, boto_resource)
+                      boto_client, boto_resource)  # pragma: NOQA
 
 
 def test_invalid_definition():
@@ -38,7 +41,9 @@ def test_file_not_found():
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
 
-        result = runner.invoke(cli, ['print', 'notfound.yaml', '--region=aa-fakeregion-1', '123'], catch_exceptions=False)
+        result = runner.invoke(cli,
+                               ['print', 'notfound.yaml', '--region=aa-fakeregion-1', '123'],
+                               catch_exceptions=False)
 
     assert '"notfound.yaml" not found' in result.output
 
@@ -52,7 +57,10 @@ def test_parameter_file_not_found():
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
 
-        result = runner.invoke(cli, ['print', '--parameter-file', 'notfound.yaml', 'myapp.yaml', '--region=aa-fakeregion-1', '123'], catch_exceptions=False)
+        result = runner.invoke(cli,
+                               ['print', '--parameter-file', 'notfound.yaml',
+                                'myapp.yaml', '--region=aa-fakeregion-1', '123'],
+                               catch_exceptions=False)
 
     assert 'read parameter file "notfound.yaml"' in result.output
 
@@ -60,8 +68,10 @@ def test_parameter_file_not_found():
 def test_parameter_file_found(monkeypatch):
     monkeypatch.setattr('boto3.client', lambda *args: MagicMock())
 
-    data = {'SenzaInfo': {'StackName': 'test', 'Parameters': [{'ApplicationId': {'Description': 'Application ID from kio'}}]}, 'Resources': {'MyQueue': {'Type': 'AWS::SQS::Queue'}}}
-    param_data = { 'ApplicationId': 'test-app-id' }
+    data = {'SenzaInfo': {'StackName': 'test',
+                          'Parameters': [{'ApplicationId': {'Description': 'Application ID from kio'}}]},
+            'Resources': {'MyQueue': {'Type': 'AWS::SQS::Queue'}}}
+    param_data = {'ApplicationId': 'test-app-id'}
 
     runner = CliRunner()
 
@@ -71,7 +81,10 @@ def test_parameter_file_found(monkeypatch):
         with open('parameter.yaml', 'w') as fd:
             yaml.dump(param_data, fd)
 
-        result = runner.invoke(cli, ['print', '--parameter-file', 'parameter.yaml', 'myapp.yaml', '--region=aa-fakeregion-1', '123'], catch_exceptions=False)
+        result = runner.invoke(cli,
+                               ['print', '--parameter-file', 'parameter.yaml',
+                                'myapp.yaml', '--region=aa-fakeregion-1', '123'],
+                               catch_exceptions=False)
 
     assert 'Generating Cloud Formation template.. OK' in result.output
 
@@ -1226,10 +1239,10 @@ def test_traffic(monkeypatch):
     monkeypatch.setattr('boto3.resource', my_resource)
 
     stacks = [
-        StackVersion('myapp', 'v1', ['myapp.example.org'], ['some-lb'], ['some-arn']),
-        StackVersion('myapp', 'v2', ['myapp.example.org'], ['another-elb'], ['some-arn']),
-        StackVersion('myapp', 'v3', ['myapp.example.org'], ['elb-3'], ['some-arn']),
-        StackVersion('myapp', 'v4', ['myapp.example.org'], ['elb-4'], ['some-arn']),
+        StackVersion('myapp', 'v1', ['myapp.example.org'], ['some-lb.eu-central-1.elb.amazonaws.com'], ['some-arn']),
+        StackVersion('myapp', 'v2', ['myapp.example.org'], ['another-elb.eu-central-1.elb.amazonaws.com'], ['some-arn']),
+        StackVersion('myapp', 'v3', ['myapp.example.org'], ['elb-3.eu-central-1.elb.amazonaws.com'], ['some-arn']),
+        StackVersion('myapp', 'v4', ['myapp.example.org'], ['elb-4.eu-central-1.elb.amazonaws.com'], ['some-arn']),
     ]
     monkeypatch.setattr('senza.traffic.get_stack_versions', MagicMock(return_value=stacks))
 
@@ -1237,10 +1250,10 @@ def test_traffic(monkeypatch):
     # this is a lot of dirty and nasty code. Please, somebody help this code.
 
     def record(dns_identifier, weight):
-        return {'Name': 'myapp.example.org.',
-                'Weight': str(weight),
-                'SetIdentifier': dns_identifier,
-                'Type': 'CNAME'}
+        return Route53Record(name='myapp.example.org.',
+                             type=RecordType.A,
+                             weight=weight,
+                             set_identifier=dns_identifier)
 
     rr = MagicMock()
     records = collections.OrderedDict()
@@ -1253,7 +1266,7 @@ def test_traffic(monkeypatch):
         records[dns_identifier] = record(dns_identifier, percentage * PERCENT_RESOLUTION)
 
     rr.__iter__ = lambda x: iter(records.values())
-    monkeypatch.setattr('senza.traffic.get_records', MagicMock(return_value=rr))
+    monkeypatch.setattr('senza.traffic.Route53.get_records', MagicMock(return_value=rr))
     monkeypatch.setattr('senza.traffic.get_zone', MagicMock(return_value={'Id': 'dummyid'}))
 
     def change_rr_set(HostedZoneId, ChangeBatch):
@@ -1261,9 +1274,9 @@ def test_traffic(monkeypatch):
             action = change['Action']
             rrset = change['ResourceRecordSet']
             if action == 'UPSERT':
-                records[rrset['SetIdentifier']] = rrset.copy()
+                records[rrset['SetIdentifier']] = Route53Record.from_boto_dict(rrset)
             elif action == 'DELETE':
-                records[rrset['SetIdentifier']]['Weight'] = 0
+                records[rrset['SetIdentifier']].weight = 0
 
     route53.change_resource_record_sets = change_rr_set
 
@@ -1277,7 +1290,7 @@ def test_traffic(monkeypatch):
         return result
 
     def weights():
-        return [r['Weight'] for r in records.values()]
+        return [r.weight for r in records.values()]
 
     with runner.isolated_filesystem():
         run(['v4', '100'])
@@ -1402,7 +1415,6 @@ def test_wait(monkeypatch):
         return MagicMock()
 
     monkeypatch.setattr('boto3.resource', my_resource)
-    #monkeypatch.setattr('boto3.client', my_client)
 
     runner = CliRunner()
 
@@ -1453,8 +1465,6 @@ def test_wait_in_progress(monkeypatch):
 
     runner = CliRunner()
 
-    data = {'SenzaInfo': {'StackName': 'test'}}
-
     with runner.isolated_filesystem():
         result = runner.invoke(cli,
                                ['wait', 'test', '1', '--region=aa-fakeregion-1', '--timeout=1'],
@@ -1482,8 +1492,6 @@ def test_wait_failure(monkeypatch):
 
     runner = CliRunner()
 
-    data = {'SenzaInfo': {'StackName': 'test'}}
-
     with runner.isolated_filesystem():
         result = runner.invoke(cli,
                                ['wait', 'test', '1', '--region=aa-fakeregion-1'],
@@ -1491,3 +1499,72 @@ def test_wait_failure(monkeypatch):
         assert 'ERROR: foo FAIL: myreason' in result.output
         assert 'ERROR: Stack test-1 has status ROLLBACK_COMPLETE' in result.output
         assert 1 == result.exit_code
+
+
+def test_key_val_param():
+    assert KeyValParamType().convert(('a', 'b'), None, None) == ('a', 'b')
+
+
+def test_account_arguments():
+    test = AccountArguments('blubber')
+    assert test.Region == 'blubber'
+
+
+def test_get_stack_reference():
+
+    fb_none = StackReference(name='foobar-stack', version=None)
+    fb_v1 = StackReference(name='foobar-stack', version='v1')
+    fb_v2 = StackReference(name='foobar-stack', version='v2')
+    fb_v99 = StackReference(name='foobar-stack', version='v99')
+    os_none = StackReference(name='other-stack', version=None)
+
+    assert get_stack_refs(['foobar-stack']) == [fb_none]
+
+    assert get_stack_refs(['foobar-stack', 'v1']) == [fb_v1]
+
+    assert get_stack_refs(['foobar-stack', 'v1',
+                           'other-stack']) == [fb_v1, os_none]
+    assert get_stack_refs(['foobar-stack', 'v1', 'v2', 'v99',
+                           'other-stack']) == [fb_v1, fb_v2, fb_v99,
+                                               os_none]
+
+
+def test_all_with_version():
+    assert not all_with_version([StackReference(name='foobar-stack',
+                                                version='1'),
+                                 StackReference(name='other-stack',
+                                                version=None)])
+
+    assert all_with_version([StackReference(name='foobar-stack', version='1'),
+                             StackReference(name='other-stack',
+                                            version='v23')])
+
+    assert all_with_version([StackReference(name='foobar-stack',
+                                            version='1')])
+
+    assert not all_with_version([StackReference(name='other-stack',
+                                                version=None)])
+
+
+def test_is_ip_address():
+    assert not is_ip_address("YOLO")
+    assert is_ip_address('127.0.0.1')
+
+
+def test_get_console_line_style():
+    assert get_console_line_style('foo') == {}
+
+    assert get_console_line_style('ERROR:')['fg'] == 'red'
+
+    assert get_console_line_style('WARNING:')['fg'] == 'yellow'
+
+    assert get_console_line_style('SUCCESS:')['fg'] == 'green'
+
+    assert get_console_line_style('INFO:')['bold']
+
+
+def test_failure_event():
+    assert not failure_event({})
+
+    assert failure_event({'ResourceStatusReason': 'foo',
+                          'ResourceStatus': 'FAIL'})

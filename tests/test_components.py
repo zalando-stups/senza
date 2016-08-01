@@ -10,8 +10,8 @@ from senza.components.auto_scaling_group import (component_auto_scaling_group,
                                                  normalize_asg_success,
                                                  normalize_network_threshold,
                                                  to_iso8601_duration)
-from senza.components.elastic_load_balancer import \
-    component_elastic_load_balancer
+from senza.components.elastic_load_balancer import (component_elastic_load_balancer,
+                                                    get_load_balancer_name)
 from senza.components.iam_role import component_iam_role, get_merged_policies
 from senza.components.redis_cluster import component_redis_cluster
 from senza.components.redis_node import component_redis_node
@@ -760,3 +760,10 @@ def test_check_application_version():
 
     with pytest.raises(click.UsageError):
         check_application_id('1.')
+
+
+def test_get_load_balancer_name():
+    get_load_balancer_name('a', '1') == 'a-1'
+
+    get_load_balancer_name('toolong123456789012345678901234567890',
+                           '1') == 'toolong12345678901234567890123-1'

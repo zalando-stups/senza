@@ -341,13 +341,10 @@ Resources:
 
 
 def ebs_optimized_supported(instance_type):
-    # per http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EBSOptimized.html
     """
-    >>> ebs_optimized_supported('c3.xlarge')
-    True
-    >>> ebs_optimized_supported('t2.micro')
-    False
+    Per http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EBSOptimized.html
     """
+    # TODO move to manaus
     return instance_type in ('c1.large', 'c3.xlarge', 'c3.2xlarge', 'c3.4xlarge',
                              'c4.large', 'c4.xlarge', 'c4.2xlarge', 'c4.4xlarge', 'c4.8xlarge',
                              'd2.xlarge', 'd2.2xlarge', 'd2.4xlarge', 'd2.8xlarge',
@@ -489,28 +486,21 @@ def gather_user_variables(variables, region, account_info):
 
 def generate_random_password(length=64):
     """
-    >>> len(generate_random_password(61))
-    61
+    Generates a random password containing upper case characters and digits
     """
-    return ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(length))
+    char_list = string.ascii_uppercase + string.digits
+    return ''.join(random.SystemRandom().choice(char_list)
+                   for _ in range(length))
 
 
 def generate_definition(variables):
-    """
-    >>> variables = set_default_variables(dict())
-    >>> len(generate_definition(variables)) > 300
-    True
-    """
     definition_yaml = pystache_render(TEMPLATE, variables)
     return definition_yaml
 
 
 def get_latest_image(registry_domain='registry.opensource.zalan.do', team='acid', artifact='spilo-9.5'):
     """
-    >>> 'registry.opensource.zalan.do' in get_latest_image()
-    True
-    >>> get_latest_image('dont.exist.url')
-    ''
+    Gets the full name of latest image for an artifact
     """
     try:
         r = requests.get('https://{0}/teams/{1}/artifacts/{2}/tags'.format(registry_domain, team, artifact))

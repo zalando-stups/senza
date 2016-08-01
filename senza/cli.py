@@ -952,9 +952,13 @@ def status(stack_ref, region, output, w, watch):
                         except:
                             http_status = 'ERROR'
                     else:
-                        try:
-                            answers = dns.resolver.query(name, 'CNAME')
-                        except:
+                        for record_type in ["CNAME", "A", "AAAA"]:
+                            try:
+                                answers = dns.resolver.query(name, record_type)
+                                break
+                            except:
+                                pass
+                        else:
                             answers = []
                         for answer in answers:
                             target = answer.target.to_text()

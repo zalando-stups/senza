@@ -7,7 +7,7 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional, Union, Tuple
 import boto3
 from click import confirm
 
-from .exceptions import InvalidState
+from .exceptions import InvalidState, ELBNotFound
 
 
 class ChangeAction(str, Enum):
@@ -337,9 +337,12 @@ def convert_domain_records_to_alias(domain_name: str):
                                              'upsert': []})
     for record in records:
         if record.type != 'A':
-            alias_record = record.to_alias()
             converted_records[record.hosted_zone]['delete'].append(record)
-            converted_records[record.hosted_zone]['upsert'].append(alias_record)
+            try:
+                alias_record = record.to_alias()
+                converted_records[record.hosted_zone]['upsert'].append(alias_record)
+            except ELBNotFound:
+                print("Dangling DNS record  will be deleted: {}".format(record.name))
 
     if converted_records:
         for hosted_zone, records in converted_records.items():

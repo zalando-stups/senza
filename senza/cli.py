@@ -17,7 +17,6 @@ from urllib.request import urlopen
 
 import boto3
 import click
-import dns.resolver
 import requests
 import senza
 import yaml
@@ -43,7 +42,7 @@ from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
 from .stups.piu import Piu
 from .templates import get_template_description, get_templates
 from .templates._helper import get_mint_bucket_name
-from .traffic import change_version_traffic, get_records, print_version_traffic
+from .traffic import change_version_traffic, get_records, print_version_traffic, resolve_to_ip_addresses
 from .utils import (camel_case_to_underscore, ensure_keys, named_value,
                     pystache_render)
 
@@ -937,7 +936,9 @@ def status(stack_ref, region, output, w, watch):
         for stack in sorted(get_stacks(stack_refs, region)):
             instance_health = get_instance_health(elb, stack.StackName)
 
-            main_dns_resolves = False
+            main_dns_resolves = None
+            version_addresses = set()
+            main_addresses = set()
             http_status = None
             for res in cf.Stack(stack.StackId).resource_summaries.all():
                 if res.resource_type == 'AWS::Route53::RecordSet':
@@ -946,22 +947,20 @@ def status(stack_ref, region, output, w, watch):
                         # physical resource ID will be empty during stack creation
                         continue
                     if 'version' in res.logical_id.lower():
+                        # VersionDomain -> check HTTPS reachability
+                        # (won't work for internal ELBs, but we don't care here)
                         try:
-                            requests.get('https://{}/'.format(name), timeout=2)
+                            requests.get('https://{}/'.format(name), timeout=1)
                             http_status = 'OK'
                         except:
                             http_status = 'ERROR'
+                        version_addresses = resolve_to_ip_addresses(name)
                     else:
-                        try:
-                            answers = dns.resolver.query(name, 'CNAME')
-                        except:
-                            answers = []
-                        for answer in answers:
-                            target = answer.target.to_text()
-                            if isinstance(target, bytes):
-                                target = target.decode()
-                            if target.startswith('{}-'.format(stack.StackName)):
-                                main_dns_resolves = True
+                        # MainDomain -> check whether DNS resolves to this stack version
+                        main_addresses = resolve_to_ip_addresses(name)
+
+            if version_addresses and main_addresses:
+                main_dns_resolves = bool(version_addresses & main_addresses)
 
             instances = list(ec2.instances.filter(Filters=[{'Name': 'tag:aws:cloudformation:stack-id',
                                                             'Values': [stack.StackId]}]))
@@ -1025,7 +1024,7 @@ def domains(stack_ref, region, output, w, watch):
                     if record:
                         row.update({'weight': str(record.get('Weight', '')),
                                     'type': record.get('Type'),
-                                    'value': ','.join([r['Value'] for r in record.get('ResourceRecords')])})
+                                    'value': ','.join([r['Value'] for r in record.get('ResourceRecords', [])])})
                     rows.append(row)
 
         with OutputFormat(output):

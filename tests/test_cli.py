@@ -1568,3 +1568,58 @@ def test_failure_event():
 
     assert failure_event({'ResourceStatusReason': 'foo',
                           'ResourceStatus': 'FAIL'})
+
+
+def test_status_main_dns(monkeypatch):
+    def my_resource(rtype, *args):
+        if rtype == 'ec2':
+            ec2 = MagicMock()
+            instance = MagicMock()
+            instance.id = 'inst-123'
+            instance.public_ip_address = '8.8.8.8'
+            instance.private_ip_address = '10.0.0.1'
+            instance.state = {'Name': 'Test-instance'}
+            instance.tags = [{'Key': 'aws:cloudformation:stack-name', 'Value': 'test-1'},
+                             {'Key': 'aws:cloudformation:logical-id', 'Value': 'local-id-123'},
+                             {'Key': 'StackName', 'Value': 'test'},
+                             {'Key': 'StackVersion', 'Value': '1'}]
+            instance.launch_time = datetime.datetime.utcnow()
+            ec2.instances.filter.return_value = [instance]
+            return ec2
+        elif rtype == 'cloudformation':
+            cf = MagicMock()
+            version_domain = MagicMock()
+            version_domain.logical_id = 'VersionDomain'
+            version_domain.resource_type = 'AWS::Route53::RecordSet'
+            version_domain.physical_resource_id = 'test-1.example.org'
+            main_domain = MagicMock()
+            main_domain.logical_id = 'MainDomain'
+            main_domain.resource_type = 'AWS::Route53::RecordSet'
+            main_domain.physical_resource_id = 'test.example.org'
+            cf.Stack.return_value.resource_summaries.all.return_value = [version_domain, main_domain]
+            return cf
+        return MagicMock()
+
+    def my_client(rtype, *args):
+        if rtype == 'cloudformation':
+            cf = MagicMock()
+            cf.list_stacks.return_value = {'StackSummaries': [{'StackName': 'test-1',
+                                                               'CreationTime': '2016-06-14'}]}
+            return cf
+        return MagicMock()
+
+    def resolve_to_ip_addresses(dns_name):
+        return {'test-1.example.org': {'1.2.3.4', '5.6.7.8'}, 'test.example.org': {'5.6.7.8'}}.get(dns_name)
+
+    monkeypatch.setattr('boto3.resource', my_resource)
+    monkeypatch.setattr('boto3.client', my_client)
+    monkeypatch.setattr('senza.cli.resolve_to_ip_addresses', resolve_to_ip_addresses)
+
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        result = runner.invoke(cli, ['status', 'test', '--region=aa-fakeregion-1', '1', '--output=json'],
+                               catch_exceptions=False)
+
+    data = json.loads(result.output.strip())
+    assert data[0]['main_dns'] == True

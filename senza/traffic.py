@@ -1,4 +1,5 @@
 import collections
+import dns.resolver
 from json import JSONEncoder
 
 import boto3
@@ -395,3 +396,12 @@ def inform_sns(arns: list, message: str, region):
     sns = boto3.client('sns', region_name=region)
     for sns_topic in sns_topics:
         sns.publish(TopicArn=sns_topic, Subject="SenzaTrafficRedirect", Message=jsonizer.encode((message)))
+
+
+def resolve_to_ip_addresses(dns_name: str) -> set:
+    try:
+        answers = dns.resolver.query(dns_name, 'A')
+    except:
+        return set()
+    else:
+        return {answer.address for answer in answers}

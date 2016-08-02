@@ -399,6 +399,9 @@ def inform_sns(arns: list, message: str, region):
 
 
 def resolve_to_ip_addresses(dns_name: str) -> set:
+    """
+    Try to resolve the given DNS name to IPv4 addresses and return empty set on ANY error.
+    """
     try:
         answers = dns.resolver.query(dns_name, 'A')
     except:

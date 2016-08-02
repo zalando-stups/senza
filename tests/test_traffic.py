@@ -1,6 +1,6 @@
 from unittest.mock import MagicMock
 from senza.aws import SenzaStackSummary
-from senza.traffic import get_stack_versions, StackVersion, get_weights
+from senza.traffic import get_stack_versions, StackVersion, get_weights, resolve_to_ip_addresses
 from senza.manaus.route53 import RecordType
 
 
@@ -71,3 +71,15 @@ def test_get_weights(monkeypatch):
                                                                'app-3': 0},
                                                               0,
                                                               0)
+
+
+def test_resolve_to_ip_addresses(monkeypatch):
+    query = MagicMock()
+    monkeypatch.setattr('dns.resolver.query', query)
+
+    query.side_effect = Exception()
+    assert resolve_to_ip_addresses('example.org') == set()
+
+    query.side_effect = None
+    query.return_value = [MagicMock(address='1.2.3.4')]
+    assert resolve_to_ip_addresses('example.org') == {'1.2.3.4'}

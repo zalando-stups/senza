@@ -1024,7 +1024,7 @@ def domains(stack_ref, region, output, w, watch):
                     if record:
                         row.update({'weight': str(record.get('Weight', '')),
                                     'type': record.get('Type'),
-                                    'value': ','.join([r['Value'] for r in record.get('ResourceRecords')])})
+                                    'value': ','.join([r['Value'] for r in record.get('ResourceRecords', [])])})
                     rows.append(row)
 
         with OutputFormat(output):

@@ -1224,25 +1224,19 @@ def test_update(monkeypatch):
         assert 'OK' in result.output
 
 
-def test_traffic(monkeypatch):
+def test_traffic(monkeypatch, boto_client, boto_resource):
     route53 = MagicMock(name='r53conn')
 
     def my_resource(rtype, *args):
         return MagicMock()
 
-    def my_client(rtype, *args, **kwargs):
-        if rtype == 'route53':
-            return route53
-        return MagicMock()
-
-    monkeypatch.setattr('boto3.client', my_client)
-    monkeypatch.setattr('boto3.resource', my_resource)
+    #monkeypatch.setattr('boto3.resource', my_resource)
 
     stacks = [
-        StackVersion('myapp', 'v1', ['myapp.example.org'], ['some-lb.eu-central-1.elb.amazonaws.com'], ['some-arn']),
-        StackVersion('myapp', 'v2', ['myapp.example.org'], ['another-elb.eu-central-1.elb.amazonaws.com'], ['some-arn']),
-        StackVersion('myapp', 'v3', ['myapp.example.org'], ['elb-3.eu-central-1.elb.amazonaws.com'], ['some-arn']),
-        StackVersion('myapp', 'v4', ['myapp.example.org'], ['elb-4.eu-central-1.elb.amazonaws.com'], ['some-arn']),
+        StackVersion('myapp', 'v1', ['myapp.zo.ne'], ['some-lb.eu-central-1.elb.amazonaws.com'], ['some-arn']),
+        StackVersion('myapp', 'v2', ['myapp.zo.ne'], ['another-elb.eu-central-1.elb.amazonaws.com'], ['some-arn']),
+        StackVersion('myapp', 'v3', ['myapp.zo.ne'], ['elb-3.eu-central-1.elb.amazonaws.com'], ['some-arn']),
+        StackVersion('myapp', 'v4', ['myapp.zo.ne'], ['elb-4.eu-central-1.elb.amazonaws.com'], ['some-arn']),
     ]
     monkeypatch.setattr('senza.traffic.get_stack_versions', MagicMock(return_value=stacks))
 
@@ -1250,7 +1244,7 @@ def test_traffic(monkeypatch):
     # this is a lot of dirty and nasty code. Please, somebody help this code.
 
     def record(dns_identifier, weight):
-        return Route53Record(name='myapp.example.org.',
+        return Route53Record(name='myapp.zo.ne.',
                              type=RecordType.A,
                              weight=weight,
                              set_identifier=dns_identifier)
@@ -1278,7 +1272,7 @@ def test_traffic(monkeypatch):
             elif action == 'DELETE':
                 records[rrset['SetIdentifier']].weight = 0
 
-    route53.change_resource_record_sets = change_rr_set
+    boto_client['route53'].change_resource_record_sets = change_rr_set
 
     runner = CliRunner()
 
@@ -1286,7 +1280,7 @@ def test_traffic(monkeypatch):
 
     def run(opts):
         result = runner.invoke(cli, common_opts + opts, catch_exceptions=False)
-        assert 'Setting weights for myapp.example.org..' in result.output
+        assert 'Setting weights for myapp.zo.ne..' in result.output
         return result
 
     def weights():

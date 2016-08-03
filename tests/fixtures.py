@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock
 
@@ -95,35 +96,37 @@ SERVER_CERT_ZO_NE.server_certificate_metadata = {'Arn': 'arn:aws:123',
 
 @pytest.fixture
 def boto_client(monkeypatch):
-    def my_client(rtype, *args):
+    mocks = defaultdict(lambda: MagicMock())
+    def my_client(rtype, *args, **kwargs):
         if rtype == 'route53':
-            route53 = MagicMock()
+            route53 = mocks['route53']
             route53.list_hosted_zones.return_value = {
                 'HostedZones': [HOSTED_ZONE_ZO_NE],
                 'IsTruncated': False,
                 'MaxItems': '100'}
             return route53
         elif rtype == 'acm':
-            acm = MagicMock()
+            acm = mocks['acm']
             summary_list = {'CertificateSummaryList': [
                 {'CertificateArn': 'arn:aws:acm:eu-west-1:cert1'},
                 {'CertificateArn': 'arn:aws:acm:eu-west-1:cert2'}]}
-            acm.list_certificates.return_value = summary_list
+            mocks['acm'].list_certificates.return_value = summary_list
             acm.describe_certificate.side_effect = [
                 {'Certificate': CERT1_ZO_NE},
                 {'Certificate': ''}]
             return acm
         elif rtype == 'cloudformation':
-            cf = MagicMock()
+            cf = mocks['cloudformation']
             resource = {
                 'StackResourceDetail': {'ResourceStatus': 'CREATE_COMPLETE',
                                         'ResourceType': 'AWS::IAM::Role',
                                         'PhysicalResourceId': 'my-referenced-role'}}
             cf.describe_stack_resource.return_value = resource
             return cf
-        return MagicMock()
+        return mocks[rtype]
 
     monkeypatch.setattr('boto3.client', my_client)
+    return mocks
 
 
 @pytest.fixture

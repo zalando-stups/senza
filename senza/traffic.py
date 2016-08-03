@@ -1,16 +1,16 @@
 import collections
-import dns.resolver
 from json import JSONEncoder
+from typing import Dict, List, Optional, Union
 
 import boto3
 import click
+import dns.resolver
 from clickclick import Action, action, ok, print_table, warning
 
 from .aws import StackReference, get_stacks, get_tag
 from .manaus.elb import ELB
-from .manaus.route53 import (Route53, Route53Record, RecordType,
+from .manaus.route53 import (RecordType, Route53, Route53Record,
                              convert_domain_records_to_alias)
-
 
 PERCENT_RESOLUTION = 2
 FULL_PERCENTAGE = PERCENT_RESOLUTION * 100
@@ -122,7 +122,8 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_we
     dns_changes = collections.defaultdict(lambda: [])
     for idx, dns_name in enumerate(dns_names):
         domain = dns_name.split('.', 1)[1]
-        zone = get_zone(domain)
+        # TODO class method on Route53HostedZone to get one
+        hosted_zone = next(Route53.get_hosted_zones(domain_name=domain))
         did_the_upsert = False
 
         convert_domain_records_to_alias(dns_name)
@@ -133,18 +134,18 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_we
                 if w:
                     if int(r.weight) != w:
                         r.weight = w
-                        dns_changes[zone['Id']].append({'Action': 'UPSERT',
-                                                        'ResourceRecordSet': r.boto_dict})
+                        dns_changes[hosted_zone.id].append({'Action': 'UPSERT',
+                                                            'ResourceRecordSet': r.boto_dict})
                     if identifier == r.set_identifier:
                         did_the_upsert = True
                 else:
-                    if dns_changes.get(zone['Id']) is None:
-                        dns_changes[zone['Id']] = []
-                    dns_changes[zone['Id']].append({'Action': 'DELETE',
-                                                    'ResourceRecordSet': r.boto_dict.copy()})
+                    if dns_changes.get(hosted_zone.id) is None:
+                        dns_changes[hosted_zone.id] = []
+                    dns_changes[hosted_zone.id].append({'Action': 'DELETE',
+                                                        'ResourceRecordSet': r.boto_dict.copy()})
         if new_record_weights[identifier] > 0 and not did_the_upsert:
-            if dns_changes.get(zone['Id']) is None:
-                dns_changes[zone['Id']] = []
+            if dns_changes.get(hosted_zone.id) is None:
+                dns_changes[hosted_zone.id] = []
             elb = ELB.get_by_dns_name(lb_dns_name[idx])
             record = Route53Record(name=dns_name,
                                    type=RecordType.A,
@@ -153,8 +154,8 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_we
                                    alias_target={"HostedZoneId": elb.hosted_zone.id,
                                                  "DNSName": lb_dns_name[idx],
                                                  "EvaluateTargetHealth": False})
-            dns_changes[zone['Id']].append({'Action': 'UPSERT',
-                                            'ResourceRecordSet': record.boto_dict})
+            dns_changes[hosted_zone.id].append({'Action': 'UPSERT',
+                                                'ResourceRecordSet': record.boto_dict})
     if dns_changes:
         route53 = boto3.client('route53')
         for hosted_zone_id, change in dns_changes.items():
@@ -251,7 +252,7 @@ def get_version(versions: list, version: str):
     raise click.UsageError('Stack version {} not found'.format(version))
 
 
-def get_zone(domainname: str, *args, all=False):
+def get_zone(domainname: str, *args, all=False) -> Optional[Union[Dict, List]]:
     if len(DNS_ZONE_CACHE) == 0:
         route53 = boto3.client('route53')
         result = route53.list_hosted_zones()

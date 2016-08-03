@@ -145,12 +145,12 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_we
         if new_record_weights[identifier] > 0 and not did_the_upsert:
             if dns_changes.get(zone['Id']) is None:
                 dns_changes[zone['Id']] = []
-            elb_hosted_zone = ELB.get_hosted_zone_for(dns_name=lb_dns_name[idx])
+            elb = ELB.get_by_dns_name(lb_dns_name[idx])
             record = Route53Record(name=dns_name,
                                    type=RecordType.A,
                                    set_identifier=identifier,
                                    weight=new_record_weights[identifier],
-                                   alias_target={"HostedZoneId": elb_hosted_zone.id,
+                                   alias_target={"HostedZoneId": elb.hosted_zone.id,
                                                  "DNSName": lb_dns_name[idx],
                                                  "EvaluateTargetHealth": False})
             dns_changes[zone['Id']].append({'Action': 'UPSERT',

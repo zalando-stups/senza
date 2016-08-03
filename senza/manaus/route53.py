@@ -2,12 +2,12 @@ import sys
 from collections import defaultdict
 from copy import deepcopy
 from enum import Enum
-from typing import Any, Dict, Iterable, Iterator, List, Optional, Union, Tuple
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
 import boto3
 from click import confirm
 
-from .exceptions import InvalidState, ELBNotFound
+from .exceptions import ELBNotFound, HostedZoneNotFound, InvalidState
 
 
 class ChangeAction(str, Enum):
@@ -60,6 +60,24 @@ class Route53HostedZone:
     def __repr__(self):
         identifier = self.name or self.id
         return '<Route53HostedZone: {name}>'.format(name=identifier)
+
+    @classmethod
+    def get_by_domain_name(cls, domain_name: str) -> 'Route53HostedZone':
+        hosted_zone_iter = Route53.get_hosted_zones(domain_name=domain_name)
+        try:
+            hosted_zone = next(hosted_zone_iter)
+        except StopIteration:
+            raise HostedZoneNotFound(domain_name)
+        return hosted_zone
+
+    @classmethod
+    def get_by_id(cls, id: str) -> 'Route53HostedZone':
+        hosted_zone_iter = Route53.get_hosted_zones(id=id)
+        try:
+            hosted_zone = next(hosted_zone_iter)
+        except StopIteration:
+            raise HostedZoneNotFound(id)
+        return hosted_zone
 
     @classmethod
     def from_boto_dict(cls, hosted_zone_dict: Dict[str, Any]) -> 'Route53HostedZone':

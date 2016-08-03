@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
-from senza.manaus.exceptions import InvalidState
+from senza.manaus.exceptions import HostedZoneNotFound, InvalidState
 from senza.manaus.route53 import (RecordType, Route53, Route53HostedZone,
                                   Route53Record,
                                   convert_domain_records_to_alias)
@@ -402,3 +402,63 @@ def test_convert_domain_records_to_alias(monkeypatch):
     mock_confirm.return_value = False
     with pytest.raises(InvalidState):
         convert_domain_records_to_alias("app1.example.com")
+
+
+def test_hosted_zone_get_by_domain_name(monkeypatch):
+    m_client = MagicMock()
+    m_client.return_value = m_client
+    hosted_zone1 = {'Config': {'PrivateZone': False},
+                    'CallerReference': '0000',
+                    'ResourceRecordSetCount': 42,
+                    'Id': '/hostedzone/random1',
+                    'Name': 'example.com.'}
+    hosted_zone2 = {'Config': {'PrivateZone': False},
+                    'CallerReference': '0000',
+                    'ResourceRecordSetCount': 7,
+                    'Id': '/hostedzone/random2',
+                    'Name': 'example.net.'}
+    m_client.list_hosted_zones.return_value = {'MaxItems': '100',
+                                               'ResponseMetadata': {
+                                                   'HTTPStatusCode': 200,
+                                                   'RequestId': 'FakeId'},
+                                               'HostedZones': [hosted_zone1,
+                                                               hosted_zone2],
+                                               'IsTruncated': False}
+    monkeypatch.setattr('boto3.client', m_client)
+
+    hosted_zone = Route53HostedZone.get_by_domain_name('example.net')
+    assert hosted_zone.id == '/hostedzone/random2'
+    assert hosted_zone.name == 'example.net.'
+
+    with pytest.raises(HostedZoneNotFound):
+        Route53HostedZone.get_by_domain_name('example.org')
+
+
+def test_hosted_zone_get_by_id(monkeypatch):
+    m_client = MagicMock()
+    m_client.return_value = m_client
+    hosted_zone1 = {'Config': {'PrivateZone': False},
+                    'CallerReference': '0000',
+                    'ResourceRecordSetCount': 42,
+                    'Id': '/hostedzone/random1',
+                    'Name': 'example.com.'}
+    hosted_zone2 = {'Config': {'PrivateZone': False},
+                    'CallerReference': '0000',
+                    'ResourceRecordSetCount': 7,
+                    'Id': '/hostedzone/random2',
+                    'Name': 'example.net.'}
+    m_client.list_hosted_zones.return_value = {'MaxItems': '100',
+                                               'ResponseMetadata': {
+                                                   'HTTPStatusCode': 200,
+                                                   'RequestId': 'FakeId'},
+                                               'HostedZones': [hosted_zone1,
+                                                               hosted_zone2],
+                                               'IsTruncated': False}
+    monkeypatch.setattr('boto3.client', m_client)
+
+    hosted_zone = Route53HostedZone.get_by_id('/hostedzone/random2')
+    assert hosted_zone.id == '/hostedzone/random2'
+    assert hosted_zone.name == 'example.net.'
+
+    with pytest.raises(HostedZoneNotFound):
+        Route53HostedZone.get_by_id('/hostedzone/404')

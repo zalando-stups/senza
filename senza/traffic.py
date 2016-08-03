@@ -149,7 +149,7 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_we
                                    weight=new_record_weights[identifier],
                                    alias_target={"HostedZoneId": elb.hosted_zone.id,
                                                  "DNSName": lb_dns_name[idx],
-                                                 "EvaluateTargetHealth": False})
+                                                 "EvaluateTargetHealth": True})
             dns_changes[hosted_zone.id].append({'Action': 'UPSERT',
                                                 'ResourceRecordSet': record.boto_dict})
     if dns_changes:

@@ -1,6 +1,5 @@
 import collections
 from json import JSONEncoder
-from typing import Dict, List, Optional, Union
 
 import boto3
 import click
@@ -252,42 +251,15 @@ def get_version(versions: list, version: str):
     raise click.UsageError('Stack version {} not found'.format(version))
 
 
-def get_zone(domainname: str, *args, all=False) -> Optional[Union[Dict, List]]:
-    if len(DNS_ZONE_CACHE) == 0:
-        route53 = boto3.client('route53')
-        result = route53.list_hosted_zones()
-        zones = result['HostedZones']
-        while result.get('IsTruncated', False):
-            recordfilter = {'Marker': result['NextMarker']}
-            result = route53.list_hosted_zones(**recordfilter)
-            zones.extend(result['HostedZones'])
-        if len(zones) == 0:
-            raise ValueError('No Zones are configured!')
-        for zone in zones:
-            DNS_ZONE_CACHE[zone['Name']] = zone
-    if domainname is None and all:
-        return list(DNS_ZONE_CACHE.values())
-    elif domainname is not None:
-        domainname = '{}.'.format(domainname.rstrip('.'))
-        domainlevel = domainname.split('.')
-        for i in range(len(domainlevel)):
-            if DNS_ZONE_CACHE.get('.'.join(domainlevel[i:])):
-                if all:
-                    return [DNS_ZONE_CACHE.get('.'.join(domainlevel[i:]))]
-                return DNS_ZONE_CACHE.get('.'.join(domainlevel[i:]))
-        raise ValueError('Zone {} not found'.format(domainname))
-    return None
-
-
 def get_records(domain: str):
     domain = '{}.'.format(domain.rstrip('.'))
     if DNS_RR_CACHE.get(domain) is None:
-        zone = get_zone(domain)
+        hosted_zone = next(Route53.get_hosted_zones(domain_name=domain))
         route53 = boto3.client('route53')
-        result = route53.list_resource_record_sets(HostedZoneId=zone['Id'])
+        result = route53.list_resource_record_sets(HostedZoneId=hosted_zone.id)
         records = result['ResourceRecordSets']
         while result['IsTruncated']:
-            recordfilter = {'HostedZoneId': zone['Id'],
+            recordfilter = {'HostedZoneId': hosted_zone.id,
                             'StartRecordName': result['NextRecordName'],
                             'StartRecordType': result['NextRecordType']
                             }

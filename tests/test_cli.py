@@ -1261,7 +1261,6 @@ def test_traffic(monkeypatch, boto_client, boto_resource):
 
     rr.__iter__ = lambda x: iter(records.values())
     monkeypatch.setattr('senza.traffic.Route53.get_records', MagicMock(return_value=rr))
-    monkeypatch.setattr('senza.traffic.get_zone', MagicMock(return_value={'Id': 'dummyid'}))
 
     def change_rr_set(HostedZoneId, ChangeBatch):
         for change in ChangeBatch['Changes']:

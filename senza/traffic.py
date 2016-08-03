@@ -8,8 +8,8 @@ from clickclick import Action, action, ok, print_table, warning
 
 from .aws import StackReference, get_stacks, get_tag
 from .manaus.elb import ELB
-from .manaus.route53 import (RecordType, Route53, Route53Record,
-                             convert_domain_records_to_alias)
+from .manaus.route53 import (RecordType, Route53, Route53HostedZone,
+                             Route53Record, convert_domain_records_to_alias)
 
 PERCENT_RESOLUTION = 2
 FULL_PERCENTAGE = PERCENT_RESOLUTION * 100
@@ -121,8 +121,7 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_we
     dns_changes = collections.defaultdict(lambda: [])
     for idx, dns_name in enumerate(dns_names):
         domain = dns_name.split('.', 1)[1]
-        # TODO class method on Route53HostedZone to get one
-        hosted_zone = next(Route53.get_hosted_zones(domain_name=domain))
+        hosted_zone = Route53HostedZone.get_by_domain_name(domain)
         did_the_upsert = False
 
         convert_domain_records_to_alias(dns_name)
@@ -254,7 +253,7 @@ def get_version(versions: list, version: str):
 def get_records(domain: str):
     domain = '{}.'.format(domain.rstrip('.'))
     if DNS_RR_CACHE.get(domain) is None:
-        hosted_zone = next(Route53.get_hosted_zones(domain_name=domain))
+        hosted_zone = Route53HostedZone.get_by_domain_name(domain)
         route53 = boto3.client('route53')
         result = route53.list_resource_record_sets(HostedZoneId=hosted_zone.id)
         records = result['ResourceRecordSets']

@@ -13,8 +13,17 @@ class InvalidState(ManausException):
 
 class ELBNotFound(ManausException):
     """
-    Error raised when piu executable is not found
+    Error raised when the ELB is not found
     """
 
     def __init__(self, domain_name: str):
         super().__init__('ELB not found: {}'.format(domain_name))
+
+
+class HostedZoneNotFound(ManausException):
+    """
+    Error raised when the Route53 hosted zone is not found
+    """
+
+    def __init__(self, name: str):
+        super().__init__('Hosted Zone not found: {}'.format(name))

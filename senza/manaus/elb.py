@@ -69,7 +69,7 @@ class ELBListener:
         load_balancer_port = listener['LoadBalancerPort']
         instance_protocol = listener['InstanceProtocol']
         instance_port = listener['InstancePort']
-        ssl_certificate_id = listener['SSLCertificateId']
+        ssl_certificate_id = listener.get('SSLCertificateId')
 
         return cls(protocol, load_balancer_port, instance_protocol,
                    instance_port, ssl_certificate_id)
@@ -136,7 +136,7 @@ class ELB:
 
         name = load_balancer['LoadBalancerName']
         dns_name = load_balancer['DNSName']
-        hosted_zone_name = load_balancer['CanonicalHostedZoneName']
+        hosted_zone_name = load_balancer.get('CanonicalHostedZoneName')
         hosted_zone_id = load_balancer['CanonicalHostedZoneNameID']
         listener_descriptions = load_balancer['ListenerDescriptions']
         policies = load_balancer['Policies']

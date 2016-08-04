@@ -795,63 +795,11 @@ def test_resources(monkeypatch):
     assert 'Resource Type' in result.output
 
 
-def test_domains(monkeypatch):
+def test_domains(monkeypatch, boto_resource, boto_client):
     senza.traffic.DNS_ZONE_CACHE = {}
     senza.traffic.DNS_RR_CACHE = {}
 
-    def my_resource(rtype, *args):
-        if rtype == 'cloudformation':
-            res = MagicMock()
-            res.resource_type = 'AWS::Route53::RecordSet'
-            res.physical_resource_id = 'test-1.example.org'
-            res.logical_id = 'VersionDomain'
-            res.last_updated_timestamp = datetime.datetime.now()
-            res2 = MagicMock()
-            res2.resource_type = 'AWS::Route53::RecordSet'
-            res2.physical_resource_id = 'mydomain.example.org'
-            res2.logical_id = 'MainDomain'
-            res2.last_updated_timestamp = datetime.datetime.now()
-            stack = MagicMock()
-            stack.resource_summaries.all.return_value = [res, res2]
-            cf = MagicMock()
-            cf.Stack.return_value = stack
-            return cf
-        return MagicMock()
-
-    def my_client(rtype, *args):
-        if rtype == 'cloudformation':
-            cf = MagicMock()
-            cf.list_stacks.return_value = {'StackSummaries': [{'StackName': 'test-1',
-                                                               'CreationTime': '2016-06-14'}]}
-            return cf
-        elif rtype == 'route53':
-            route53 = MagicMock()
-            route53.list_hosted_zones.return_value = {'HostedZones': [HOSTED_ZONE_EXAMPLE_ORG]}
-            route53.list_resource_record_sets.return_value = {
-                'IsTruncated': False,
-                'MaxItems': '100',
-                'ResourceRecordSets': [
-                    {'Name': 'example.org.',
-                     'ResourceRecords': [{'Value': 'ns.awsdns.com.'},
-                                         {'Value': 'ns.awsdns.org.'}],
-                     'TTL': 172800,
-                     'Type': 'NS'},
-                    {'Name': 'test-1.example.org.',
-                     'ResourceRecords': [{'Value': 'test-1-123.myregion.elb.amazonaws.com'}],
-                     'TTL': 20,
-                     'Type': 'CNAME'},
-                    {'Name': 'mydomain.example.org.',
-                     'ResourceRecords': [{'Value': 'test-1.example.org'}],
-                     'SetIdentifier': 'test-1',
-                     'TTL': 20,
-                     'Type': 'CNAME',
-                     'Weight': 20},
-                ]}
-            return route53
-        return MagicMock()
-
-    monkeypatch.setattr('boto3.resource', my_resource)
-    monkeypatch.setattr('boto3.client', my_client)
+    boto_client['route53'].list_hosted_zones.return_value = {'HostedZones': [HOSTED_ZONE_EXAMPLE_ORG]}
 
     runner = CliRunner()
 
@@ -865,6 +813,7 @@ def test_domains(monkeypatch):
                                catch_exceptions=False)
     assert 'mydomain.example.org' in result.output
     assert 'VersionDomain test-1.example.org          CNAME test-1-123.myregion.elb.amazonaws.com' in result.output
+    assert 'VersionDomain test-2.example.org          A     test-2-123.myregion.elb.amazonaws.com' in result.output
     assert 'MainDomain    mydomain.example.org 20     CNAME test-1.example.org' in result.output
 
 

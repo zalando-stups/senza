@@ -36,7 +36,7 @@ from .components import evaluate_template, get_component
 from .components.stups_auto_configuration import find_taupage_image
 from .error_handling import HandleExceptions
 from .exceptions import VPCError
-from .manaus.route53 import Route53
+from .manaus.route53 import Route53, Route53Record
 from .patch import patch_auto_scaling_group
 from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
 from .stups.piu import Piu
@@ -1009,10 +1009,13 @@ def domains(stack_ref, region, output, w, watch):
                 if res.resource_type == 'AWS::Route53::RecordSet':
                     name = res.physical_resource_id
                     if name not in records_by_name:
-                        zone_name = name.split('.', 1)[1]
+                        hosted_zone = next(Route53.get_hosted_zones(name))
+                        zone_name = hosted_zone.domain_name
                         for rec in get_records(zone_name):
-                            records_by_name[(rec['Name'].rstrip('.'), rec.get('SetIdentifier'))] = rec
-                    record = records_by_name.get((name, stack.StackName)) or records_by_name.get((name, None))
+                            record = Route53Record.from_boto_dict(rec)
+                            records_by_name[(rec['Name'].rstrip('.'), rec.get('SetIdentifier'))] = record
+                    record = (records_by_name.get((name, stack.StackName)) or
+                              records_by_name.get((name, None)))  # type: Route53Record
                     row = {'stack_name': stack.name,
                            'version': stack.version,
                            'resource_id': res.logical_id,
@@ -1022,9 +1025,9 @@ def domains(stack_ref, region, output, w, watch):
                            'value': None,
                            'create_time': calendar.timegm(res.last_updated_timestamp.timetuple())}
                     if record:
-                        row.update({'weight': str(record.get('Weight', '')),
-                                    'type': record.get('Type'),
-                                    'value': ','.join([r['Value'] for r in record.get('ResourceRecords', [])])})
+                        row.update({'weight': str(record.weight) if record.weight is not None else '',
+                                    'type': record.type.value,
+                                    'value': ','.join([r['Value'] for r in record.resource_records or []])})
                     rows.append(row)
 
         with OutputFormat(output):

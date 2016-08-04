@@ -122,6 +122,10 @@ def boto_client(monkeypatch):
              'TTL': 20,
              'Type': 'CNAME',
              'Weight': 20},
+            {'Name': 'test-2.example.org.',
+             'AliasTarget': {'DNSName': 'test-2-123.myregion.elb.amazonaws.com'},
+             'TTL': 20,
+             'Type': 'A'},
         ]}
 
     def my_client(rtype, *args, **kwargs):
@@ -157,6 +161,27 @@ def boto_client(monkeypatch):
 @pytest.fixture
 def boto_resource(monkeypatch):
     def my_resource(rtype, *args):
+        if rtype == 'cloudformation':
+            res = MagicMock()
+            res.resource_type = 'AWS::Route53::RecordSet'
+            res.physical_resource_id = 'test-1.example.org'
+            res.logical_id = 'VersionDomain'
+            res.last_updated_timestamp = datetime.now()
+            res2 = MagicMock()
+            res2.resource_type = 'AWS::Route53::RecordSet'
+            res2.physical_resource_id = 'mydomain.example.org'
+            res2.logical_id = 'MainDomain'
+            res2.last_updated_timestamp = datetime.now()
+            res3 = MagicMock()
+            res3.resource_type = 'AWS::Route53::RecordSet'
+            res3.physical_resource_id = 'test-2.example.org'
+            res3.logical_id = 'VersionDomain'
+            res3.last_updated_timestamp = datetime.now()
+            stack = MagicMock()
+            stack.resource_summaries.all.return_value = [res, res2, res3]
+            cf = MagicMock()
+            cf.Stack.return_value = stack
+            return cf
         if rtype == 'ec2':
             ec2 = MagicMock()
             ec2.security_groups.filter.return_value = [

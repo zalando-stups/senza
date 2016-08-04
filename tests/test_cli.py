@@ -795,32 +795,11 @@ def test_resources(monkeypatch):
     assert 'Resource Type' in result.output
 
 
-def test_domains(monkeypatch, boto_client):
+def test_domains(monkeypatch, boto_resource, boto_client):
     senza.traffic.DNS_ZONE_CACHE = {}
     senza.traffic.DNS_RR_CACHE = {}
 
-    def my_resource(rtype, *args):
-        if rtype == 'cloudformation':
-            res = MagicMock()
-            res.resource_type = 'AWS::Route53::RecordSet'
-            res.physical_resource_id = 'test-1.example.org'
-            res.logical_id = 'VersionDomain'
-            res.last_updated_timestamp = datetime.datetime.now()
-            res2 = MagicMock()
-            res2.resource_type = 'AWS::Route53::RecordSet'
-            res2.physical_resource_id = 'mydomain.example.org'
-            res2.logical_id = 'MainDomain'
-            res2.last_updated_timestamp = datetime.datetime.now()
-            stack = MagicMock()
-            stack.resource_summaries.all.return_value = [res, res2]
-            cf = MagicMock()
-            cf.Stack.return_value = stack
-            return cf
-        return MagicMock()
-
     boto_client['route53'].list_hosted_zones.return_value = {'HostedZones': [HOSTED_ZONE_EXAMPLE_ORG]}
-
-    monkeypatch.setattr('boto3.resource', my_resource)
 
     runner = CliRunner()
 
@@ -834,6 +813,7 @@ def test_domains(monkeypatch, boto_client):
                                catch_exceptions=False)
     assert 'mydomain.example.org' in result.output
     assert 'VersionDomain test-1.example.org          CNAME test-1-123.myregion.elb.amazonaws.com' in result.output
+    assert 'VersionDomain test-2.example.org          A     test-2-123.myregion.elb.amazonaws.com' in result.output
     assert 'MainDomain    mydomain.example.org 20     CNAME test-1.example.org' in result.output
 
 

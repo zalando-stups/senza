@@ -1025,9 +1025,18 @@ def domains(stack_ref, region, output, w, watch):
                            'value': None,
                            'create_time': calendar.timegm(res.last_updated_timestamp.timetuple())}
                     if record:
-                        row.update({'weight': str(record.weight) if record.weight is not None else '',
+                        if record.resource_records:
+                            value = ','.join([r['Value']
+                                              for r in record.resource_records])
+                        elif record.alias_target:
+                            value = record.alias_target['DNSName']
+                        else:
+                            value = ''
+                        row.update({'weight': (str(record.weight)
+                                               if record.weight is not None
+                                               else ''),
                                     'type': record.type.value,
-                                    'value': ','.join([r['Value'] for r in record.resource_records or []])})
+                                    'value': value})
                     rows.append(row)
 
         with OutputFormat(output):

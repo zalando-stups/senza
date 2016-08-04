@@ -795,7 +795,7 @@ def test_resources(monkeypatch):
     assert 'Resource Type' in result.output
 
 
-def test_domains(monkeypatch):
+def test_domains(monkeypatch, boto_client):
     senza.traffic.DNS_ZONE_CACHE = {}
     senza.traffic.DNS_RR_CACHE = {}
 
@@ -818,40 +818,9 @@ def test_domains(monkeypatch):
             return cf
         return MagicMock()
 
-    def my_client(rtype, *args):
-        if rtype == 'cloudformation':
-            cf = MagicMock()
-            cf.list_stacks.return_value = {'StackSummaries': [{'StackName': 'test-1',
-                                                               'CreationTime': '2016-06-14'}]}
-            return cf
-        elif rtype == 'route53':
-            route53 = MagicMock()
-            route53.list_hosted_zones.return_value = {'HostedZones': [HOSTED_ZONE_EXAMPLE_ORG]}
-            route53.list_resource_record_sets.return_value = {
-                'IsTruncated': False,
-                'MaxItems': '100',
-                'ResourceRecordSets': [
-                    {'Name': 'example.org.',
-                     'ResourceRecords': [{'Value': 'ns.awsdns.com.'},
-                                         {'Value': 'ns.awsdns.org.'}],
-                     'TTL': 172800,
-                     'Type': 'NS'},
-                    {'Name': 'test-1.example.org.',
-                     'ResourceRecords': [{'Value': 'test-1-123.myregion.elb.amazonaws.com'}],
-                     'TTL': 20,
-                     'Type': 'CNAME'},
-                    {'Name': 'mydomain.example.org.',
-                     'ResourceRecords': [{'Value': 'test-1.example.org'}],
-                     'SetIdentifier': 'test-1',
-                     'TTL': 20,
-                     'Type': 'CNAME',
-                     'Weight': 20},
-                ]}
-            return route53
-        return MagicMock()
+    boto_client['route53'].list_hosted_zones.return_value = {'HostedZones': [HOSTED_ZONE_EXAMPLE_ORG]}
 
     monkeypatch.setattr('boto3.resource', my_resource)
-    monkeypatch.setattr('boto3.client', my_client)
 
     runner = CliRunner()
 

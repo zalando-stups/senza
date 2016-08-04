@@ -97,14 +97,36 @@ SERVER_CERT_ZO_NE.server_certificate_metadata = {'Arn': 'arn:aws:123',
 @pytest.fixture
 def boto_client(monkeypatch):
     mocks = defaultdict(lambda: MagicMock())
+    mocks['route53'] = MagicMock()
+    mocks['route53'].list_hosted_zones.return_value = {
+        'HostedZones': [HOSTED_ZONE_ZO_NE],
+        'IsTruncated': False,
+        'MaxItems': '100'}
+    mocks['route53'].list_resource_record_sets.return_value = {
+        'IsTruncated': False,
+        'MaxItems': '100',
+        'ResourceRecordSets': [
+            {'Name': 'example.org.',
+             'ResourceRecords': [{'Value': 'ns.awsdns.com.'},
+                                 {'Value': 'ns.awsdns.org.'}],
+             'TTL': 172800,
+             'Type': 'NS'},
+            {'Name': 'test-1.example.org.',
+             'ResourceRecords': [
+                 {'Value': 'test-1-123.myregion.elb.amazonaws.com'}],
+             'TTL': 20,
+             'Type': 'CNAME'},
+            {'Name': 'mydomain.example.org.',
+             'ResourceRecords': [{'Value': 'test-1.example.org'}],
+             'SetIdentifier': 'test-1',
+             'TTL': 20,
+             'Type': 'CNAME',
+             'Weight': 20},
+        ]}
+
     def my_client(rtype, *args, **kwargs):
         if rtype == 'route53':
-            route53 = mocks['route53']
-            route53.list_hosted_zones.return_value = {
-                'HostedZones': [HOSTED_ZONE_ZO_NE],
-                'IsTruncated': False,
-                'MaxItems': '100'}
-            return route53
+            return mocks['route53']
         elif rtype == 'acm':
             acm = mocks['acm']
             summary_list = {'CertificateSummaryList': [
@@ -122,6 +144,9 @@ def boto_client(monkeypatch):
                                         'ResourceType': 'AWS::IAM::Role',
                                         'PhysicalResourceId': 'my-referenced-role'}}
             cf.describe_stack_resource.return_value = resource
+            cf.list_stacks.return_value = {
+                'StackSummaries': [{'StackName': 'test-1',
+                                    'CreationTime': '2016-06-14'}]}
             return cf
         return mocks[rtype]
 

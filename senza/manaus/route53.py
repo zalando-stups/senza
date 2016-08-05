@@ -202,6 +202,15 @@ class Route53Record:
     def __repr__(self):
         return '<Route53Record: {name}>'.format_map(vars(self))
 
+    @classmethod
+    def get_by_domain_name(cls, domain_name: str) -> "Route53Record":
+        records_iter = Route53.get_records(name=domain_name)
+        try:
+            record = next(records_iter)
+        except StopIteration:
+            raise HostedZoneNotFound(domain_name)
+        return record
+
     @property
     def boto_dict(self):
         """

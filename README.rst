@@ -23,9 +23,32 @@ Senza
    :alt: License
 
 
-Senza is a command line tool for generating and executing AWS Cloud Formation templates in a sane way. It supports
-Cloud Formation templates as YAML input and adds own 'components' on top. Components are predefined Cloud Formation
-snippets that are easy to configure and generate all the boilerplate JSON that is required by Cloud Formation.
+Senza is a command line tool for generating and executing `AWS
+CloudFormation`_ templates in a sane way. It supports CloudFormation
+templates as YAML input and adds own 'components' on top. Components
+are predefined CloudFormation snippets that are easy to configure and
+generate all the boilerplate JSON that is required by CloudFormation.
+
+Why Senza
+=========
+
+AWS CloudFormation is a great service to manage immutable stacks on
+AWS. Although writing CloudFormation in JSON format is not human
+friendly and many parts of a CloudFormation template are reusable
+among applications of the same kind. CloudFormation itself does not
+provide ways to solve those problems hurting developer productivity
+and consistency among deployed stacks.
+
+Senza enables you to write CloudFormation templates using YAML format,
+a more friendly and easy way to write JSON documents. Senza components
+makes possible to reuse common application stack solutions such as
+load balancing, auto-scaling, IAM role management, and other
+configurations.
+
+Senza also goes a step forward providing base CloudFormation templates
+for Web Application, Background Application, Postgres, `Redis`_ Cluster,
+and Amazon `Elasticache`_ stack types.
+
 
 Installation
 ============
@@ -120,3 +143,6 @@ Releasing
 
     $ ./release.sh <NEW-VERSION>
 
+.. _`AWS CloudFormation`: https://aws.amazon.com/cloudformation/
+.. _`Elasticache`: https://aws.amazon.com/elasticache/
+.. _`Redis`: http://redis.io/

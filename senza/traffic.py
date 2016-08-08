@@ -118,7 +118,7 @@ def compensate(calculation_error, compensations, identifier, new_record_weights,
 
 def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_weights, percentage):
     action('Setting weights for {dns_names}..', dns_names=', '.join(dns_names))
-    dns_changes = collections.defaultdict(lambda: [])
+    dns_changes = collections.defaultdict(list)
     for idx, dns_name in enumerate(dns_names):
         domain = dns_name.split('.', 1)[1]
         hosted_zone = Route53HostedZone.get_by_domain_name(domain)
@@ -142,8 +142,6 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_we
                     dns_changes[hosted_zone.id].append({'Action': 'DELETE',
                                                         'ResourceRecordSet': r.boto_dict.copy()})
         if new_record_weights[identifier] > 0 and not did_the_upsert:
-            if dns_changes.get(hosted_zone.id) is None:
-                dns_changes[hosted_zone.id] = []
             elb = ELB.get_by_dns_name(lb_dns_name[idx])
             record = Route53Record(name=dns_name,
                                    type=RecordType.A,
@@ -151,7 +149,7 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_we
                                    weight=new_record_weights[identifier],
                                    alias_target={"HostedZoneId": elb.hosted_zone.id,
                                                  "DNSName": lb_dns_name[idx],
-                                                 "EvaluateTargetHealth": False})
+                                                 "EvaluateTargetHealth": True})
             dns_changes[hosted_zone.id].append({'Action': 'UPSERT',
                                                 'ResourceRecordSet': record.boto_dict})
     if dns_changes:

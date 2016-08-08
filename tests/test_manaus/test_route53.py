@@ -343,7 +343,7 @@ def test_to_alias(monkeypatch):
     assert alias_record.type == RecordType.A
     assert not alias_record.resource_records
     expected_target = {'DNSName': 'mylb-123.region.example.com',
-                       'EvaluateTargetHealth': False,
+                       'EvaluateTargetHealth': True,
                        'HostedZoneId': 'abc'}
     assert alias_record.alias_target == expected_target
 

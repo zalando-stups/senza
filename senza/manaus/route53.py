@@ -284,7 +284,7 @@ class Route53Record:
 
             alias_target = {"HostedZoneId": hosted_zone_id,
                             "DNSName": dns_name,
-                            "EvaluateTargetHealth": False}
+                            "EvaluateTargetHealth": True}
             return self.__class__(name=self.name,
                                   type=target_type,
                                   alias_target=alias_target,

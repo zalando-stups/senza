@@ -475,8 +475,9 @@ def gather_user_variables(variables, region, account_info):
         variables['kms_arn'] = [k['Arn'] for k in kms_keys if k['KeyId'] == kms_keyid][0]
 
         for key in [k for k in variables if k.startswith('pgpassword_') or k == 'scalyr_account_key']:
-            encrypted = encrypt(region=region, KeyId=kms_keyid, Plaintext=variables[key], b64encode=True)
-            variables[key] = 'aws:kms:{}'.format(encrypted)
+            if variables[key]:
+                encrypted = encrypt(region=region, KeyId=kms_keyid, Plaintext=variables[key], b64encode=True)
+                variables[key] = 'aws:kms:{}'.format(encrypted)
 
     set_default_variables(variables)
 

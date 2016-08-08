@@ -20,11 +20,9 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         }
     }
 
-    if 'BlockDeviceMappings' in configuration:
-        definition['Resources'][config_name]['Properties']['BlockDeviceMappings'] = configuration['BlockDeviceMappings']
-
-    if "IamInstanceProfile" in configuration:
-        definition["Resources"][config_name]["Properties"]["IamInstanceProfile"] = configuration["IamInstanceProfile"]
+    for key in set(["BlockDeviceMappings", "IamInstanceProfile", "SpotPrice"]):
+        if key in configuration:
+            definition['Resources'][config_name]['Properties'][key] = configuration[key]
 
     if 'IamRoles' in configuration:
         logical_id = configuration['Name'] + 'InstanceProfile'

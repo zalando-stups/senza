@@ -504,6 +504,33 @@ def test_component_auto_scaling_group_configurable_properties():
     assert result["Resources"]["FooCPUAlarmHigh"]["Properties"]["EvaluationPeriods"] == "1"
     assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["AlarmDescription"] == expected_desc
 
+def test_component_auto_scaling_group_configurable_properties():
+    definition = {"Resources": {}}
+    configuration = {
+        'Name': 'Foo',
+        'InstanceType': 't2.micro',
+        'Image': 'foo',
+        'SpotPrice': 0.250
+    }
+
+    args = MagicMock()
+    args.region = "foo"
+
+    info = {
+        'StackName': 'FooStack',
+        'StackVersion': 'FooVersion'
+    }
+
+    result = component_auto_scaling_group(definition, configuration, args, info, False, MagicMock())
+
+    assert result["Resources"]["FooConfig"]["Properties"]["SpotPrice"] == 0.250
+
+    del configuration["SpotPrice"]
+
+    result = component_auto_scaling_group(definition, configuration, args, info, False, MagicMock())
+
+    assert "SpotPrice" not in result["Resources"]["FooConfig"]["Properties"]
+
 
 def test_component_auto_scaling_group_metric_type():
     definition = {"Resources": {}}

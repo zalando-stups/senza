@@ -3,7 +3,8 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
 import pytest
-from senza.manaus.exceptions import HostedZoneNotFound, InvalidState
+from senza.manaus.exceptions import (HostedZoneNotFound, InvalidState,
+                                     RecordNotFound)
 from senza.manaus.route53 import (RecordType, Route53, Route53HostedZone,
                                   Route53Record,
                                   convert_domain_records_to_alias)
@@ -462,3 +463,41 @@ def test_hosted_zone_get_by_id(monkeypatch):
 
     with pytest.raises(HostedZoneNotFound):
         Route53HostedZone.get_by_id('/hostedzone/404')
+
+
+
+def test_get_by_domain_name(monkeypatch):
+    m_client = MagicMock()
+    m_client.return_value = m_client
+    hosted_zone1 = {'Config': {'PrivateZone': False},
+                    'CallerReference': '0000',
+                    'ResourceRecordSetCount': 42,
+                    'Id': '/hostedzone/random1',
+                    'Name': 'example.com.'}
+    mock_records = [{'Name': 'domain.example.com.',
+                     'ResourceRecords': [{'Value': '127.0.0.1'}],
+                     'TTL': 600,
+                     'Type': 'A'},
+                    {'Name': 'app.example.net.',
+                     'ResourceRecords': [{'Value': '127.0.0.1'}],
+                     'TTL': 600,
+                     'Type': 'A'}
+                    ]
+    m_client.list_hosted_zones.return_value = {'MaxItems': '100',
+                                               'ResponseMetadata': {
+                                                   'HTTPStatusCode': 200,
+                                                   'RequestId': 'FakeId'},
+                                               'HostedZones': [hosted_zone1],
+                                               'IsTruncated': False}
+    m_client.list_resource_record_sets.return_value = {
+        "ResourceRecordSets": mock_records}
+    monkeypatch.setattr('boto3.client', m_client)
+
+    record = Route53Record.get_by_domain_name('domain.example.com')
+    assert record.name == 'domain.example.com.'
+
+    record = Route53Record.get_by_domain_name('app.example.net')
+    assert record.name == 'app.example.net.'
+
+    with pytest.raises(RecordNotFound):
+        Route53Record.get_by_domain_name('404.example.net')

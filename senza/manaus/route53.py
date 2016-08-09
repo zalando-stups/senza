@@ -7,7 +7,8 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 import boto3
 from click import confirm
 
-from .exceptions import ELBNotFound, HostedZoneNotFound, InvalidState
+from .exceptions import (ELBNotFound, HostedZoneNotFound, InvalidState,
+                         RecordNotFound)
 
 
 class ChangeAction(str, Enum):
@@ -208,7 +209,7 @@ class Route53Record:
         try:
             record = next(records_iter)
         except StopIteration:
-            raise HostedZoneNotFound(domain_name)
+            raise RecordNotFound(domain_name)
         return record
 
     @property

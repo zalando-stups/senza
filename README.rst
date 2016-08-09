@@ -23,12 +23,28 @@ Senza
    :alt: License
 
 
-Senza is a command line tool that enables you to generate and execute `AWS CloudFormation`_ templates in a sane, simple way. With Senza, you can write JSON documents and reuse common application stack solutions such as load balancing, auto-scaling, IAM role management, and other configurations. Senza also provides base CloudFormation templates for web applications, background applications, PostgreSQL, `Redis`_ clusters, and Amazon `ElastiCache`_ stack types.
+Senza is a command line tool that enables you to generate and execute
+`AWS CloudFormation`_ templates in a sane, simple way. With Senza, you
+can write YAML documents and reuse common application stack solutions
+such as load balancing, auto-scaling, IAM role management, and other
+configurations. Senza also provides base CloudFormation templates for
+web applications, background applications, PostgreSQL, `Redis`_
+clusters, and Amazon `ElastiCache`_ stack types.
+
 
 What Senza Solves
-=========
+=================
 
-AWS CloudFormation is great for managing immutable stacks on AWS. Many parts of a CloudFormation template are reusable among applications of the same kind. However, writing CloudFormation templates in JSON format is not human-friendly, which hinders developer productivity and consistency among deployed stacks. Senza addresses this problem by supporting CloudFormation templates as YAML input and adding its own 'components' on top. Components are predefined, easily configurable CloudFormation snippets that generate all the boilerplate JSON that CloudFormation requires.
+AWS CloudFormation is great for managing immutable stacks on
+AWS. However, writing CloudFormation templates in JSON format is not
+human-friendly, which hinders developer productivity. Also many parts
+of a CloudFormation template are reusable among applications of the
+same kind. Senza addresses this problem by supporting CloudFormation
+templates as YAML input and adding its own 'components' on
+top. Components are predefined, easily configurable CloudFormation
+snippets that generate all the boilerplate JSON that CloudFormation
+requires.
+
 
 Installation
 ============
@@ -107,7 +123,7 @@ SenzaComponents and Arguments key (containing all given arguments).
 
 See the `STUPS.io documentation on Senza`_ for details.
 
-.. _STUPS.io documentation on Senza: http://stups.readthedocs.org/en/latest/components/senza.html
+.. _STUPS.io documentation on Senza: http://stups.readthedocs.io/en/latest/components/senza.html
 
 Unit Tests
 ==========

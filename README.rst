@@ -37,9 +37,10 @@ What Senza Solves
 
 AWS CloudFormation is great for managing immutable stacks on
 AWS. However, writing CloudFormation templates in JSON format is not
-human-friendly, which hinders developer productivity. Also many parts
+human-friendly, which hinders developer productivity. Also, many parts
 of a CloudFormation template are reusable among applications of the
-same kind. Senza addresses this problem by supporting CloudFormation
+same kind and CloudFormation does not provide a way to reuse
+templates. Senza addresses those problems by supporting CloudFormation
 templates as YAML input and adding its own 'components' on
 top. Components are predefined, easily configurable CloudFormation
 snippets that generate all the boilerplate JSON that CloudFormation

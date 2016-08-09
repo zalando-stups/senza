@@ -112,8 +112,9 @@ class Route53HostedZone:
                       'ResourceRecordSet': record.boto_dict}
             change_batch['Changes'].append(change)
 
-        client.change_resource_record_sets(HostedZoneId=self.id,
-                                           ChangeBatch=change_batch)
+        if change_batch['Changes']:
+            client.change_resource_record_sets(HostedZoneId=self.id,
+                                               ChangeBatch=change_batch)
 
         return change_batch
 

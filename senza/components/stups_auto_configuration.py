@@ -28,12 +28,13 @@ def find_taupage_image(region: str):
 def component_stups_auto_configuration(definition, configuration, args, info, force, account_info):
     ec2 = boto3.resource('ec2', args.region)
 
+    vpc_id = configuration.get('VpcId', account_info.VpcID)
     availability_zones = configuration.get('AvailabilityZones')
 
     server_subnets = []
     lb_subnets = []
     lb_internal_subnets = []
-    for subnet in ec2.subnets.filter(Filters=[{'Name': 'vpc-id', 'Values': [account_info.VpcID]}]):
+    for subnet in ec2.subnets.filter(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}]):
         name = get_tag(subnet.tags, 'Name', '')
         if availability_zones and subnet.availability_zone not in availability_zones:
             # skip subnet as it's not in one of the given AZs

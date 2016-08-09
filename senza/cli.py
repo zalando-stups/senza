@@ -35,14 +35,16 @@ from .aws import (StackReference, get_account_alias, get_account_id,
 from .components import evaluate_template, get_component
 from .components.stups_auto_configuration import find_taupage_image
 from .error_handling import HandleExceptions
-from .exceptions import VPCError
+from .manaus.ec2 import EC2
+from .manaus.exceptions import VPCError
 from .manaus.route53 import Route53, Route53Record
 from .patch import patch_auto_scaling_group
 from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
 from .stups.piu import Piu
 from .templates import get_template_description, get_templates
 from .templates._helper import get_mint_bucket_name
-from .traffic import change_version_traffic, get_records, print_version_traffic, resolve_to_ip_addresses
+from .traffic import (change_version_traffic, get_records,
+                      print_version_traffic, resolve_to_ip_addresses)
 from .utils import (camel_case_to_underscore, ensure_keys, named_value,
                     pystache_render)
 
@@ -316,22 +318,21 @@ class AccountArguments:
     @property
     def VpcID(self):
         if self.__VpcID is None:
-            ec2 = boto3.resource('ec2', self.Region)
-            vpc_list = list()
-            for vpc in ec2.vpcs.all():  # don't use the list from blow. .all() use a internal pageing!
-                if vpc.is_default:
-                    self.__VpcID = vpc.vpc_id
-                    break
-                vpc_list.append(vpc)
-            else:
-                if len(vpc_list) == 1:
-                    # Use the only one VPC if no default VPC found
-                    self.__VpcID = vpc_list[0].vpc_id
-                elif len(vpc_list) > 1:
-                    raise VPCError('Multiple VPCs are only supported if one '
-                                   'VPC is the default VPC (IsDefault=true)!')
-                else:
-                    raise VPCError('Can\'t find any VPC!')
+            ec2 = EC2(self.Region)
+            try:
+                vpc = ec2.get_default_vpc()
+            except VPCError as error:
+                if sys.stdin.isatty() and error.number_of_vpcs:
+                    # if running in interactive terminal and there are VPCs
+                    # to choose from
+                    vpcs = ec2.get_all_vpcs()
+                    options = [(vpc.vpc_id, str(vpc)) for vpc in vpcs]
+                    print("Can't find a default VPC")
+                    vpc = choice("Select VPC to use",
+                                 options=options)
+                else:  # if not running in interactive terminal (e.g Jenkins)
+                    raise
+            self.__VpcID = vpc.vpc_id
         return self.__VpcID
 
     @property

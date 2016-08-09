@@ -220,6 +220,42 @@ def test_component_stups_auto_configuration(monkeypatch):
     assert {'myregion': {'Subnets': ['sn-3']}} == result['Mappings']['ServerSubnets']
 
 
+def test_component_stups_auto_configuration_vpc_id(monkeypatch):
+    args = MagicMock()
+    args.region = 'myregion'
+
+    configuration = {
+        'Name': 'Config',
+        'VpcId': 'vpc-123'
+    }
+
+    sn1 = MagicMock()
+    sn1.id = 'sn-1'
+    sn1.tags = [{'Key': 'Name', 'Value': 'dmz-1'}]
+    sn1.availability_zone = 'az-1'
+    sn2 = MagicMock()
+    sn2.id = 'sn-2'
+    sn2.tags = [{'Key': 'Name', 'Value': 'dmz-2'}]
+    sn2.availability_zone = 'az-2'
+    sn3 = MagicMock()
+    sn3.id = 'sn-3'
+    sn3.tags = [{'Key': 'Name', 'Value': 'internal-3'}]
+    sn3.availability_zone = 'az-1'
+    ec2 = MagicMock()
+    def get_subnets(Filters):
+        assert Filters == [{'Name': 'vpc-id', 'Values': ['vpc-123']}]
+        return [sn1, sn2, sn3]
+    ec2.subnets.filter = get_subnets
+    image = MagicMock()
+    ec2.images.filter.return_value = [image]
+    monkeypatch.setattr('boto3.resource', lambda x, y: ec2)
+
+    result = component_stups_auto_configuration({}, configuration, args, MagicMock(), False, MagicMock())
+
+    assert {'myregion': {'Subnets': ['sn-1', 'sn-2']}} == result['Mappings']['LoadBalancerSubnets']
+    assert {'myregion': {'Subnets': ['sn-3']}} == result['Mappings']['ServerSubnets']
+
+
 def test_component_redis_node(monkeypatch):
     mock_string = "foo"
 

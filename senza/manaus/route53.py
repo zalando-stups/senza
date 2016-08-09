@@ -7,7 +7,8 @@ from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 import boto3
 from click import confirm
 
-from .exceptions import ELBNotFound, HostedZoneNotFound, InvalidState
+from .exceptions import (ELBNotFound, HostedZoneNotFound, InvalidState,
+                         RecordNotFound)
 
 
 class ChangeAction(str, Enum):
@@ -201,6 +202,15 @@ class Route53Record:
 
     def __repr__(self):
         return '<Route53Record: {name}>'.format_map(vars(self))
+
+    @classmethod
+    def get_by_domain_name(cls, domain_name: str) -> "Route53Record":
+        records_iter = Route53.get_records(name=domain_name)
+        try:
+            record = next(records_iter)
+        except StopIteration:
+            raise RecordNotFound(domain_name)
+        return record
 
     @property
     def boto_dict(self):

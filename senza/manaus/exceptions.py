@@ -27,3 +27,12 @@ class HostedZoneNotFound(ManausException):
 
     def __init__(self, name: str):
         super().__init__('Hosted Zone not found: {}'.format(name))
+
+
+class RecordNotFound(ManausException):
+    """
+    Error raised when the Route53 record is not found
+    """
+
+    def __init__(self, name: str):
+        super().__init__('Route 53 Record not found: {}'.format(name))

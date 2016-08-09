@@ -209,6 +209,12 @@ def test_hosted_zone_upsert(monkeypatch):
         ChangeBatch={'Changes': expected_changes,
                      'Comment': 'test'})
 
+    m_client.change_resource_record_sets.reset_mock()
+    change_batch2 = hosted_zone.upsert([], comment="test")
+    assert change_batch2['Comment'] == "test"
+    assert change_batch2['Changes'] == []
+    m_client.change_resource_record_sets.assert_not_called()
+
 
 def test_hosted_zone_create(monkeypatch):
     m_client = MagicMock()

@@ -23,9 +23,29 @@ Senza
    :alt: License
 
 
-Senza is a command line tool for generating and executing AWS Cloud Formation templates in a sane way. It supports
-Cloud Formation templates as YAML input and adds own 'components' on top. Components are predefined Cloud Formation
-snippets that are easy to configure and generate all the boilerplate JSON that is required by Cloud Formation.
+Senza is a command line tool that enables you to generate and execute
+`AWS CloudFormation`_ templates in a sane, simple way. With Senza, you
+can write YAML documents and reuse common application stack solutions
+such as load balancing, auto-scaling, IAM role management, and other
+configurations. Senza also provides base CloudFormation templates for
+web applications, background applications, PostgreSQL, `Redis`_
+clusters, and Amazon `ElastiCache`_ stack types.
+
+
+What Senza Solves
+=================
+
+AWS CloudFormation is great for managing immutable stacks on
+AWS. However, writing CloudFormation templates in JSON format is not
+human-friendly, which hinders developer productivity. Also, many parts
+of a CloudFormation template are reusable among applications of the
+same kind and CloudFormation does not provide a way to reuse
+templates. Senza addresses those problems by supporting CloudFormation
+templates as YAML input and adding its own 'components' on
+top. Components are predefined, easily configurable CloudFormation
+snippets that generate all the boilerplate JSON that CloudFormation
+requires.
+
 
 Installation
 ============
@@ -42,7 +62,7 @@ Usage
     $ senza init my-definition.yaml # bootstrap a new app
     $ senza create ./my-definition.yaml 1 1.0
 
-Please read the `STUPS documentation on Senza`_ to learn more.
+Please read the `STUPS.io documentation on Senza`_ to learn more.
 
 
 Senza Definition
@@ -102,9 +122,9 @@ Senza Definition
 During evaluation, you can mustache templating with access to the rendered definition, including the SenzaInfo,
 SenzaComponents and Arguments key (containing all given arguments).
 
-See the `STUPS documentation on Senza`_ for details.
+See the `STUPS.io documentation on Senza`_ for details.
 
-.. _STUPS documentation on Senza: http://stups.readthedocs.org/en/latest/components/senza.html
+.. _STUPS.io documentation on Senza: http://stups.readthedocs.io/en/latest/components/senza.html
 
 Unit Tests
 ==========
@@ -120,3 +140,6 @@ Releasing
 
     $ ./release.sh <NEW-VERSION>
 
+.. _`AWS CloudFormation`: https://aws.amazon.com/cloudformation/
+.. _`ElastiCache`: https://aws.amazon.com/elasticache/
+.. _`Redis`: http://redis.io/

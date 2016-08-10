@@ -100,7 +100,12 @@ TITLES = {
     'main_dns': 'Main DNS',
     'id': 'ID',
     'ImageId': 'Image ID',
-    'OwnerId': 'Owner'
+    'OwnerId': 'Owner',
+    'healthy_hosts': 'Healthy #',
+    'requests_per_sec': 'Req./s',
+    '4xx_percentage': '4xx %',
+    '5xx_percentage': '5xx %',
+    'latency_ms': 'Latency (ms)',
 }
 
 MAX_COLUMN_WIDTHS = {
@@ -507,6 +512,78 @@ def list_stacks(region, stack_ref, all, output, w, watch):
 
         with OutputFormat(output):
             print_table('stack_name version status creation_time description'.split(), rows,
+                        styles=STYLES, titles=TITLES)
+
+
+@cli.command()
+@region_option
+@output_option
+@watch_option
+@watchrefresh_option
+@click.option('--all', is_flag=True, help='Show all stacks, including deleted ones')
+@click.argument('stack_ref', nargs=-1)
+@stacktrace_visible_option
+def health(region, stack_ref, all, output, w, watch):
+    '''Show stack health (ELB req/s, ..)'''
+
+    region = get_region(region)
+    check_credentials(region)
+
+    cloudwatch = boto3.client('cloudwatch', region)
+
+    stack_refs = get_stack_refs(stack_ref)
+
+    elb_metrics = {
+        'HealthyHostCount': 'Average', 'Latency': 'Average', 'RequestCount': 'Sum',
+        'HTTPCode_Backend_5XX': 'Sum', 'HTTPCode_Backend_4XX': 'Sum'}
+
+    for _ in watching(w, watch):
+        rows = []
+        start = datetime.datetime.utcnow() - datetime.timedelta(minutes=5)
+        now = datetime.datetime.utcnow()
+        for stack in get_stacks(stack_refs, region, all=all):
+            lb_name = stack.StackName
+            data = {}
+            for k, v in elb_metrics.items():
+                res = cloudwatch.get_metric_statistics(
+                    Namespace='AWS/ELB',
+                    MetricName=k,
+                    Dimensions=[{'Name': 'LoadBalancerName', 'Value': lb_name}],
+                    StartTime=start,
+                    EndTime=now,
+                    Period=60,
+                    Statistics=[v])
+                most_recent = sorted(res['Datapoints'], key=lambda x: x['Timestamp'])[-1:]
+                if most_recent:
+                    data[(k, v)] = most_recent[0][v]
+                else:
+                    data[(k, v)] = None
+            row = {
+                'stack_name': stack.name,
+                'version': stack.version,
+                'status': stack.StackStatus,
+                'creation_time': calendar.timegm(stack.CreationTime.timetuple()),
+            }
+            if data[('HealthyHostCount', 'Average')] is not None:
+                row['healthy_hosts'] = int(data[('HealthyHostCount', 'Average')])
+            if data[('RequestCount', 'Sum')] is not None:
+                requests_per_min = data[('RequestCount', 'Sum')]
+                row['requests_per_sec'] = round(requests_per_min / 60, 2)
+            else:
+                requests_per_min = 0
+            if data[('HTTPCode_Backend_4XX', 'Sum')] is not None:
+                row['4xx_percentage'] = round((data[('HTTPCode_Backend_4XX', 'Sum')]) / (requests_per_min + 0.0001), 2)
+            if data[('HTTPCode_Backend_5XX', 'Sum')] is not None:
+                row['5xx_percentage'] = round((data[('HTTPCode_Backend_5XX', 'Sum')]) / (requests_per_min + 0.0001), 2)
+            if data[('Latency', 'Average')] is not None:
+                row['latency_ms'] = int(round((data[('Latency', 'Average')]) * 1000, 0))
+            rows.append(row)
+
+        rows.sort(key=lambda x: (x['stack_name'], x['version']))
+
+        with OutputFormat(output):
+            print_table('stack_name version status healthy_hosts requests_per_sec '
+                        '4xx_percentage 5xx_percentage latency_ms'.split(), rows,
                         styles=STYLES, titles=TITLES)
 
 

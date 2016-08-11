@@ -1477,7 +1477,7 @@ def wait(stack_ref, region, deletion, timeout, interval):
         stacks_in_progress = set()
         successful_actions = set()
 
-        stacks_found = get_stacks(stack_refs, region, all=True, unique_only=True)
+        stacks_found = list(get_stacks(stack_refs, region, all=True, unique_only=True))
 
         if not stacks_found:
             raise click.UsageError('No matching stack for "{}" found'.format(' '.join(stack_ref)))

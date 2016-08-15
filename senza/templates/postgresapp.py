@@ -102,12 +102,13 @@ SenzaComponents:
           PGPASSWORD_STANDBY: "{{pgpassword_standby}}"
           BACKUP_SCHEDULE: "00 01 * * *"
           PATRONI_CONFIGURATION: | ## https://github.com/zalando/patroni#yaml-configuration
-            postgresql:
-            # pg_hba:
-            # - hostnossl all all all reject
-            # - hostssl   all all all md5
-              parameters:
-                log_connections: on
+            bootstrap:
+              dcs:
+                postgresql:
+                  parameters:
+                    log_connections: on
+              pg_hba:
+               - hostnossl all all all reject
         root: True
         sysctl:
           vm.overcommit_memory: 2

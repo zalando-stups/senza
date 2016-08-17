@@ -40,7 +40,9 @@ AWS. However, writing CloudFormation templates in JSON format is not
 human-friendly, which hinders developer productivity. Also, many parts
 of a CloudFormation template are reusable among applications of the
 same kind and CloudFormation does not provide a way to reuse
-templates. Senza addresses those problems by supporting CloudFormation
+templates. 
+
+Senza addresses these problems by supporting CloudFormation
 templates as YAML input and adding its own 'components' on
 top. Components are predefined, easily configurable CloudFormation
 snippets that generate all the boilerplate JSON that CloudFormation
@@ -210,6 +212,18 @@ A minimal Senza definition without any Senza components would look like:
 
 Tip: Use ``senza init`` to quickly bootstrap a new Senza definition YAML for most common use cases (e.g. a web application).
 
+Senza Info
+----------
+
+The ``SenzaInfo`` key configures global Senza behavior and must always be present in the definition YAML. Available properties for the ``SenzaInfo`` section:
+
+``StackName``
+    The stack name (required).
+``OperatorTopicId``
+    Optional SNS topic name or ARN for CloudFormation notifications. As an example: You can use this to send notifications about deployments to a mailing list.
+``Parameters``
+    Custom Senza definition parameters. Use to dynamically substitute variables in the CloudFormation template.
+    
 .. code-block:: yaml
 
     # basic information for generating and executing this definition
@@ -220,7 +234,7 @@ Tip: Use ``senza init`` to quickly bootstrap a new Senza definition YAML for mos
           - ImageVersion:
               Description: "Docker image version of Kio."
 
-    # a list of senza components to apply to the definition
+    # a list of Senza components to apply to the definition
     SenzaComponents:
       - Configuration:
           Type: Senza::StupsAutoConfiguration # auto-detect network setup
@@ -248,7 +262,7 @@ Tip: Use ``senza init`` to quickly bootstrap a new Senza definition YAML for mos
           SecurityGroups: [app-kio-lb]
           Scheme: internet-facing
 
-    # just plain Cloud Formation definitions are fully supported:
+    # Plain CloudFormation definitions are fully supported:
     Outputs:
       URL:
         Description: "The ELB URL of the new Kio deployment."
@@ -261,8 +275,315 @@ Tip: Use ``senza init`` to quickly bootstrap a new Senza definition YAML for mos
                   - AppLoadBalancer
                   - DNSName
 
-During evaluation, you can mustache templating with access to the rendered definition, including the SenzaInfo,
+During evaluation, you can do mustache templating with access to the rendered definition, including the SenzaInfo,
 SenzaComponents and Arguments key (containing all given arguments).
+
+You can also specify the parameters by name, which makes the Senza CLI more readable. This might come handy in
+complex scenarios with sizeable number of parameters:
+
+.. code-block:: bash
+    $ senza create example.yaml 3 example MintBucket=<mint-bucket> ImageVersion=latest
+
+Here, the ``ApplicationId`` is given as a positional parameter. The two
+other parameters follow, specified by their names. The named parameters on the
+command line can be given in any order, but no positional parameter is allowed
+to follow the named ones.
+
+.. Note::
+
+   The ``name=value`` named parameters are split on the first ``=``, so you can still include a literal ``=`` in the value part. Just pass this parameter with the name, to prevent ``senza`` from treating the
+   part of the parameter value before the first ``=`` as the parameter name.
+
+You can pass any of the supported `CloudFormation Properties <http://
+docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/
+parameters-section-structure.html>`_ such as ``AllowedPattern``, ``AllowedValues``,
+``MinLength``, ``MaxLength``, etc. Senza itself will not enforce these,
+but CloudFormation will evaluate the generated template and raise an exception
+if any of the properties are not met. For example:
+
+.. code-block:: bash
+
+    $ senza create example.yaml 3 example latest mint-bucket "Way too long greeting"
+    Generating Cloud Formation template.. OK
+    Creating Cloud Formation stack hello-world-3.. EXCEPTION OCCURRED: An error occurred (ValidationError) when calling the CreateStack operation: Parameter 'GreetingText' must contain at most 15 characters
+    Traceback (most recent call last):
+    [...]
+
+Using the ``Default`` attribute, you can give any parameter a default value.
+If a parameter was not specified on the command line (either as positional or
+named), the default value is used. We suggest putting all default-value
+parameters at the bottom of your parameter definition list. Otherwise, there will be no way to map them to
+proper positions, and you'll have to specify all the following
+parameters using a ``name=value``.
+
+There is an option to pass parameters from a file (the file needs to be formatted in .yaml):
+
+.. code-block:: bash
+
+    $ senza create --parameter-file parameters.yaml example.yaml 3 1.0-SNAPSHOT
+
+An example of a parameter file:
+
+.. code-block:: yaml
+
+   ApplicationId: example-app-id
+   MintBucket: your-mint-bucket
+
+You can also combine parameter files and parameters from the command line, but you can't name the same parameter twice. Also, the parameter can't exist both in a file and on the command line:
+
+.. code-block:: bash
+
+    $ senza create --parameter-file parameters.yaml example.yaml 3 1.0-SNAPSHOT Param=Example1
+
+AccountInfo
+-----------
+
+The following properties are also available in Senza templates:
+
+``{{AccountInfo.Region}}`` : the AWS region where the stack is created. Ex: 'eu-central-1'.
+Note: in many places of a template, `{"Ref" : "AWS::Region"}` can also be used.
+
+``{{AccountInfo.AccountAlias}}`` : the alias name of the AWS account: ex: 'super-team1-account'
+
+``{{AccountInfo.AccountID}}`` : the AWS account id: ex: '353272323354'
+
+``{{AccountInfo.TeamID}}`` : the team ID. Ex: 'super-team1'.
+
+``{{AccountInfo.Domain}}`` : the AWS account domain: Ex: super-team1.net
+
+Mappings
+--------
+
+Mappings are essentially key-value pairs and behave exactly as `CloudFormation Mappings <http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html>`_. Use Mappings for ``Images``, ``ServerSubnets`` or ``LoadBalancerSubnets``. An Example:
+
+.. code-block:: yaml
+
+   Mappings:
+      Images:
+         eu-west-1:
+            MyImage: "ami-123123"
+   # (..)
+   Image: MyImage
+
+Senza Components
+----------------
+
+Components are predefined Cloud Formation snippets that are easy to configure and generate all the boilerplate JSON that is required by Cloud Formation.
+
+All Senza components must be configured in a list below the top-level "SenzaComponents" key, the structure is as follows:
+
+.. code-block:: yaml
+
+    SenzaComponents:
+      - ComponentName1:
+          Type: ComponentType1
+          SomeComponentProperty: "some value"
+      - ComponentName2:
+          Type: ComponentType2
+
+.. Note::
+
+    Please note that each list item below "SenzaComponents" is a map with only one key (the component name).
+    The YAML "flow-style" syntax would be: ``SenzaComponents: [{CompName: {Type: CompType}}]``.
+
+
+Senza::StupsAutoConfiguration
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The **StupsAutoConfiguration** component type autodetects load balancer and server subnets by relying on STUPS' naming convention (DMZ subnets have "dmz" in their name). It also finds the latest Taupage AMI and defines an image "LatestTaupageImage" which can be used by the "TaupageAutoScalingGroup" component.
+
+Example usage:
+
+.. code-block:: yaml
+
+    SenzaComponents:
+      - Configuration:
+          Type: Senza::StupsAutoConfiguration
+
+This component supports the following configuration properties:
+
+``AvailabilityZones``
+    Optional list of AZ names (e.g. "eu-west-1a") to filter subnets by.
+    This option is relevant for attaching EBS volumes as they are bound to availability zones.
+
+.. _senza-taupage-auto-scaling-group:
+
+Senza::TaupageAutoScalingGroup
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The **TaupageAutoScalingGroup** component type creates one AWS AutoScalingGroup resource with a LaunchConfiguration for the Taupage AMI.
+
+.. code-block:: yaml
+
+    SenzaComponents:
+      - AppServer:
+          Type: Senza::TaupageAutoScalingGroup
+          InstanceType: t2.micro
+          SecurityGroups:
+            - app-myapp
+          ElasticLoadBalancer: AppLoadBalancer
+          TaupageConfig:
+            runtime: Docker
+            source: pierone.example.org/foobar/myapp:1.0
+            ports:
+              8080: 8080
+            environment:
+              FOO: bar
+
+This component supports the following configuration properties:
+
+``InstanceType``
+    The EC2 instance type to use.
+``SecurityGroups``
+    List of security groups to associate the EC2 instances with. Each list item can be either an existing security group name or ID.
+``IamInstanceProfile``
+    ARN of the IAM instance profile to use. You can either use "IamInstanceProfile" or "IamRoles", but not both.
+``IamRoles``
+    List of IAM role names to use for the automatically created instance profile.
+``Image``
+    AMI to use, defaults to ``LatestTaupageImage``. If you want to use a different AMI, you have to create a Mapping for it.
+``ElasticLoadBalancer``
+    Name of the ELB resource. Specifying the ELB resource will automatically use the `"ELB" health check type for the auto scaling group`_.
+    This property also allows attaching multiple load balancers to the Auto Scaling Group by using a list instead of string, e.g. ``ElasticLoadBalancer: [LB1, LB2]``.
+``HealthCheckType``
+    How the auto scaling group should perform instance health checks. Value can be either "EC2" or "ELB".
+    Default is "ELB" if ``ElasticLoadBalancer`` is set and "EC2" otherwise.
+``HealthCheckGracePeriod``
+    The length of time in seconds after a new EC2 instance comes into service that Auto Scaling starts checking its health.
+``TaupageConfig``
+    Taupage AMI config, see :ref:`taupage` for details.
+    At least the properties ``runtime`` ("Docker") and ``source`` (Docker image) are required.
+    Usually you will want to specify ``ports`` and ``environment`` too.
+``AssociatePublicIpAddress``
+    Whether to associate EC2 instances with a public IP address. This boolean value (true/false) is false by default.
+``BlockDeviceMappings``
+    Specify additional EBS Devices you want to attach to the nodes. See for Option Map below.
+``AutoScaling``
+    Map of auto scaling properties, see below.
+
+**AutoScaling**
+
+``AutoScaling`` properties are:
+
+``Minimum``
+    Minimum number of instances to spawn.
+``Maximum``
+    Maximum number of instances to spawn.
+``SuccessRequires``:
+    During startup of the stack, define when your ASG is considered healthy by CloudFormation. Defaults to one healthy instance within 15 minutes. To change it to 4 healthy instances within 1 hour, 20 minutes and 30 seconds pass "4 within 1h20m30s" (you can omit hours/minutes/seconds as you please). Values that look like integers will be used as healthy instance count, e.g. "2" would be interpreted as 2 healthy instances within the default timeout of 15 minutes.
+``MetricType``
+    Metric to do auto scaling on. This will create automatic Alarms in Cloudwatch for you. If supplied, must be either ``CPU``, ``NetworkIn`` or ``NetworkOut``. If not supplied, you're Auto Scaling Group will not dynamically scale and you have to define you're own alerts.
+``ScaleUpThreshold``
+    On which value of the metric to scale up. For the "CPU" metric: a value of 70 would mean 70% CPU usage. For network metrics a value of 100 would mean 100 bytes, but you can pass the unit (KB/GB/TB), e.g. "100 GB".
+``ScaleDownThreshold``
+    On which value of the metric to scale down. For the "CPU" metric: a value of 40 would mean 40% CPU usage. For network metrics a value of 2 would mean 2 bytes, but you can pass the unit (KB/GB/TB), e.g. "2 GB".
+``ScalingAdjustment``
+    How many instances are added/removed per scaling action. Defaults to 1.
+``Cooldown``:
+    After a scaling action occured, do not scale again for this amount of time in seconds. Defaults to 60 (one minute).
+``Statistic``
+    Which statistic to track in order to decide when scaling thresholds are met. Defaults to "Average", can also be "SampleCount", "Sum", "Minimum", "Maximum".
+``Period``
+    Period over which statistic is calculated (in seconds), defaults to 300 (five minutes).
+``EvaluationPeriods``
+    The number of periods over which data is compared to the specified threshold. Defaults to 2.
+
+**BlockDeviceMappings**
+
+``BlockDeviceMappings`` properties are:
+
+``DeviceName``
+    For example: /dev/xvdk
+``Ebs``
+    Map of EBS Options, see below.
+
+
+``Ebs`` properties are:
+
+``VolumeSize``
+    How Much GB should this EBS have?
+
+Senza::WeightedDnsElasticLoadBalancer
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The **WeightedDnsElasticLoadBalancer** component type creates one HTTPs ELB resource with Route 53 weighted domains.
+The SSL certificate name used by the ELB can either be given (``SSLCertificateId``) or is autodetected.
+You can specify the main domain (``MainDomain``) or the default Route53 hosted zone is used for the domain name.
+By default, an internal load balancer is created. This is different from the AWS default behaviour. To create an internet-facing
+ELB, explicitly set the ``Scheme`` to ``internet-facing``.
+
+.. code-block:: yaml
+
+    SenzaComponents:
+      - AppLoadBalancer:
+          Type: Senza::WeightedDnsElasticLoadBalancer
+          HTTPPort: 8080
+          SecurityGroups:
+            - app-myapp-lb
+
+The WeightedDnsElasticLoadBalancer component supports the following configuration properties:
+
+``HTTPPort``
+    The HTTP port used by the EC2 instances.
+``HealthCheckPath``
+    HTTP path to use for health check (must return 200), e.g. "/health"
+``HealthCheckPort``
+    Optional. Port used for the health check. Defaults to ``HTTPPort``.
+``SecurityGroups``
+    List of security groups to use for the ELB. The security groups must allow SSL traffic.
+``MainDomain``
+    Main domain to use, e.g. "myapp.example.org"
+``VersionDomain``
+    Version domain to use, e.g. "myapp-1.example.org". You can use the usual templating feature to integrate the stack version, e.g.
+    ``myapp-{{SenzaInfo.StackVersion}}.example.org``.
+``Scheme``
+    The load balancer scheme. Either ``internal`` or ``internet-facing``. Defaults to ``internal``.
+``SSLCertificateId``
+    Name or ARN ID of the uploaded SSL/TLS server certificate to use, e.g. ``myapp-example-org-letsencrypt`` or ``arn:aws:acm:eu-central-1:123123123:certificate/abcdefgh-ijkl-mnop-qrst-uvwxyz012345``.
+    You can check available IAM server certificates with :code:`aws iam list-server-certificates`. For ACM Certificate you must use :code:`aws acm list-certificates`
+
+Additionally, you can specify any of the `valid AWS Cloud Formation ELB properties`_ (e.g. to overwrite ``Listeners``).
+
+Cross-Stack References
+======================
+
+Traditional CloudFormation templates only allow to reference resouces that are located in the same template. This can be
+quite limiting. To compensate Senza selectively supports special *cross-stack references* in some places in your template, e.g. in `SecurityGroups` and `IamRoles`:
+
+.. code-block:: yaml
+
+   AppServer:
+      Type: Senza::TaupageAutoScalingGroup
+      InstanceType: c4.xlarge
+      SecurityGroups:
+        - Stack: base-1
+          LogicalId: ApplicationSecurityGroup
+      IamRoles:
+        - Stack: base-1
+          LogicalId: ApplicationRole
+
+These references allow for having an additional special stack per application that defines common security groups and IAM roles that are shared across different versions (in contrast to using `senza init`).
+
+Another use case for cross-stack references if one needs to access outputs from other stacks inside the `TaupageConfig`:
+
+
+.. code-block:: yaml
+
+   # database.yaml
+   ..
+   Outputs:
+     DatabaseHost:
+       Value:
+         "Fn::GetAtt": [Database, Endpoint.Address]
+
+   # service.yaml
+   ..
+   TaupageConfig:
+     environment:
+       DB_HOST:
+         Stack: exchange-rate-database-2
+         Output: DatabaseHost
+
 
 
 Unit Tests

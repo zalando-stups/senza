@@ -47,6 +47,16 @@ class StackNotFound(ManausException):
         super().__init__('CloudFormation Stack not found: {}'.format(name))
 
 
+class StackNotUpdated(ManausException):
+    """
+    Error raised when the CloudFormation Stack is not updated because no changes
+    are needed.
+    """
+
+    def __init__(self, name: str):
+        super().__init__('CloudFormation Stack not updated: {}'.format(name))
+
+
 class VPCError(ManausException, AttributeError):
     """
     Error raised when there are issues with VPCs configuration

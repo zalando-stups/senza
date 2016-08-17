@@ -7,7 +7,7 @@ from typing import Dict, Iterator, List, Optional
 import boto3
 from botocore.exceptions import ClientError
 
-from .exceptions import StackNotFound
+from .exceptions import StackNotFound, StackNotUpdated
 from .route53 import Route53
 
 
@@ -149,10 +149,19 @@ class CloudFormationStack:
         client = boto3.client('cloudformation', self.region)
         parameters = [{'ParameterKey': key, 'ParameterValue': value}
                       for key, value in self.parameters.items()]
-        client.update_stack(StackName=self.name,
-                            TemplateBody=json.dumps(self.template),
-                            Parameters=parameters,
-                            Capabilities=self.capabilities)
+        try:
+            client.update_stack(StackName=self.name,
+                                TemplateBody=json.dumps(self.template),
+                                Parameters=parameters,
+                                Capabilities=self.capabilities)
+        except ClientError as err:
+            response = err.response
+            error_info = response['Error']
+            error_message = error_info['Message']
+            if error_message == 'No updates are to be performed.':
+                raise StackNotUpdated(self.name)
+            else:
+                raise
 
 
 class CloudFormation:

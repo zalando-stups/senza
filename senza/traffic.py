@@ -9,7 +9,7 @@ from clickclick import Action, action, ok, print_table, warning
 
 from .aws import StackReference, get_stacks, get_tag
 from .manaus.cloudformation import CloudFormationStack
-from .manaus.exceptions import StackNotFound
+from .manaus.exceptions import StackNotFound, StackNotUpdated
 from .manaus.route53 import (RecordType, Route53, Route53HostedZone,
                              convert_domain_records_to_alias)
 
@@ -125,7 +125,7 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_we
         convert_domain_records_to_alias(dns_name)
 
         # TODO pass region
-        # TODO handle not changed
+        changed = False
         for stack_name, percentage in new_record_weights.items():
             try:
                 stack = CloudFormationStack.get_by_stack_name(stack_name)
@@ -135,9 +135,17 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_we
                 continue
             load_balancer = stack.template['Resources']['AppLoadBalancerMainDomain']
             load_balancer['Properties']['Weight'] = percentage
-            stack.update()
+            try:
+                stack.update()
+            except StackNotUpdated:
+                ...  # it doesn't really matter
+            else:
+                changed = True
 
-        ok()
+        if changed:
+            ok()
+        else:
+            ok(' not changed')
 
 
 def dump_traffic_changes(stack_name: str,

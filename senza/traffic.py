@@ -1,5 +1,6 @@
 import collections
 from json import JSONEncoder
+from typing import Iterator
 
 import boto3
 import click
@@ -7,9 +8,10 @@ import dns.resolver
 from clickclick import Action, action, ok, print_table, warning
 
 from .aws import StackReference, get_stacks, get_tag
-from .manaus.elb import ELB
+from .manaus.cloudformation import CloudFormationStack
+from .manaus.exceptions import StackNotFound
 from .manaus.route53 import (RecordType, Route53, Route53HostedZone,
-                             Route53Record, convert_domain_records_to_alias)
+                             convert_domain_records_to_alias)
 
 PERCENT_RESOLUTION = 2
 FULL_PERCENTAGE = PERCENT_RESOLUTION * 100
@@ -117,55 +119,25 @@ def compensate(calculation_error, compensations, identifier, new_record_weights,
 
 
 def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_weights, percentage):
+    # TODO remove percentage
     action('Setting weights for {dns_names}..', dns_names=', '.join(dns_names))
-    dns_changes = collections.defaultdict(lambda: [])
     for idx, dns_name in enumerate(dns_names):
-        domain = dns_name.split('.', 1)[1]
-        hosted_zone = Route53HostedZone.get_by_domain_name(domain)
-        did_the_upsert = False
-
         convert_domain_records_to_alias(dns_name)
 
-        for r in Route53.get_records(name=dns_name):
-            if r.type in [RecordType.CNAME, RecordType.A, RecordType.AAAA]:
-                w = new_record_weights[r.set_identifier]
-                if w:
-                    if int(r.weight) != w:
-                        r.weight = w
-                        dns_changes[hosted_zone.id].append({'Action': 'UPSERT',
-                                                            'ResourceRecordSet': r.boto_dict})
-                    if identifier == r.set_identifier:
-                        did_the_upsert = True
-                else:
-                    if dns_changes.get(hosted_zone.id) is None:
-                        dns_changes[hosted_zone.id] = []
-                    dns_changes[hosted_zone.id].append({'Action': 'DELETE',
-                                                        'ResourceRecordSet': r.boto_dict.copy()})
-        if new_record_weights[identifier] > 0 and not did_the_upsert:
-            if dns_changes.get(hosted_zone.id) is None:
-                dns_changes[hosted_zone.id] = []
-            elb = ELB.get_by_dns_name(lb_dns_name[idx])
-            record = Route53Record(name=dns_name,
-                                   type=RecordType.A,
-                                   set_identifier=identifier,
-                                   weight=new_record_weights[identifier],
-                                   alias_target={"HostedZoneId": elb.hosted_zone.id,
-                                                 "DNSName": lb_dns_name[idx],
-                                                 "EvaluateTargetHealth": False})
-            dns_changes[hosted_zone.id].append({'Action': 'UPSERT',
-                                                'ResourceRecordSet': record.boto_dict})
-    if dns_changes:
-        route53 = boto3.client('route53')
-        for hosted_zone_id, change in dns_changes.items():
-            route53.change_resource_record_sets(HostedZoneId=hosted_zone_id,
-                                                ChangeBatch={'Comment': 'Weight change of {}'.format(hosted_zone_id),
-                                                             'Changes': change})
-        if sum(new_record_weights.values()) == 0:
-            ok(' DISABLED')
-        else:
-            ok()
-    else:
-        ok(' not changed')
+        # TODO pass region
+        # TODO handle not changed
+        for stack_name, percentage in new_record_weights.items():
+            try:
+                stack = CloudFormationStack.get_by_stack_name(stack_name)
+            except StackNotFound:
+                # TODO handle this correctly
+                print("FIXME: Ignored ", stack_name)
+                continue
+            load_balancer = stack.template['Resources']['AppLoadBalancerMainDomain']
+            load_balancer['Properties']['Weight'] = percentage
+            stack.update()
+
+        ok()
 
 
 def dump_traffic_changes(stack_name: str,
@@ -223,7 +195,7 @@ class StackVersion(collections.namedtuple('StackVersion', 'name version domain l
         return ['{}.'.format(x) for x in self.domain]
 
 
-def get_stack_versions(stack_name: str, region: str):
+def get_stack_versions(stack_name: str, region: str) -> Iterator[StackVersion]:
     cf = boto3.resource('cloudformation', region)
     for stack in get_stacks([StackReference(name=stack_name, version=None)], region):
         if stack.StackStatus in ('ROLLBACK_COMPLETE', 'CREATE_FAILED'):

@@ -458,15 +458,17 @@ The WeightedDnsElasticLoadBalancer component supports the following configuratio
     The load balancer scheme. Either ``internal`` or ``internet-facing``. Defaults to ``internal``.
 ``SSLCertificateId``
     Name or ARN ID of the uploaded SSL/TLS server certificate to use, e.g. ``myapp-example-org-letsencrypt`` or ``arn:aws:acm:eu-central-1:123123123:certificate/abcdefgh-ijkl-mnop-qrst-uvwxyz012345``.
-    You can check available IAM server certificates with :code:`aws iam list-server-certificates`. For ACM certificates, use :code:`aws acm list-certificates`
+    You can check available IAM server certificates with :code:`aws iam list-server-certificates`. For ACM certificates, use :code:`aws acm list-certificates`.
 
 Additionally, you can specify any of the `valid AWS CloudFormation ELB properties`_ (e.g. to overwrite ``Listeners``).
+
+.. _valid AWS CloudFormation ELB properties: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-elb.html
 
 Cross-Stack References
 ======================
 
-Traditional CloudFormation templates only allow to reference resouces that are located in the same template. This can be
-quite limiting. To compensate Senza selectively supports special *cross-stack references* in some places in your template, e.g. in `SecurityGroups` and `IamRoles`:
+Traditional CloudFormation templates only allow you to reference resources located in the same template. This can be
+quite limiting. To compensate, Senza selectively supports special *cross-stack references* in some parts of your template — for instance, in `SecurityGroups` and `IamRoles`:
 
 .. code-block:: yaml
 
@@ -480,28 +482,7 @@ quite limiting. To compensate Senza selectively supports special *cross-stack re
         - Stack: base-1
           LogicalId: ApplicationRole
 
-These references allow for having an additional special stack per application that defines common security groups and IAM roles that are shared across different versions (in contrast to using `senza init`).
-
-Another use case for cross-stack references if one needs to access outputs from other stacks inside the `TaupageConfig`:
-
-
-.. code-block:: yaml
-
-   # database.yaml
-   ..
-   Outputs:
-     DatabaseHost:
-       Value:
-         "Fn::GetAtt": [Database, Endpoint.Address]
-
-   # service.yaml
-   ..
-   TaupageConfig:
-     environment:
-       DB_HOST:
-         Stack: exchange-rate-database-2
-         Output: DatabaseHost
-
+With these references, you can have an additional special stack per application that defines common security groups and IAM roles shared across different versions. Note that this in contrast to using `senza init`.
 
 
 Unit Tests

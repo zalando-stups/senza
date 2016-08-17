@@ -291,8 +291,7 @@ to follow the named ones.
 
 .. Note::
 
-   The ``name=value`` named parameters are split on the first ``=``, so you can still include a literal ``=`` in the value part. Just pass this parameter with the name, to prevent ``senza`` from treating the
-   part of the parameter value before the first ``=`` as the parameter name.
+   The ``name=value`` named parameters are split on the first ``=``, so you can still include a literal ``=`` in the value part. Just pass this parameter with the name, to prevent Senza from treating the part of the parameter value before the first ``=`` as the parameter name.
 
 You can pass any of the supported `CloudFormation Properties <http://
 docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/
@@ -338,23 +337,24 @@ You can also combine parameter files and parameters from the command line, but y
 AccountInfo
 -----------
 
-The following properties are also available in Senza templates:
+Senza templates offer the following properties:
 
-``{{AccountInfo.Region}}`` : the AWS region where the stack is created. Ex: 'eu-central-1'.
-Note: in many places of a template, `{"Ref" : "AWS::Region"}` can also be used.
+``{{AccountInfo.Region}}``: the AWS region where the stack is created. Ex: 'eu-central-1'. In many parts of a template, you can also use `{"Ref" : "AWS::Region"}`.
 
-``{{AccountInfo.AccountAlias}}`` : the alias name of the AWS account: ex: 'super-team1-account'
+``{{AccountInfo.AccountAlias}}``: the alias name of the AWS account. Ex: 'super-team1-account'.
 
-``{{AccountInfo.AccountID}}`` : the AWS account id: ex: '353272323354'
+``{{AccountInfo.AccountID}}``: the AWS account id. Ex: '353272323354'.
 
-``{{AccountInfo.TeamID}}`` : the team ID. Ex: 'super-team1'.
+``{{AccountInfo.TeamID}}``: the team ID. Ex: 'super-team1'.
 
-``{{AccountInfo.Domain}}`` : the AWS account domain: Ex: super-team1.net
+``{{AccountInfo.Domain}}``: the AWS account domain. Ex: 'super-team1.net'.
 
 Mappings
 --------
 
-Mappings are essentially key-value pairs and behave exactly as `CloudFormation Mappings <http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html>`_. Use Mappings for ``Images``, ``ServerSubnets`` or ``LoadBalancerSubnets``. An Example:
+Senza mappings are essentially key-value pairs, and behave exactly as `CloudFormation mappings <http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html>`_. Use mappings for ``Images``, ``ServerSubnets`` or ``LoadBalancerSubnets``. 
+
+An example:
 
 .. code-block:: yaml
 
@@ -368,9 +368,7 @@ Mappings are essentially key-value pairs and behave exactly as `CloudFormation M
 Senza Components
 ----------------
 
-Components are predefined Cloud Formation snippets that are easy to configure and generate all the boilerplate JSON that is required by Cloud Formation.
-
-All Senza components must be configured in a list below the top-level "SenzaComponents" key, the structure is as follows:
+Configure all your Senza components in a list below the top-level "SenzaComponents" key. The structure is as follows:
 
 .. code-block:: yaml
 
@@ -383,83 +381,9 @@ All Senza components must be configured in a list below the top-level "SenzaComp
 
 .. Note::
 
-    Please note that each list item below "SenzaComponents" is a map with only one key (the component name).
+    Each list item below "SenzaComponents" is a map with only one key (the component name).
     The YAML "flow-style" syntax would be: ``SenzaComponents: [{CompName: {Type: CompType}}]``.
 
-
-Senza::StupsAutoConfiguration
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The **StupsAutoConfiguration** component type autodetects load balancer and server subnets by relying on STUPS' naming convention (DMZ subnets have "dmz" in their name). It also finds the latest Taupage AMI and defines an image "LatestTaupageImage" which can be used by the "TaupageAutoScalingGroup" component.
-
-Example usage:
-
-.. code-block:: yaml
-
-    SenzaComponents:
-      - Configuration:
-          Type: Senza::StupsAutoConfiguration
-
-This component supports the following configuration properties:
-
-``AvailabilityZones``
-    Optional list of AZ names (e.g. "eu-west-1a") to filter subnets by.
-    This option is relevant for attaching EBS volumes as they are bound to availability zones.
-
-.. _senza-taupage-auto-scaling-group:
-
-Senza::TaupageAutoScalingGroup
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The **TaupageAutoScalingGroup** component type creates one AWS AutoScalingGroup resource with a LaunchConfiguration for the Taupage AMI.
-
-.. code-block:: yaml
-
-    SenzaComponents:
-      - AppServer:
-          Type: Senza::TaupageAutoScalingGroup
-          InstanceType: t2.micro
-          SecurityGroups:
-            - app-myapp
-          ElasticLoadBalancer: AppLoadBalancer
-          TaupageConfig:
-            runtime: Docker
-            source: pierone.example.org/foobar/myapp:1.0
-            ports:
-              8080: 8080
-            environment:
-              FOO: bar
-
-This component supports the following configuration properties:
-
-``InstanceType``
-    The EC2 instance type to use.
-``SecurityGroups``
-    List of security groups to associate the EC2 instances with. Each list item can be either an existing security group name or ID.
-``IamInstanceProfile``
-    ARN of the IAM instance profile to use. You can either use "IamInstanceProfile" or "IamRoles", but not both.
-``IamRoles``
-    List of IAM role names to use for the automatically created instance profile.
-``Image``
-    AMI to use, defaults to ``LatestTaupageImage``. If you want to use a different AMI, you have to create a Mapping for it.
-``ElasticLoadBalancer``
-    Name of the ELB resource. Specifying the ELB resource will automatically use the `"ELB" health check type for the auto scaling group`_.
-    This property also allows attaching multiple load balancers to the Auto Scaling Group by using a list instead of string, e.g. ``ElasticLoadBalancer: [LB1, LB2]``.
-``HealthCheckType``
-    How the auto scaling group should perform instance health checks. Value can be either "EC2" or "ELB".
-    Default is "ELB" if ``ElasticLoadBalancer`` is set and "EC2" otherwise.
-``HealthCheckGracePeriod``
-    The length of time in seconds after a new EC2 instance comes into service that Auto Scaling starts checking its health.
-``TaupageConfig``
-    Taupage AMI config, see :ref:`taupage` for details.
-    At least the properties ``runtime`` ("Docker") and ``source`` (Docker image) are required.
-    Usually you will want to specify ``ports`` and ``environment`` too.
-``AssociatePublicIpAddress``
-    Whether to associate EC2 instances with a public IP address. This boolean value (true/false) is false by default.
-``BlockDeviceMappings``
-    Specify additional EBS Devices you want to attach to the nodes. See for Option Map below.
-``AutoScaling``
-    Map of auto scaling properties, see below.
 
 **AutoScaling**
 

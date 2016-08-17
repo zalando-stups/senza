@@ -122,6 +122,8 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_we
     # TODO remove percentage
     action('Setting weights for {dns_names}..', dns_names=', '.join(dns_names))
     for idx, dns_name in enumerate(dns_names):
+        domain = dns_name.split('.', 1)[1]
+        hosted_zone = Route53HostedZone.get_by_domain_name(domain)
         convert_domain_records_to_alias(dns_name)
 
         # TODO pass region
@@ -130,8 +132,19 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_we
             try:
                 stack = CloudFormationStack.get_by_stack_name(stack_name)
             except StackNotFound:
-                # TODO handle this correctly
-                print("FIXME: Ignored ", stack_name)
+                # The Route53 record doesn't have an associated stack
+                # fallback to the old logic
+                record = None
+                for r in Route53.get_records(name=dns_name):
+                    if r.set_identifier == stack_name:
+                        record = r
+                        break
+                # TODO reimplement delete
+                record.weight = percentage
+                hosted_zone.upsert([record],
+                                   comment="Change weight of {} to {}".format(stack_name,
+                                                                              percentage))
+                changed = True
                 continue
             load_balancer = stack.template['Resources']['AppLoadBalancerMainDomain']
             load_balancer['Properties']['Weight'] = percentage

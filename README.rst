@@ -31,6 +31,11 @@ configurations. Senza also provides base CloudFormation templates for
 web applications, background applications, PostgreSQL, `Redis`_
 clusters, and Amazon `ElastiCache`_ stack types.
 
+.. contents::
+    :local:
+    :depth: 3
+    :backlinks: none
+
 
 What Senza Solves
 =================
@@ -210,10 +215,10 @@ A minimal Senza definition without any Senza components would look like:
       MyQueue:
         Type: AWS::SQS::Queue
 
-Tip: Use ``senza init`` to quickly bootstrap a new Senza definition YAML for most common use cases (e.g. a web application).
+**Tip**: Use ``senza init`` to quickly bootstrap a new Senza definition YAML for most common use cases (e.g. a web application).
 
-Senza Info
-----------
+The SenzaInfo Key
+----------------
 
 The ``SenzaInfo`` key configures global Senza behavior and must always be present in the definition YAML. Available properties for the ``SenzaInfo`` section:
 

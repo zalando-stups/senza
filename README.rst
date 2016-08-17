@@ -340,7 +340,7 @@ You can also combine parameter files and parameters from the command line, but y
     $ senza create --parameter-file parameters.yaml example.yaml 3 1.0-SNAPSHOT Param=Example1
 
 AccountInfo
------------
+================
 
 Senza templates offer the following properties:
 
@@ -355,9 +355,9 @@ Senza templates offer the following properties:
 ``{{AccountInfo.Domain}}``: the AWS account domain. Ex: 'super-team1.net'.
 
 Mappings
---------
+================
 
-Senza mappings are essentially key-value pairs, and behave exactly as `CloudFormation mappings <http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html>`_. Use mappings for ``Images``, ``ServerSubnets`` or ``LoadBalancerSubnets``. 
+Senza mappings are essentially key-value pairs, and behave just like `CloudFormation mappings <http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html>`_. Use mappings for ``Images``, ``ServerSubnets`` or ``LoadBalancerSubnets``. 
 
 An example:
 
@@ -371,7 +371,7 @@ An example:
    Image: MyImage
 
 Senza Components
-----------------
+================
 
 Configure all your Senza components in a list below the top-level "SenzaComponents" key. The structure is as follows:
 
@@ -390,56 +390,46 @@ Configure all your Senza components in a list below the top-level "SenzaComponen
     The YAML "flow-style" syntax would be: ``SenzaComponents: [{CompName: {Type: CompType}}]``.
 
 
-**AutoScaling**
+AutoScaling
+================
 
-``AutoScaling`` properties are:
+``AutoScaling`` properties include:
 
 ``Minimum``
     Minimum number of instances to spawn.
 ``Maximum``
     Maximum number of instances to spawn.
 ``SuccessRequires``:
-    During startup of the stack, define when your ASG is considered healthy by CloudFormation. Defaults to one healthy instance within 15 minutes. To change it to 4 healthy instances within 1 hour, 20 minutes and 30 seconds pass "4 within 1h20m30s" (you can omit hours/minutes/seconds as you please). Values that look like integers will be used as healthy instance count, e.g. "2" would be interpreted as 2 healthy instances within the default timeout of 15 minutes.
+    During startup of the stack, it defines when CloudFormation considers your ASG healthy. Defaults to one healthy instance/15 minutes. You can change settings — for example, "four healthy instances/1:20:30" would look like "4 within 1h20m30s". You can omit hours/minutes/seconds as you please. Values that look like integers will be counted as healthy instances: for example, "2" is interpreted as two healthy instances within the default timeout of 15 minutes.
 ``MetricType``
-    Metric to do auto scaling on. This will create automatic Alarms in Cloudwatch for you. If supplied, must be either ``CPU``, ``NetworkIn`` or ``NetworkOut``. If not supplied, you're Auto Scaling Group will not dynamically scale and you have to define you're own alerts.
+    Metric for doing auto-scaling that creates automatic alarms in CloudWatch for you. Must be either ``CPU``, ``NetworkIn`` or ``NetworkOut``. If you don't supply any info, your auto-scaling group will not dynamically scale and you'll have to define your own alerts.
 ``ScaleUpThreshold``
-    On which value of the metric to scale up. For the "CPU" metric: a value of 70 would mean 70% CPU usage. For network metrics a value of 100 would mean 100 bytes, but you can pass the unit (KB/GB/TB), e.g. "100 GB".
+    The upper scaling threshold of the metric value. For the "CPU" metric: a value of 70 means 70% CPU usage. For network metrics, a value of 100 means 100 bytes. You can pass the unit (KB/GB/TB), e.g. "100 GB".
 ``ScaleDownThreshold``
-    On which value of the metric to scale down. For the "CPU" metric: a value of 40 would mean 40% CPU usage. For network metrics a value of 2 would mean 2 bytes, but you can pass the unit (KB/GB/TB), e.g. "2 GB".
+    The lower scaling threshold of the metric value. For the "CPU" metric: a value of 40 means 40% CPU usage. For network metrics, a value of 2 means 2 bytes. You can pass the unit (KB/GB/TB), e.g. "2 GB".
 ``ScalingAdjustment``
-    How many instances are added/removed per scaling action. Defaults to 1.
+    Number of instances added/removed per scaling action. Defaults to 1.
 ``Cooldown``:
-    After a scaling action occured, do not scale again for this amount of time in seconds. Defaults to 60 (one minute).
+    After a scaling action occurs, do not scale again for this amount of time (in seconds). Defaults to 60 (one minute).
 ``Statistic``
-    Which statistic to track in order to decide when scaling thresholds are met. Defaults to "Average", can also be "SampleCount", "Sum", "Minimum", "Maximum".
+    Which statistic to track when deciding your scaling thresholds are met. Defaults to "Average", but can also be "SampleCount", "Sum", "Minimum", "Maximum".
 ``Period``
-    Period over which statistic is calculated (in seconds), defaults to 300 (five minutes).
+    Period (in seconds) over which statistic is calculated. Defaults to 300 (five minutes).
 ``EvaluationPeriods``
     The number of periods over which data is compared to the specified threshold. Defaults to 2.
 
-**BlockDeviceMappings**
+BlockDeviceMappings & Ebs Properties
+================================================
 
-``BlockDeviceMappings`` properties are:
+``BlockDeviceMappings`` properties are ``DeviceName`` (for example, /dev/xvdk) and ``Ebs`` (map of EBS options). ``VolumeSize``, an ``Ebs`` property, is for determining how much GB an EBS should have.
 
-``DeviceName``
-    For example: /dev/xvdk
-``Ebs``
-    Map of EBS Options, see below.
+WeightedDnsElasticLoadBalancer
+================================
 
+Senza's **WeightedDnsElasticLoadBalancer** component type creates one HTTPs ELB resource with Route 53 weighted domains.
+You can either auto-detect the SSL certificate name used by the ELB, or name it ``SSLCertificateId``. Specify the main domain (``MainDomain``) or the default Route53 hosted zone will apply. 
 
-``Ebs`` properties are:
-
-``VolumeSize``
-    How Much GB should this EBS have?
-
-Senza::WeightedDnsElasticLoadBalancer
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The **WeightedDnsElasticLoadBalancer** component type creates one HTTPs ELB resource with Route 53 weighted domains.
-The SSL certificate name used by the ELB can either be given (``SSLCertificateId``) or is autodetected.
-You can specify the main domain (``MainDomain``) or the default Route53 hosted zone is used for the domain name.
-By default, an internal load balancer is created. This is different from the AWS default behaviour. To create an internet-facing
-ELB, explicitly set the ``Scheme`` to ``internet-facing``.
+An internal load balancer is created by default, which differs from AWS's default behavior. To create an Internet-facing ELB, explicitly set the ``Scheme`` to ``internet-facing``.
 
 .. code-block:: yaml
 
@@ -455,23 +445,22 @@ The WeightedDnsElasticLoadBalancer component supports the following configuratio
 ``HTTPPort``
     The HTTP port used by the EC2 instances.
 ``HealthCheckPath``
-    HTTP path to use for health check (must return 200), e.g. "/health"
+    The HTTP path to use for health checks, e.g. "/health". Must return 200.
 ``HealthCheckPort``
     Optional. Port used for the health check. Defaults to ``HTTPPort``.
 ``SecurityGroups``
     List of security groups to use for the ELB. The security groups must allow SSL traffic.
 ``MainDomain``
-    Main domain to use, e.g. "myapp.example.org"
+    Main domain to use, e.g. "myapp.example.org".
 ``VersionDomain``
-    Version domain to use, e.g. "myapp-1.example.org". You can use the usual templating feature to integrate the stack version, e.g.
-    ``myapp-{{SenzaInfo.StackVersion}}.example.org``.
+    Version domain to use, e.g. "myapp-1.example.org". You can use the usual templating feature to integrate the stack version, e.g. ``myapp-{{SenzaInfo.StackVersion}}.example.org``.
 ``Scheme``
     The load balancer scheme. Either ``internal`` or ``internet-facing``. Defaults to ``internal``.
 ``SSLCertificateId``
     Name or ARN ID of the uploaded SSL/TLS server certificate to use, e.g. ``myapp-example-org-letsencrypt`` or ``arn:aws:acm:eu-central-1:123123123:certificate/abcdefgh-ijkl-mnop-qrst-uvwxyz012345``.
-    You can check available IAM server certificates with :code:`aws iam list-server-certificates`. For ACM Certificate you must use :code:`aws acm list-certificates`
+    You can check available IAM server certificates with :code:`aws iam list-server-certificates`. For ACM certificates, use :code:`aws acm list-certificates`
 
-Additionally, you can specify any of the `valid AWS Cloud Formation ELB properties`_ (e.g. to overwrite ``Listeners``).
+Additionally, you can specify any of the `valid AWS CloudFormation ELB properties`_ (e.g. to overwrite ``Listeners``).
 
 Cross-Stack References
 ======================

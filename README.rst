@@ -391,7 +391,7 @@ Configure all your Senza components in a list below the top-level "SenzaComponen
 
 
 AutoScaling
-================
+===========
 
 ``AutoScaling`` properties include:
 

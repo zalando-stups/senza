@@ -339,7 +339,7 @@ You can also combine parameter files and parameters from the command line, but y
     $ senza create --parameter-file parameters.yaml example.yaml 3 1.0-SNAPSHOT Param=Example1
 
 AccountInfo
-================
+===========
 
 Senza templates offer the following properties:
 

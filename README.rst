@@ -62,7 +62,7 @@ Installation
     $ sudo pip3 install --upgrade stups-senza
 
 Command Line Usage
-=====
+==================
 
 You can easily bootstrap Senza definitions to get started quickly:
 

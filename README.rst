@@ -280,8 +280,7 @@ The ``SenzaInfo`` key configures global Senza behavior and must always be presen
                   - AppLoadBalancer
                   - DNSName
 
-During evaluation, you can do mustache templating with access to the rendered definition, including the SenzaInfo,
-SenzaComponents and Arguments key (containing all given arguments).
+During evaluation, you can do mustache templating with access to the rendered definition, including the `SenzaInfo`, `SenzaComponents` and `Arguments` keys (containing all given arguments).
 
 You can also specify the parameters by name, which makes the Senza CLI more readable. This might come handy in
 complex scenarios with sizeable number of parameters:
@@ -373,7 +372,7 @@ An example:
 Senza Components
 ================
 
-Configure all your Senza components in a list below the top-level "SenzaComponents" key. The structure is as follows:
+Configure all your Senza components in a list below the top-level `SenzaComponents` key. The structure is as follows:
 
 .. code-block:: yaml
 
@@ -386,7 +385,7 @@ Configure all your Senza components in a list below the top-level "SenzaComponen
 
 .. Note::
 
-    Each list item below "SenzaComponents" is a map with only one key (the component name).
+    Each list item below `SenzaComponents` is a map with only one key (the component name).
     The YAML "flow-style" syntax would be: ``SenzaComponents: [{CompName: {Type: CompType}}]``.
 
 

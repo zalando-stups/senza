@@ -1230,7 +1230,9 @@ def test_traffic(monkeypatch, boto_client, boto_resource):
 
     m_cfs = MagicMock()
     m_stacks = collections.defaultdict(MagicMock)
-    def get_stack(name):
+
+    def get_stack(name, region):
+        assert region == 'aa-fakeregion-1'
         if name not in m_stacks:
             stack = m_stacks[name]
             stack.template = {'Resources': {'AppLoadBalancerMainDomain':

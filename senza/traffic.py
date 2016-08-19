@@ -1,6 +1,6 @@
 import collections
 from json import JSONEncoder
-from typing import Iterator
+from typing import Dict, Iterator
 
 import boto3
 import click
@@ -118,18 +118,19 @@ def compensate(calculation_error, compensations, identifier, new_record_weights,
     return percentage
 
 
-def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_weights):
+def set_new_weights(dns_names: list, identifier, lb_dns_name: str,
+                    new_record_weights: Dict, region: str):
     action('Setting weights for {dns_names}..', dns_names=', '.join(dns_names))
     for idx, dns_name in enumerate(dns_names):
         domain = dns_name.split('.', 1)[1]
         hosted_zone = Route53HostedZone.get_by_domain_name(domain)
         convert_domain_records_to_alias(dns_name)
 
-        # TODO pass region
         changed = False
         for stack_name, percentage in new_record_weights.items():
             try:
-                stack = CloudFormationStack.get_by_stack_name(stack_name)
+                stack = CloudFormationStack.get_by_stack_name(stack_name,
+                                                              region=region)
             except StackNotFound:
                 # The Route53 record doesn't have an associated stack
                 # fallback to the old logic
@@ -305,7 +306,8 @@ def print_version_traffic(stack_ref: StackReference, region):
                 sorted(rows, key=lambda x: identifier_versions.get(x['identifier'], '')))
 
 
-def change_version_traffic(stack_ref: StackReference, percentage: float, region):
+def change_version_traffic(stack_ref: StackReference, percentage: float,
+                           region: str):
     versions = list(get_stack_versions(stack_ref.name, region))
     arns = []
     for v in versions:
@@ -343,8 +345,9 @@ def change_version_traffic(stack_ref: StackReference, percentage: float, region)
             total_weight = sum(new_record_weights.values())
             calculation_error = FULL_PERCENTAGE - total_weight
             if calculation_error and calculation_error < FULL_PERCENTAGE:
-                percentage = compensate(calculation_error, compensations, identifier,
-                                        new_record_weights, partial_count, percentage, identifier_versions)
+                compensate(calculation_error, compensations, identifier,
+                           new_record_weights, partial_count, percentage,
+                           identifier_versions)
             assert sum(new_record_weights.values()) == FULL_PERCENTAGE
         message = dump_traffic_changes(stack_ref.name,
                                        identifier,
@@ -355,7 +358,8 @@ def change_version_traffic(stack_ref: StackReference, percentage: float, region)
                                        deltas)
         print_traffic_changes(message)
         inform_sns(arns, message, region)
-    set_new_weights(version.dns_name, identifier, version.lb_dns_name, new_record_weights)
+    set_new_weights(version.dns_name, identifier, version.lb_dns_name,
+                    new_record_weights, region)
 
 
 def inform_sns(arns: list, message: str, region):

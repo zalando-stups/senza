@@ -118,8 +118,7 @@ def compensate(calculation_error, compensations, identifier, new_record_weights,
     return percentage
 
 
-def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_weights, percentage):
-    # TODO remove percentage
+def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_weights):
     action('Setting weights for {dns_names}..', dns_names=', '.join(dns_names))
     for idx, dns_name in enumerate(dns_names):
         domain = dns_name.split('.', 1)[1]
@@ -356,7 +355,7 @@ def change_version_traffic(stack_ref: StackReference, percentage: float, region)
                                        deltas)
         print_traffic_changes(message)
         inform_sns(arns, message, region)
-    set_new_weights(version.dns_name, identifier, version.lb_dns_name, new_record_weights, percentage)
+    set_new_weights(version.dns_name, identifier, version.lb_dns_name, new_record_weights)
 
 
 def inform_sns(arns: list, message: str, region):

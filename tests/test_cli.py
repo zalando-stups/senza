@@ -1174,12 +1174,6 @@ def test_update(monkeypatch):
 
 
 def test_traffic(monkeypatch, boto_client, boto_resource):
-    route53 = MagicMock(name='r53conn')
-
-    def my_resource(rtype, *args):
-        return MagicMock()
-
-    #monkeypatch.setattr('boto3.resource', my_resource)
 
     stacks = [
         StackVersion('myapp', 'v1', ['myapp.zo.ne'], ['some-lb.eu-central-1.elb.amazonaws.com'], ['some-arn']),
@@ -1234,30 +1228,85 @@ def test_traffic(monkeypatch, boto_client, boto_resource):
     def weights():
         return [r.weight for r in records.values()]
 
+    m_cfs = MagicMock()
+    m_stacks = collections.defaultdict(MagicMock)
+    def get_stack(name):
+        if name not in m_stacks:
+            stack = m_stacks[name]
+            stack.template = {'Resources': {'AppLoadBalancerMainDomain':
+                                                {'Properties': {'Weight': 20}}}}
+        return m_stacks[name]
+    m_cfs.get_by_stack_name = get_stack
+
+    def get_weight(stack):
+        resources = stack.template['Resources']
+        lb = resources['AppLoadBalancerMainDomain']
+        w = lb['Properties']['Weight']
+        return w
+
+    def update_weights(stacks):
+        for key, value in stacks.items():
+            w = get_weight(value)
+            records[key].weight = w
+
+
+    monkeypatch.setattr('senza.traffic.CloudFormationStack', m_cfs)
+
     with runner.isolated_filesystem():
         run(['v4', '100'])
-        assert weights() == [0, 0, 0, 200]
+        assert get_weight(m_stacks['myapp-v1']) == 0
+        assert get_weight(m_stacks['myapp-v2']) == 0
+        assert get_weight(m_stacks['myapp-v3']) == 0
+        assert get_weight(m_stacks['myapp-v4']) == 200
 
+        update_weights(m_stacks)
         run(['v3', '10'])
-        assert weights() == [0, 0, 20, 180]
+        assert get_weight(m_stacks['myapp-v1']) == 0
+        assert get_weight(m_stacks['myapp-v2']) == 0
+        assert get_weight(m_stacks['myapp-v3']) == 20
+        assert get_weight(m_stacks['myapp-v4']) == 180
 
+        update_weights(m_stacks)
         run(['v2', '0.5'])
-        assert weights() == [0, 1, 20, 179]
+        assert get_weight(m_stacks['myapp-v1']) == 0
+        assert get_weight(m_stacks['myapp-v2']) == 1
+        assert get_weight(m_stacks['myapp-v3']) == 20
+        assert get_weight(m_stacks['myapp-v4']) == 179
 
+        update_weights(m_stacks)
         run(['v1', '1'])
-        assert weights() == [2, 1, 19, 178]
+        assert get_weight(m_stacks['myapp-v1']) == 2
+        assert get_weight(m_stacks['myapp-v2']) == 1
+        assert get_weight(m_stacks['myapp-v3']) == 19
+        assert get_weight(m_stacks['myapp-v4']) == 178
 
+        update_weights(m_stacks)
         run(['v4', '95'])
-        assert weights() == [1, 1, 13, 185]
+        assert get_weight(m_stacks['myapp-v1']) == 1
+        assert get_weight(m_stacks['myapp-v2']) == 1
+        assert get_weight(m_stacks['myapp-v3']) == 13
+        assert get_weight(m_stacks['myapp-v4']) == 185
 
+        update_weights(m_stacks)
         run(['v4', '100'])
-        assert weights() == [0, 0, 0, 200]
+        assert get_weight(m_stacks['myapp-v1']) == 0
+        assert get_weight(m_stacks['myapp-v2']) == 0
+        assert get_weight(m_stacks['myapp-v3']) == 0
+        assert get_weight(m_stacks['myapp-v4']) == 200
 
+        update_weights(m_stacks)
         run(['v4', '10'])
-        assert weights() == [0, 0, 0, 200]
+        assert get_weight(m_stacks['myapp-v1']) == 0
+        assert get_weight(m_stacks['myapp-v2']) == 0
+        assert get_weight(m_stacks['myapp-v3']) == 0
+        assert get_weight(m_stacks['myapp-v4']) == 200
 
+        update_weights(m_stacks)
         run(['v4', '0'])
-        assert weights() == [0, 0, 0, 0]
+        assert get_weight(m_stacks['myapp-v1']) == 0
+        assert get_weight(m_stacks['myapp-v2']) == 0
+        assert get_weight(m_stacks['myapp-v3']) == 0
+        assert get_weight(m_stacks['myapp-v4']) == 0
 
 
 def test_AccountArguments(monkeypatch):

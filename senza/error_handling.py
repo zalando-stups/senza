@@ -1,4 +1,4 @@
-from typing import Dict, Any
+from typing import Dict, Any  # noqa: F401
 import sys
 from tempfile import NamedTemporaryFile
 from traceback import format_exception

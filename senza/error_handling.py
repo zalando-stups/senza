@@ -95,10 +95,10 @@ class HandleExceptions:
             else:
                 self.die_unknown_error(e)
         except yaml.constructor.ConstructorError as e:
-            print("Error parsing definition file:")
-            print(e)
+            print("Error parsing definition file:", file=sys.stderr)
+            print(e, file=sys.stderr)
             if e.problem == "found unhashable key":
-                print("Please quote all variable values")
+                print("Please quote all variable values", file=sys.stderr)
             sys.exit(1)
         except PiuNotFound as e:
             error(e)

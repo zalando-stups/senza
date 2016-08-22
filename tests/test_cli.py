@@ -8,14 +8,15 @@ import botocore.exceptions
 import senza.traffic
 import yaml
 from click.testing import CliRunner
-from senza.cli import (AccountArguments, cli, KeyValParamType, get_stack_refs,
-                       StackReference, all_with_version, is_ip_address,
-                       get_console_line_style, failure_event)
+from senza.cli import (AccountArguments, KeyValParamType, StackReference,
+                       all_with_version, cli, failure_event,
+                       get_console_line_style, get_stack_refs, is_ip_address)
+from senza.manaus.exceptions import StackNotFound
 from senza.manaus.route53 import RecordType, Route53Record
 from senza.traffic import PERCENT_RESOLUTION, StackVersion
 
-from fixtures import (HOSTED_ZONE_EXAMPLE_ORG, HOSTED_ZONE_EXAMPLE_NET,
-                      boto_client, boto_resource)  # pragma: NOQA
+from fixtures import (HOSTED_ZONE_EXAMPLE_NET, HOSTED_ZONE_EXAMPLE_ORG,
+                      boto_client, boto_resource)
 
 
 def test_invalid_definition():
@@ -524,8 +525,8 @@ def test_init(monkeypatch):
 
     assert 'Generating Senza definition file myapp.yaml.. OK' in result.output
     assert generated_definition['SenzaInfo']['StackName'] == 'sdf'
-    assert (generated_definition['SenzaComponents'][1]['AppServer']['TaupageConfig']['application_version']
-            == '{{Arguments.ImageVersion}}')
+    senza_app_server = generated_definition['SenzaComponents'][1]['AppServer']
+    assert (senza_app_server['TaupageConfig']['application_version'] == '{{Arguments.ImageVersion}}')
 
 
 def test_init_opt2(monkeypatch):
@@ -534,7 +535,7 @@ def test_init_opt2(monkeypatch):
             ec2 = MagicMock()
             ec2.vpcs.all.return_value = [MagicMock(vpc_id='vpc-123')]
             vpc = dict()
-            ec2.Vpc.return_value=vpc
+            ec2.Vpc.return_value = vpc
             return ec2
         elif rtype == 'route53':
             route53 = MagicMock()
@@ -544,18 +545,18 @@ def test_init_opt2(monkeypatch):
 
     monkeypatch.setattr('boto3.client', lambda *args: MagicMock())
     monkeypatch.setattr('boto3.resource', my_resource)
-    monkeypatch.setattr('senza.cli.AccountArguments',  MagicMock())
+    monkeypatch.setattr('senza.cli.AccountArguments', MagicMock())
 
     runner = CliRunner()
 
     with runner.isolated_filesystem():
 
-        input = ['2'] + ['Y']*30
+        input = ['2'] + ['Y'] * 30
         result = runner.invoke(cli, ['init', 'spilo.yaml', '--region=aa-fakeregion-1'], input='\n'.join(input))
         assert 'Generating Senza definition file' in  result.output
         assert 'Do you wish to encrypt these passwords using KMS' in result.output
 
-        input = ['2'] + ['N']*30
+        input = ['2'] + ['N'] * 30
         result = runner.invoke(cli, ['init', 'spilo.yaml', '--region=aa-fakeregion-1'], input='\n'.join(input))
         assert 'Generating Senza definition file' in  result.output
         assert 'Do you wish to encrypt these passwords using KMS' in result.output
@@ -1061,8 +1062,9 @@ def test_create(monkeypatch):
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=aa-fakeregion-1', '1', 'my-param-value',
-                                     'extra-param-value'],
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run',
+                                     '--region=aa-fakeregion-1', '1',
+                                     'my-param-value', 'extra-param-value'],
                                catch_exceptions=False)
         assert 'DRY-RUN' in result.output
 
@@ -1310,6 +1312,15 @@ def test_traffic(monkeypatch, boto_client, boto_resource):
         assert get_weight(m_stacks['myapp-v3']) == 0
         assert get_weight(m_stacks['myapp-v4']) == 0
 
+    m_cfs.get_by_stack_name = MagicMock(side_effect=StackNotFound('abc'))
+
+    with runner.isolated_filesystem():
+        run(['v4', '100'])
+        assert weights() == [0, 0, 0, 200]
+
+        run(['v3', '10'])
+        assert weights() == [0, 0, 20, 180]
+
 
 def test_AccountArguments(monkeypatch):
     senza.traffic.DNS_ZONE_CACHE = {}
@@ -1411,8 +1422,6 @@ def test_wait(monkeypatch):
 
     runner = CliRunner()
 
-    data = {'SenzaInfo': {'StackName': 'test'}}
-
     with runner.isolated_filesystem():
         result = runner.invoke(cli,
                                ['wait', 'test', '1', '--region=aa-fakeregion-1'],
@@ -1426,7 +1435,7 @@ def test_wait(monkeypatch):
         assert "OK: Stack(s) test-2 created successfully" in result.output
 
         result = runner.invoke(cli,
-                               ['wait',  '--deletion', 'test', '3',
+                               ['wait', '--deletion', 'test', '3',
                                 '--region=aa-fakeregion-1'],
                                catch_exceptions=False)
         assert "OK: Stack(s) test-3 deleted successfully" in result.output
@@ -1615,4 +1624,4 @@ def test_status_main_dns(monkeypatch):
                                catch_exceptions=False)
 
     data = json.loads(result.output.strip())
-    assert data[0]['main_dns'] == True
+    assert data[0]['main_dns'] is True

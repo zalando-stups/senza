@@ -126,7 +126,7 @@ class CloudFormationStack:
             if resource_type == ResourceType.route53_record_set:
                 records = Route53.get_records(name=resource['PhysicalResourceId'])
                 yield next(records)
-            else:
+            else:  # pragma: no cover
                 # TODO implement the other resource types
                 # Ignore resources that are still not implemented in manaus
                 pass

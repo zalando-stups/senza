@@ -1,9 +1,13 @@
-from typing import Optional, List, Dict, Iterator
+import json
 from collections import OrderedDict
 from datetime import datetime
 from enum import Enum
-import boto3
+from typing import Dict, Iterator, List, Optional
 
+import boto3
+from botocore.exceptions import ClientError
+
+from .exceptions import StackNotFound, StackNotUpdated
 from .route53 import Route53
 
 
@@ -54,6 +58,8 @@ class CloudFormationStack:
 
         self.region = region
 
+        self.__template = None
+
     def __repr__(self):
         return "<CloudFormationStack: {name}>".format_map(vars(self))
 
@@ -94,7 +100,18 @@ class CloudFormationStack:
         """
         client = boto3.client('cloudformation', region)
 
-        stacks = client.describe_stacks(StackName=name)
+        try:
+            stacks = client.describe_stacks(StackName=name)
+        except ClientError as err:
+            response = err.response
+            error_info = response['Error']
+            error_message = error_info['Message']
+            # This is not very resilient way to do this but boto API doesn't
+            # provide a better way.
+            if error_message == 'Stack with id {name} does not exist'.format(name=name):
+                raise StackNotFound(name)
+            else:
+                raise
         stack = stacks['Stacks'][0]  # type: dict
 
         return cls.from_boto_dict(stack, region)
@@ -109,10 +126,42 @@ class CloudFormationStack:
             if resource_type == ResourceType.route53_record_set:
                 records = Route53.get_records(name=resource['PhysicalResourceId'])
                 yield next(records)
-            else:
+            else:  # pragma: no cover
                 # TODO implement the other resource types
                 # Ignore resources that are still not implemented in manaus
                 pass
+
+    @property
+    def template(self) -> Dict:
+        if self.__template is None:
+            client = boto3.client('cloudformation', self.region)
+            response = client.get_template(StackName=self.name)
+            self.__template = response['TemplateBody']
+        return self.__template
+
+    def reset(self):
+        self.__template = None
+
+    def update(self):
+        """
+        Sends the current template to CloudFormation to update the stack
+        """
+        client = boto3.client('cloudformation', self.region)
+        parameters = [{'ParameterKey': key, 'ParameterValue': value}
+                      for key, value in self.parameters.items()]
+        try:
+            client.update_stack(StackName=self.name,
+                                TemplateBody=json.dumps(self.template),
+                                Parameters=parameters,
+                                Capabilities=self.capabilities)
+        except ClientError as err:
+            response = err.response
+            error_info = response['Error']
+            error_message = error_info['Message']
+            if error_message == 'No updates are to be performed.':
+                raise StackNotUpdated(self.name)
+            else:
+                raise
 
 
 class CloudFormation:

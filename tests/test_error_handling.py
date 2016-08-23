@@ -5,7 +5,8 @@ from unittest.mock import MagicMock
 
 import botocore.exceptions
 import senza.error_handling
-from pytest import fixture
+import yaml
+from pytest import fixture, raises
 from senza.exceptions import PiuNotFound
 from senza.manaus.exceptions import ELBNotFound, InvalidState
 
@@ -182,3 +183,58 @@ def test_invalid_state(capsys):
     out, err = capsys.readouterr()
 
     assert err == 'Invalid State: test state\n'
+
+
+def test_validation(capsys):
+    func = MagicMock(side_effect=botocore.exceptions.ClientError(
+        {'Error': {'Code': 'ValidationError',
+                   'Message': 'Validation Error'}},
+        'foobar'))
+
+    try:
+        senza.error_handling.HandleExceptions(func)()
+    except SystemExit:
+        pass
+
+    out, err = capsys.readouterr()
+
+    assert err == 'Validation Error: Validation Error\n'
+
+
+def test_yaml_error(capsys):
+    def func():
+        return yaml.load("[]: value")
+    try:
+        senza.error_handling.HandleExceptions(func)()
+    except SystemExit:
+        pass
+
+    out, err = capsys.readouterr()
+
+    assert 'Error parsing definition file:' in err
+    assert 'found unhashable key' in err
+    assert 'Please quote all variable values' in err
+
+
+def test_unknown_error(capsys, mock_tempfile):
+    func = MagicMock(side_effect=Exception("something"))
+    try:
+        senza.error_handling.HandleExceptions(func)()
+    except SystemExit:
+        pass
+
+    out, err = capsys.readouterr()
+
+    mock_tempfile.assert_called_once_with(prefix='senza-traceback-',
+                                          delete=False)
+
+    assert 'Unknown Error: something.' in err
+
+
+def test_unknown_error_show_stacktrace(mock_tempfile):
+    senza.error_handling.HandleExceptions.stacktrace_visible = True
+    func = MagicMock(side_effect=Exception("something"))
+    with raises(Exception, message="something"):
+        senza.error_handling.HandleExceptions(func)()
+
+    mock_tempfile.assert_not_called()

@@ -8,14 +8,15 @@ import botocore.exceptions
 import senza.traffic
 import yaml
 from click.testing import CliRunner
-from senza.cli import (AccountArguments, cli, KeyValParamType, get_stack_refs,
-                       StackReference, all_with_version, is_ip_address,
-                       get_console_line_style, failure_event)
+from senza.cli import (AccountArguments, KeyValParamType, StackReference,
+                       all_with_version, cli, failure_event,
+                       get_console_line_style, get_stack_refs, is_ip_address)
+from senza.manaus.exceptions import StackNotFound, StackNotUpdated
 from senza.manaus.route53 import RecordType, Route53Record
 from senza.traffic import PERCENT_RESOLUTION, StackVersion
 
-from fixtures import (HOSTED_ZONE_EXAMPLE_ORG, HOSTED_ZONE_EXAMPLE_NET,
-                      boto_client, boto_resource)  # pragma: NOQA
+from fixtures import (HOSTED_ZONE_EXAMPLE_NET, HOSTED_ZONE_EXAMPLE_ORG,  # noqa: F401
+                      boto_client, boto_resource)
 
 
 def test_invalid_definition():
@@ -90,7 +91,9 @@ def test_parameter_file_found(monkeypatch):
 
 
 def test_parameter_file_syntax_error():
-    data = {'SenzaInfo': {'StackName': 'test', 'Parameters': [{'ApplicationId': {'Description': 'Application ID from kio'}}]}, 'Resources': {'MyQueue': {'Type': 'AWS::SQS::Queue'}}}
+    data = {'SenzaInfo': {'StackName': 'test',
+                          'Parameters': [{'ApplicationId': {'Description': 'Application ID from kio'}}]},
+            'Resources': {'MyQueue': {'Type': 'AWS::SQS::Queue'}}}
     param_data = "'ApplicationId': ["
 
     runner = CliRunner()
@@ -101,7 +104,11 @@ def test_parameter_file_syntax_error():
         with open('parameter.yaml', 'w') as fd:
             fd.write(param_data)
 
-        result = runner.invoke(cli, ['print', '--parameter-file', 'parameter.yaml', 'myapp.yaml', '--region=aa-fakeregion-1', '123'], catch_exceptions=False)
+        result = runner.invoke(cli, ['print',
+                                     '--parameter-file', 'parameter.yaml',
+                                     'myapp.yaml',
+                                     '--region=aa-fakeregion-1', '123'],
+                               catch_exceptions=False)
 
     assert 'Error: Error while parsing a flow node' in result.output
 
@@ -179,7 +186,8 @@ def test_region_validation(monkeypatch):
         result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=invalid-region', '123'],
                                catch_exceptions=False)
 
-    assert 'Error: Invalid value for "--region": \'invalid-region\'. Region must be a valid AWS region.' in result.output
+    assert ('Error: Invalid value for "--region": \'invalid-region\'. '
+            'Region must be a valid AWS region.' in result.output)
 
 
 def test_print_replace_mustache(monkeypatch):
@@ -291,7 +299,7 @@ def test_print_account_info_and_arguments_in_name(monkeypatch):
     assert 'AppImage-dummy-0123456789' in result.output
 
 
-def test_print_auto(monkeypatch, boto_client, boto_resource):
+def test_print_auto(monkeypatch, boto_client, boto_resource):  # noqa: F811
     senza.traffic.DNS_ZONE_CACHE = {}
 
     data = {'SenzaInfo': {'StackName': 'test',
@@ -334,7 +342,7 @@ def test_print_auto(monkeypatch, boto_client, boto_resource):
     assert 'my-referenced-role' in data['Resources']['AppServerInstanceProfile']['Properties']['Roles']
 
 
-def test_print_default_value(monkeypatch, boto_client, boto_resource):
+def test_print_default_value(monkeypatch, boto_client, boto_resource):  # noqa: F811
     senza.traffic.DNS_ZONE_CACHE = {}
 
     data = {'SenzaInfo': {'StackName': 'test',
@@ -361,12 +369,16 @@ def test_print_default_value(monkeypatch, boto_client, boto_resource):
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
 
-        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=aa-fakeregion-1', '123', '1.0-SNAPSHOT', 'extra value'],
+        result = runner.invoke(cli, ['print', 'myapp.yaml',
+                                     '--region=aa-fakeregion-1',
+                                     '123', '1.0-SNAPSHOT', 'extra value'],
                                catch_exceptions=False)
         assert 'DefParam: DefValue\\n' in result.output
         assert 'ExtraParam: extra value\\n' in result.output
 
-        result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=aa-fakeregion-1', '123', '1.0-SNAPSHOT', 'extra value',
+        result = runner.invoke(cli, ['print', 'myapp.yaml',
+                                     '--region=aa-fakeregion-1',
+                                     '123', '1.0-SNAPSHOT', 'extra value',
                                      'other def value'],
                                catch_exceptions=False)
         assert 'DefParam: other def value\\n' in result.output
@@ -524,8 +536,8 @@ def test_init(monkeypatch):
 
     assert 'Generating Senza definition file myapp.yaml.. OK' in result.output
     assert generated_definition['SenzaInfo']['StackName'] == 'sdf'
-    assert (generated_definition['SenzaComponents'][1]['AppServer']['TaupageConfig']['application_version']
-            == '{{Arguments.ImageVersion}}')
+    senza_app_server = generated_definition['SenzaComponents'][1]['AppServer']
+    assert (senza_app_server['TaupageConfig']['application_version'] == '{{Arguments.ImageVersion}}')
 
 
 def test_init_opt2(monkeypatch):
@@ -534,7 +546,7 @@ def test_init_opt2(monkeypatch):
             ec2 = MagicMock()
             ec2.vpcs.all.return_value = [MagicMock(vpc_id='vpc-123')]
             vpc = dict()
-            ec2.Vpc.return_value=vpc
+            ec2.Vpc.return_value = vpc
             return ec2
         elif rtype == 'route53':
             route53 = MagicMock()
@@ -544,20 +556,20 @@ def test_init_opt2(monkeypatch):
 
     monkeypatch.setattr('boto3.client', lambda *args: MagicMock())
     monkeypatch.setattr('boto3.resource', my_resource)
-    monkeypatch.setattr('senza.cli.AccountArguments',  MagicMock())
+    monkeypatch.setattr('senza.cli.AccountArguments', MagicMock())
 
     runner = CliRunner()
 
     with runner.isolated_filesystem():
 
-        input = ['2'] + ['Y']*30
+        input = ['2'] + ['Y'] * 30
         result = runner.invoke(cli, ['init', 'spilo.yaml', '--region=aa-fakeregion-1'], input='\n'.join(input))
-        assert 'Generating Senza definition file' in  result.output
+        assert 'Generating Senza definition file' in result.output
         assert 'Do you wish to encrypt these passwords using KMS' in result.output
 
-        input = ['2'] + ['N']*30
+        input = ['2'] + ['N'] * 30
         result = runner.invoke(cli, ['init', 'spilo.yaml', '--region=aa-fakeregion-1'], input='\n'.join(input))
-        assert 'Generating Senza definition file' in  result.output
+        assert 'Generating Senza definition file' in result.output
         assert 'Do you wish to encrypt these passwords using KMS' in result.output
 
 
@@ -587,8 +599,8 @@ def test_init_opt5(monkeypatch):
 
     assert 'Generating Senza definition file myapp.yaml.. OK' in result.output
     assert generated_definition['SenzaInfo']['StackName'] == 'sdf'
-    assert (generated_definition['SenzaComponents'][1]['AppServer']['TaupageConfig']['application_version']
-            == '{{Arguments.ImageVersion}}')
+    senza_appserver = generated_definition['SenzaComponents'][1]['AppServer']
+    assert (senza_appserver['TaupageConfig']['application_version'] == '{{Arguments.ImageVersion}}')
 
 
 def test_instances(monkeypatch):
@@ -795,7 +807,7 @@ def test_resources(monkeypatch):
     assert 'Resource Type' in result.output
 
 
-def test_domains(monkeypatch, boto_resource, boto_client):
+def test_domains(monkeypatch, boto_resource, boto_client):  # noqa: F811
     senza.traffic.DNS_ZONE_CACHE = {}
     senza.traffic.DNS_RR_CACHE = {}
 
@@ -1030,7 +1042,6 @@ def test_delete_interactive(monkeypatch):
         assert "OK" in result.output
 
 
-
 def test_create(monkeypatch):
     cf = MagicMock()
 
@@ -1061,8 +1072,9 @@ def test_create(monkeypatch):
         with open('myapp.yaml', 'w') as fd:
             yaml.dump(data, fd)
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=aa-fakeregion-1', '1', 'my-param-value',
-                                     'extra-param-value'],
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run',
+                                     '--region=aa-fakeregion-1', '1',
+                                     'my-param-value', 'extra-param-value'],
                                catch_exceptions=False)
         assert 'DRY-RUN' in result.output
 
@@ -1084,29 +1096,38 @@ def test_create(monkeypatch):
                                catch_exceptions=True)
         assert 'cannot exceed 128 characters. Please choose another name/version.' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=aa-fakeregion-1', '2'],
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run',
+                                     '--region=aa-fakeregion-1', '2'],
                                catch_exceptions=True)
         assert 'Missing parameter' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=aa-fakeregion-1', '2', 'p1', 'p2', 'p3',
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run',
+                                     '--region=aa-fakeregion-1', '2', 'p1', 'p2', 'p3',
                                      'p4'],
                                catch_exceptions=True)
         assert 'Too many parameters given' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=aa-fakeregion-1', '2', 'my-param-value',
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run',
+                                     '--region=aa-fakeregion-1', '2',
+                                     'my-param-value',
                                      'ExtraParam=extra-param-value'],
                                catch_exceptions=True)
         assert 'OK' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--tag', 'key=tag_value',
-                                     '--region=aa-fakeregion-1', '2', 'my-param-value', 'ExtraParam=extra-param-value'],
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run',
+                                     '--tag', 'key=tag_value',
+                                     '--region=aa-fakeregion-1', '2',
+                                     'my-param-value', 'ExtraParam=extra-param-value'],
                                catch_exceptions=True)
         assert 'OK' in result.output
         assert "'Key': 'key'" in result.output
         assert "'Value': 'tag_value'" in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--tag', 'key=tag_value', '--tag',
-                                     'key2=value2', '--region=aa-fakeregion-1', '2', 'my-param-value',
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run',
+                                     '--tag', 'key=tag_value',
+                                     '--tag', 'key2=value2',
+                                     '--region=aa-fakeregion-1',
+                                     '2', 'my-param-value',
                                      'ExtraParam=extra-param-value'],
                                catch_exceptions=True)
         assert 'OK' in result.output
@@ -1114,33 +1135,42 @@ def test_create(monkeypatch):
         assert "'Key': 'key2'" in result.output
 
         # checks that equal signs are OK in the keyword param value
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=aa-fakeregion-1', '2', 'my-param-value',
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run',
+                                     '--region=aa-fakeregion-1', '2',
+                                     'my-param-value',
                                      'ExtraParam=extra=param=value'],
                                catch_exceptions=True)
         assert 'OK' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=aa-fakeregion-1', '2',
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run',
+                                     '--region=aa-fakeregion-1', '2',
                                      'UnknownParam=value'],
                                catch_exceptions=True)
         assert 'Unrecognized keyword parameter' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=aa-fakeregion-1', '2', 'my-param-value',
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run',
+                                     '--region=aa-fakeregion-1', '2',
+                                     'my-param-value', 'MyParam=param-value-again'],
+                               catch_exceptions=True)
+        assert 'Parameter specified multiple times' in result.output
+
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run',
+                                     '--region=aa-fakeregion-1', '2',
+                                     'MyParam=my-param-value',
                                      'MyParam=param-value-again'],
                                catch_exceptions=True)
         assert 'Parameter specified multiple times' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=aa-fakeregion-1', '2',
-                                     'MyParam=my-param-value', 'MyParam=param-value-again'],
-                               catch_exceptions=True)
-        assert 'Parameter specified multiple times' in result.output
-
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--region=aa-fakeregion-1', '2',
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run',
+                                     '--region=aa-fakeregion-1', '2',
                                      'MyParam=my-param-value', 'positional'],
                                catch_exceptions=True)
         assert 'Positional parameters must not follow keywords' in result.output
 
-        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run', '--tag', 'key=value', '--tag', 'badtag',
-                                     '--region=aa-fakeregion-1', '2', 'my-param-value', 'ExtraParam=extra-param-value'],
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run',
+                                     '--tag', 'key=value', '--tag', 'badtag',
+                                     '--region=aa-fakeregion-1', '2',
+                                     'my-param-value', 'ExtraParam=extra-param-value'],
                                catch_exceptions=True)
         assert 'Invalid tag badtag. Tags should be in the form of key=value' in result.output
 
@@ -1173,21 +1203,20 @@ def test_update(monkeypatch):
         assert 'OK' in result.output
 
 
-def test_traffic(monkeypatch, boto_client, boto_resource):
-    route53 = MagicMock(name='r53conn')
-
-    def my_resource(rtype, *args):
-        return MagicMock()
-
-    #monkeypatch.setattr('boto3.resource', my_resource)
+def test_traffic(monkeypatch, boto_client, boto_resource):  # noqa: F811
 
     stacks = [
-        StackVersion('myapp', 'v1', ['myapp.zo.ne'], ['some-lb.eu-central-1.elb.amazonaws.com'], ['some-arn']),
-        StackVersion('myapp', 'v2', ['myapp.zo.ne'], ['another-elb.eu-central-1.elb.amazonaws.com'], ['some-arn']),
-        StackVersion('myapp', 'v3', ['myapp.zo.ne'], ['elb-3.eu-central-1.elb.amazonaws.com'], ['some-arn']),
-        StackVersion('myapp', 'v4', ['myapp.zo.ne'], ['elb-4.eu-central-1.elb.amazonaws.com'], ['some-arn']),
+        StackVersion('myapp', 'v1', ['myapp.zo.ne'],
+                     ['some-lb.eu-central-1.elb.amazonaws.com'], ['some-arn']),
+        StackVersion('myapp', 'v2', ['myapp.zo.ne'],
+                     ['another-elb.eu-central-1.elb.amazonaws.com'], ['some-arn']),
+        StackVersion('myapp', 'v3', ['myapp.zo.ne'],
+                     ['elb-3.eu-central-1.elb.amazonaws.com'], ['some-arn']),
+        StackVersion('myapp', 'v4', ['myapp.zo.ne'],
+                     ['elb-4.eu-central-1.elb.amazonaws.com'], ['some-arn']),
     ]
-    monkeypatch.setattr('senza.traffic.get_stack_versions', MagicMock(return_value=stacks))
+    monkeypatch.setattr('senza.traffic.get_stack_versions',
+                        MagicMock(return_value=stacks))
 
     # start creating mocking of the route53 record sets and Application Versions
     # this is a lot of dirty and nasty code. Please, somebody help this code.
@@ -1206,10 +1235,12 @@ def test_traffic(monkeypatch, boto_client, boto_resource):
                             ('v3', 10),
                             ('v4', 0)]:
         dns_identifier = 'myapp-{}'.format(ver)
-        records[dns_identifier] = record(dns_identifier, percentage * PERCENT_RESOLUTION)
+        records[dns_identifier] = record(dns_identifier,
+                                         percentage * PERCENT_RESOLUTION)
 
     rr.__iter__ = lambda x: iter(records.values())
-    monkeypatch.setattr('senza.traffic.Route53.get_records', MagicMock(return_value=rr))
+    monkeypatch.setattr('senza.traffic.Route53.get_records',
+                        MagicMock(return_value=rr))
 
     def change_rr_set(HostedZoneId, ChangeBatch):
         for change in ChangeBatch['Changes']:
@@ -1234,30 +1265,107 @@ def test_traffic(monkeypatch, boto_client, boto_resource):
     def weights():
         return [r.weight for r in records.values()]
 
+    m_cfs = MagicMock()
+    m_stacks = collections.defaultdict(MagicMock)
+
+    def get_stack(name, region):
+        assert region == 'aa-fakeregion-1'
+        if name not in m_stacks:
+            stack = m_stacks[name]
+            resources = {'AppLoadBalancerMainDomain': {'Properties': {'Weight': 20}}}
+            stack.template = {'Resources': resources}
+        return m_stacks[name]
+    m_cfs.get_by_stack_name = get_stack
+
+    def get_weight(stack):
+        resources = stack.template['Resources']
+        lb = resources['AppLoadBalancerMainDomain']
+        w = lb['Properties']['Weight']
+        return w
+
+    def update_weights(stacks):
+        for key, value in stacks.items():
+            w = get_weight(value)
+            records[key].weight = w
+
+    monkeypatch.setattr('senza.traffic.CloudFormationStack', m_cfs)
+
+    with runner.isolated_filesystem():
+        run(['v4', '100'])
+        assert get_weight(m_stacks['myapp-v1']) == 0
+        assert get_weight(m_stacks['myapp-v2']) == 0
+        assert get_weight(m_stacks['myapp-v3']) == 0
+        assert get_weight(m_stacks['myapp-v4']) == 200
+
+        update_weights(m_stacks)
+        run(['v3', '10'])
+        assert get_weight(m_stacks['myapp-v1']) == 0
+        assert get_weight(m_stacks['myapp-v2']) == 0
+        assert get_weight(m_stacks['myapp-v3']) == 20
+        assert get_weight(m_stacks['myapp-v4']) == 180
+
+        update_weights(m_stacks)
+        run(['v2', '0.5'])
+        assert get_weight(m_stacks['myapp-v1']) == 0
+        assert get_weight(m_stacks['myapp-v2']) == 1
+        assert get_weight(m_stacks['myapp-v3']) == 20
+        assert get_weight(m_stacks['myapp-v4']) == 179
+
+        update_weights(m_stacks)
+        run(['v1', '1'])
+        assert get_weight(m_stacks['myapp-v1']) == 2
+        assert get_weight(m_stacks['myapp-v2']) == 1
+        assert get_weight(m_stacks['myapp-v3']) == 19
+        assert get_weight(m_stacks['myapp-v4']) == 178
+
+        update_weights(m_stacks)
+        run(['v4', '95'])
+        assert get_weight(m_stacks['myapp-v1']) == 1
+        assert get_weight(m_stacks['myapp-v2']) == 1
+        assert get_weight(m_stacks['myapp-v3']) == 13
+        assert get_weight(m_stacks['myapp-v4']) == 185
+
+        update_weights(m_stacks)
+        run(['v4', '100'])
+        assert get_weight(m_stacks['myapp-v1']) == 0
+        assert get_weight(m_stacks['myapp-v2']) == 0
+        assert get_weight(m_stacks['myapp-v3']) == 0
+        assert get_weight(m_stacks['myapp-v4']) == 200
+
+        update_weights(m_stacks)
+        run(['v4', '10'])
+        assert get_weight(m_stacks['myapp-v1']) == 0
+        assert get_weight(m_stacks['myapp-v2']) == 0
+        assert get_weight(m_stacks['myapp-v3']) == 0
+        assert get_weight(m_stacks['myapp-v4']) == 200
+
+        update_weights(m_stacks)
+        run(['v4', '0'])
+        assert get_weight(m_stacks['myapp-v1']) == 0
+        assert get_weight(m_stacks['myapp-v2']) == 0
+        assert get_weight(m_stacks['myapp-v3']) == 0
+        assert get_weight(m_stacks['myapp-v4']) == 0
+
+    # test not changed
+    for stack in m_stacks.values():
+        stack.update.side_effect = StackNotUpdated('abc')
+
+    m_ok = MagicMock()
+    monkeypatch.setattr('senza.traffic.ok', m_ok)
+
+    with runner.isolated_filesystem():
+        run(['v4', '100'])
+        m_ok.assert_called_once_with(' not changed')
+
+    # test fallback
+    m_cfs.get_by_stack_name = MagicMock(side_effect=StackNotFound('abc'))
+
     with runner.isolated_filesystem():
         run(['v4', '100'])
         assert weights() == [0, 0, 0, 200]
 
         run(['v3', '10'])
         assert weights() == [0, 0, 20, 180]
-
-        run(['v2', '0.5'])
-        assert weights() == [0, 1, 20, 179]
-
-        run(['v1', '1'])
-        assert weights() == [2, 1, 19, 178]
-
-        run(['v4', '95'])
-        assert weights() == [1, 1, 13, 185]
-
-        run(['v4', '100'])
-        assert weights() == [0, 0, 0, 200]
-
-        run(['v4', '10'])
-        assert weights() == [0, 0, 0, 200]
-
-        run(['v4', '0'])
-        assert weights() == [0, 0, 0, 0]
 
 
 def test_AccountArguments(monkeypatch):
@@ -1284,7 +1392,9 @@ def test_patch(monkeypatch):
     boto3 = MagicMock()
     boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',
                                                           'CreationTime': '2016-06-14'}]}
-    boto3.describe_stack_resources.return_value = {'StackResources': [{'ResourceType': 'AWS::AutoScaling::AutoScalingGroup', 'PhysicalResourceId': 'myasg'}]}
+    boto3.describe_stack_resources.return_value = {'StackResources':
+                                                   [{'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
+                                                     'PhysicalResourceId': 'myasg'}]}
     group = {'AutoScalingGroupName': 'myasg'}
     boto3.describe_auto_scaling_groups.return_value = {'AutoScalingGroups': [group]}
     image = MagicMock()
@@ -1294,7 +1404,6 @@ def test_patch(monkeypatch):
 
     def patch_auto_scaling_group(group, region, properties):
         props.update(properties)
-
 
     monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
     monkeypatch.setattr('senza.cli.find_taupage_image', MagicMock(return_value=image))
@@ -1313,15 +1422,17 @@ def test_respawn(monkeypatch):
     monkeypatch.setattr('senza.cli.get_auto_scaling_groups', lambda *args: 'myasg')
     monkeypatch.setattr('senza.cli.respawn_auto_scaling_group', lambda *args, **kwargs: None)
     runner = CliRunner()
-    result = runner.invoke(cli, ['respawn', 'myapp', '1', '--region=aa-fakeregion-1'],
-                           catch_exceptions=False)
+    runner.invoke(cli, ['respawn', 'myapp', '1', '--region=aa-fakeregion-1'],
+                  catch_exceptions=False)
 
 
 def test_scale(monkeypatch):
     boto3 = MagicMock()
     boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',
                                                           'CreationTime': '2016-06-14'}]}
-    boto3.describe_stack_resources.return_value = {'StackResources': [{'ResourceType': 'AWS::AutoScaling::AutoScalingGroup', 'PhysicalResourceId': 'myasg'}]}
+    boto3.describe_stack_resources.return_value = {'StackResources':
+                                                   [{'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
+                                                     'PhysicalResourceId': 'myasg'}]}
     # NOTE: we are using invalid MinSize (< capacity) here to get one more line covered ;-)
     group = {'AutoScalingGroupName': 'myasg', 'DesiredCapacity': 1, 'MinSize': 3, 'MaxSize': 1}
     boto3.describe_auto_scaling_groups.return_value = {'AutoScalingGroups': [group]}
@@ -1360,8 +1471,6 @@ def test_wait(monkeypatch):
 
     runner = CliRunner()
 
-    data = {'SenzaInfo': {'StackName': 'test'}}
-
     with runner.isolated_filesystem():
         result = runner.invoke(cli,
                                ['wait', 'test', '1', '--region=aa-fakeregion-1'],
@@ -1375,7 +1484,7 @@ def test_wait(monkeypatch):
         assert "OK: Stack(s) test-2 created successfully" in result.output
 
         result = runner.invoke(cli,
-                               ['wait',  '--deletion', 'test', '3',
+                               ['wait', '--deletion', 'test', '3',
                                 '--region=aa-fakeregion-1'],
                                catch_exceptions=False)
         assert "OK: Stack(s) test-3 deleted successfully" in result.output
@@ -1423,7 +1532,11 @@ def test_wait_failure(monkeypatch):
               'StackStatus': 'ROLLBACK_COMPLETE'}
 
     cf.list_stacks.return_value = {'StackSummaries': [stack1]}
-    cf.describe_stack_events.return_value = {'StackEvents': [{'Timestamp': 0, 'ResourceStatus': 'FAIL', 'ResourceStatusReason': 'myreason', 'LogicalResourceId': 'foo'}]}
+    cf.describe_stack_events.return_value = {'StackEvents':
+                                             [{'Timestamp': 0,
+                                               'ResourceStatus': 'FAIL',
+                                               'ResourceStatusReason': 'myreason',
+                                               'LogicalResourceId': 'foo'}]}
     monkeypatch.setattr('boto3.client', MagicMock(return_value=cf))
 
     def my_resource(rtype, *args):
@@ -1564,4 +1677,4 @@ def test_status_main_dns(monkeypatch):
                                catch_exceptions=False)
 
     data = json.loads(result.output.strip())
-    assert data[0]['main_dns'] == True
+    assert data[0]['main_dns'] is True

@@ -1,7 +1,11 @@
-from unittest.mock import MagicMock, call
+import json
 from datetime import datetime, timezone
+from unittest.mock import MagicMock, call
 
+import botocore.exceptions
+import pytest
 from senza.manaus.cloudformation import CloudFormation, CloudFormationStack
+from senza.manaus.exceptions import StackNotFound, StackNotUpdated
 
 MOCK_STACK1 = {'ResponseMetadata': {'HTTPStatusCode': 200,
                                     'RequestId': '000'},
@@ -146,3 +150,93 @@ def test_cf_resources(monkeypatch):
                                    call(name='myapp1-1.example.com'),
                                    call().__next__()])
     assert len(resources) == 2
+
+
+def test_get_by_stack_name_not_found(monkeypatch):
+    m_client = MagicMock()
+    m_client.return_value = m_client
+
+    m_client.describe_stacks.side_effect = botocore.exceptions.ClientError(
+        {'Error': {'Code': 'ValidationError',
+                   'Message': 'Stack with id myapp does not exist'}},
+        'foobar')
+    monkeypatch.setattr('boto3.client', m_client)
+
+    with pytest.raises(StackNotFound):
+        CloudFormationStack.get_by_stack_name('myapp')
+
+    m_client.describe_stacks.side_effect = botocore.exceptions.ClientError(
+        {'Error': {'Code': 'ValidationError',
+                   'Message': 'Random'}},
+        'foobar')
+    with pytest.raises(botocore.exceptions.ClientError):
+        CloudFormationStack.get_by_stack_name('myapp')
+
+
+def test_template(monkeypatch):
+    m_client = MagicMock()
+    m_client.return_value = m_client
+
+    m_client.describe_stacks.return_value = MOCK_STACK1
+    m_client.get_template.return_value = {'TemplateBody':
+                                          {'answer_to_life_the_universe_and_everything': 42}}
+    monkeypatch.setattr('boto3.client', m_client)
+
+    stack = CloudFormationStack.get_by_stack_name('myapp')
+    assert stack.template == {'answer_to_life_the_universe_and_everything': 42}
+
+    m_client.get_template.assert_called_once_with(StackName='myapp-42')
+
+    # The 2nd time it should use a cached value
+    m_client.get_template.reset_mock()
+    assert stack.template == {'answer_to_life_the_universe_and_everything': 42}
+    assert m_client.get_template_assert_not_called()
+
+    # After reset it should fetch the template again
+    m_client.get_template.reset_mock()
+    stack.reset()
+    assert stack.template == {'answer_to_life_the_universe_and_everything': 42}
+    m_client.get_template.assert_called_once_with(StackName='myapp-42')
+
+
+def test_stack_update(monkeypatch):
+    m_client = MagicMock()
+    m_client.return_value = m_client
+
+    m_client.describe_stacks.return_value = MOCK_STACK1
+    m_client.get_template.return_value = {'TemplateBody':
+                                          {'answer_to_life_the_universe_and_everything': 42}}
+    monkeypatch.setattr('boto3.client', m_client)
+
+    stack = CloudFormationStack.get_by_stack_name('myapp')
+
+    stack.template["What not to do"] = "Panic"
+    stack.parameters['SomethingElse'] = "CompletelyDifferent"
+
+    stack.update()
+
+    parameters = [{'ParameterValue': '42', 'ParameterKey': 'ImageVersion'},
+                  {'ParameterKey': 'SomethingElse',
+                   'ParameterValue': 'CompletelyDifferent'}]
+    template = {"answer_to_life_the_universe_and_everything": 42,
+                "What not to do": "Panic"}
+    m_client.update_stack.assert_called_once_with(Capabilities=['CAPABILITY_IAM'],
+                                                  Parameters=parameters,
+                                                  StackName='myapp-42',
+                                                  TemplateBody=json.dumps(template))
+
+    m_client.update_stack.side_effect = botocore.exceptions.ClientError(
+        {'Error': {'Code': 'ValidationError',
+                   'Message': 'No updates are to be performed.'}},
+        'foobar')
+
+    with pytest.raises(StackNotUpdated):
+        stack.update()
+
+    m_client.update_stack.side_effect = botocore.exceptions.ClientError(
+        {'Error': {'Code': 'ValidationError',
+                   'Message': 'Random'}},
+        'foobar')
+
+    with pytest.raises(botocore.exceptions.ClientError):
+        stack.update()

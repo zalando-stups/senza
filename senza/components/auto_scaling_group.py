@@ -82,6 +82,34 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         if "SuccessRequires" in configuration["AutoScaling"]:
             asg_success = normalize_asg_success(configuration["AutoScaling"]["SuccessRequires"])
 
+    tags = [ # Tag "Name"
+             {
+                 "Key": "Name",
+                 "PropagateAtLaunch": True,
+                 "Value": "{0}-{1}".format(info["StackName"], info["StackVersion"])
+             },
+             # Tag "StackName"
+             {
+                 "Key": "StackName",
+                 "PropagateAtLaunch": True,
+                 "Value": info["StackName"],
+             },
+             # Tag "StackVersion"
+             {
+                 "Key": "StackVersion",
+                 "PropagateAtLaunch": True,
+                 "Value": info["StackVersion"]
+             }
+           ]
+
+    if "Tags" in configuration:
+        for tag in configuration["Tags"]:
+            tags.append({
+                "Key": tag["Key"],
+                "PropagateAtLaunch": True,
+                "Value": tag["Value"]
+                })
+
     definition["Resources"][asg_name] = {
         "Type": "AWS::AutoScaling::AutoScalingGroup",
         # wait to get a signal from an amount of servers to signal that it booted
@@ -95,26 +123,7 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
             # for our operator some notifications
             "LaunchConfigurationName": {"Ref": config_name},
             "VPCZoneIdentifier": {"Fn::FindInMap": ["ServerSubnets", {"Ref": "AWS::Region"}, "Subnets"]},
-            "Tags": [
-                # Tag "Name"
-                {
-                    "Key": "Name",
-                    "PropagateAtLaunch": True,
-                    "Value": "{0}-{1}".format(info["StackName"], info["StackVersion"])
-                },
-                # Tag "StackName"
-                {
-                    "Key": "StackName",
-                    "PropagateAtLaunch": True,
-                    "Value": info["StackName"],
-                },
-                # Tag "StackVersion"
-                {
-                    "Key": "StackVersion",
-                    "PropagateAtLaunch": True,
-                    "Value": info["StackVersion"]
-                }
-            ]
+            "Tags": tags
         }
     }
 

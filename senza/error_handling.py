@@ -1,3 +1,4 @@
+from typing import Dict, Any  # noqa: F401
 import sys
 from tempfile import NamedTemporaryFile
 from traceback import format_exception
@@ -7,6 +8,8 @@ from botocore.exceptions import ClientError, NoCredentialsError
 from clickclick import error
 
 from .exceptions import PiuNotFound
+from .manaus.exceptions import (ELBNotFound, HostedZoneNotFound, InvalidState,
+                                RecordNotFound)
 
 
 def store_exception(exception: Exception) -> str:
@@ -34,6 +37,10 @@ def is_credentials_expired_error(client_error: ClientError) -> bool:
 
 def is_access_denied_error(e: ClientError) -> bool:
     return e.response['Error']['Code'] in ['AccessDenied']
+
+
+def is_validation_error(e: ClientError) -> bool:
+    return e.response['Error']['Code'] == 'ValidationError'
 
 
 class HandleExceptions:
@@ -79,13 +86,19 @@ class HandleExceptions:
                 sys.exit(1)
             elif is_access_denied_error(e):
                 self.die_credential_error()
+            elif is_validation_error(e):
+                response = e.response  # type: Dict[str, Dict[str, Any]]
+                err = response['Error']
+                message = err['Message']
+                error("Validation Error: {}".format(message))
+                exit(1)
             else:
                 self.die_unknown_error(e)
         except yaml.constructor.ConstructorError as e:
-            print("Error parsing definition file:")
-            print(e)
+            print("Error parsing definition file:", file=sys.stderr)
+            print(e, file=sys.stderr)
             if e.problem == "found unhashable key":
-                print("Please quote all variable values")
+                print("Please quote all variable values", file=sys.stderr)
             sys.exit(1)
         except PiuNotFound as e:
             error(e)
@@ -93,6 +106,12 @@ class HandleExceptions:
                   file=sys.stderr)
             print("sudo pip3 install --upgrade stups-piu",
                   file=sys.stderr)
+            sys.exit(1)
+        except InvalidState as e:
+            error('Invalid State: {}'.format(e))
+            sys.exit(1)
+        except (ELBNotFound, HostedZoneNotFound, RecordNotFound) as e:
+            error(e)
             sys.exit(1)
         except Exception as e:
             # Catch All

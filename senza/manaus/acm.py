@@ -80,16 +80,16 @@ class ACMCertificate:
         arn = certificate['CertificateArn']
         subject_alternative_name = certificate['SubjectAlternativeNames']
         domain_validation_options = certificate['DomainValidationOptions']
-        serial = certificate['Serial']
         subject = certificate['Subject']
-        issuer = certificate['Issuer']
         created_at = certificate['CreatedAt']
-        issued_at = certificate['IssuedAt']
         status = certificate['Status']
-        not_before = certificate['NotBefore']
-        not_after = certificate['NotAfter']
         signature_algorithm = certificate['SignatureAlgorithm']
         in_use_by = certificate['InUseBy']
+        serial = certificate.get('Serial')
+        issuer = certificate.get('Issuer')
+        issued_at = certificate.get('IssuedAt')
+        not_before = certificate.get('NotBefore')
+        not_after = certificate.get('NotAfter')
 
         revoked_at = certificate.get('RevokedAt')
         revocation_reason = certificate.get('RevocationReason')
@@ -101,11 +101,11 @@ class ACMCertificate:
                    revoked_at, revocation_reason)
 
     @classmethod
-    def get_by_arn(cls, arn: str) -> "ACMCertificate":
+    def get_by_arn(cls, region: str, arn: str) -> "ACMCertificate":
         """
         Gets a ACMCertificate based on ARN alone
         """
-        client = boto3.client('acm')
+        client = boto3.client('acm', region)
         certificate = client.describe_certificate(CertificateArn=arn)['Certificate']
         return cls.from_boto_dict(certificate)
 
@@ -156,21 +156,26 @@ class ACM:
     See http://boto3.readthedocs.io/en/latest/reference/services/acm.html
     """
 
-    @staticmethod
-    def get_certificates(valid_only: bool=True,
+    def __init__(self, region=str):
+        self.region = region
+
+    def get_certificates(self,
+                         *,
+                         valid_only: bool=True,
                          domain_name: Optional[str]=None) -> Iterator[ACMCertificate]:
         """
         Gets certificates from ACM. By default it returns all valid certificates
 
+        :param region: AWS region
         :param valid_only: Return only valid certificates
         :param domain_name: Return only certificates that match the domain
         """
         # TODO implement pagination
-        client = boto3.client('acm')
+        client = boto3.client('acm', self.region)
         certificates = client.list_certificates()['CertificateSummaryList']
         for summary in certificates:
             arn = summary['CertificateArn']
-            certificate = ACMCertificate.get_by_arn(arn)
+            certificate = ACMCertificate.get_by_arn(self.region, arn)
             if valid_only and not certificate.is_valid():
                 pass
             elif domain_name is not None and not certificate.matches(domain_name):

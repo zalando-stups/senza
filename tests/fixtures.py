@@ -1,3 +1,4 @@
+from collections import defaultdict
 from datetime import datetime, timezone, timedelta
 from unittest.mock import MagicMock
 
@@ -95,40 +96,92 @@ SERVER_CERT_ZO_NE.server_certificate_metadata = {'Arn': 'arn:aws:123',
 
 @pytest.fixture
 def boto_client(monkeypatch):
-    def my_client(rtype, *args):
+    mocks = defaultdict(lambda: MagicMock())
+    mocks['route53'] = MagicMock()
+    mocks['route53'].list_hosted_zones.return_value = {
+        'HostedZones': [HOSTED_ZONE_ZO_NE],
+        'IsTruncated': False,
+        'MaxItems': '100'}
+    mocks['route53'].list_resource_record_sets.return_value = {
+        'IsTruncated': False,
+        'MaxItems': '100',
+        'ResourceRecordSets': [
+            {'Name': 'example.org.',
+             'ResourceRecords': [{'Value': 'ns.awsdns.com.'},
+                                 {'Value': 'ns.awsdns.org.'}],
+             'TTL': 172800,
+             'Type': 'NS'},
+            {'Name': 'test-1.example.org.',
+             'ResourceRecords': [
+                 {'Value': 'test-1-123.myregion.elb.amazonaws.com'}],
+             'TTL': 20,
+             'Type': 'CNAME'},
+            {'Name': 'mydomain.example.org.',
+             'ResourceRecords': [{'Value': 'test-1.example.org'}],
+             'SetIdentifier': 'test-1',
+             'TTL': 20,
+             'Type': 'CNAME',
+             'Weight': 20},
+            {'Name': 'test-2.example.org.',
+             'AliasTarget': {'DNSName': 'test-2-123.myregion.elb.amazonaws.com'},
+             'TTL': 20,
+             'Type': 'A'},
+        ]}
+
+    def my_client(rtype, *args, **kwargs):
         if rtype == 'route53':
-            route53 = MagicMock()
-            route53.list_hosted_zones.return_value = {
-                'HostedZones': [HOSTED_ZONE_ZO_NE],
-                'IsTruncated': False,
-                'MaxItems': '100'}
-            return route53
+            return mocks['route53']
         elif rtype == 'acm':
-            acm = MagicMock()
+            acm = mocks['acm']
             summary_list = {'CertificateSummaryList': [
                 {'CertificateArn': 'arn:aws:acm:eu-west-1:cert1'},
                 {'CertificateArn': 'arn:aws:acm:eu-west-1:cert2'}]}
-            acm.list_certificates.return_value = summary_list
+            mocks['acm'].list_certificates.return_value = summary_list
             acm.describe_certificate.side_effect = [
                 {'Certificate': CERT1_ZO_NE},
                 {'Certificate': ''}]
             return acm
         elif rtype == 'cloudformation':
-            cf = MagicMock()
+            cf = mocks['cloudformation']
             resource = {
                 'StackResourceDetail': {'ResourceStatus': 'CREATE_COMPLETE',
                                         'ResourceType': 'AWS::IAM::Role',
                                         'PhysicalResourceId': 'my-referenced-role'}}
             cf.describe_stack_resource.return_value = resource
+            cf.list_stacks.return_value = {
+                'StackSummaries': [{'StackName': 'test-1',
+                                    'CreationTime': '2016-06-14'}]}
             return cf
-        return MagicMock()
+        return mocks[rtype]
 
     monkeypatch.setattr('boto3.client', my_client)
+    return mocks
 
 
 @pytest.fixture
 def boto_resource(monkeypatch):
     def my_resource(rtype, *args):
+        if rtype == 'cloudformation':
+            res = MagicMock()
+            res.resource_type = 'AWS::Route53::RecordSet'
+            res.physical_resource_id = 'test-1.example.org'
+            res.logical_id = 'VersionDomain'
+            res.last_updated_timestamp = datetime.now()
+            res2 = MagicMock()
+            res2.resource_type = 'AWS::Route53::RecordSet'
+            res2.physical_resource_id = 'mydomain.example.org'
+            res2.logical_id = 'MainDomain'
+            res2.last_updated_timestamp = datetime.now()
+            res3 = MagicMock()
+            res3.resource_type = 'AWS::Route53::RecordSet'
+            res3.physical_resource_id = 'test-2.example.org'
+            res3.logical_id = 'VersionDomain'
+            res3.last_updated_timestamp = datetime.now()
+            stack = MagicMock()
+            stack.resource_summaries.all.return_value = [res, res2, res3]
+            cf = MagicMock()
+            cf.Stack.return_value = stack
+            return cf
         if rtype == 'ec2':
             ec2 = MagicMock()
             ec2.security_groups.filter.return_value = [

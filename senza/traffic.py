@@ -1,10 +1,17 @@
-from json import JSONEncoder
-import click
-from clickclick import warning, action, ok, print_table, Action
 import collections
-from .aws import get_stacks, StackReference, get_tag
+from json import JSONEncoder
+from typing import Dict, Iterator
 
 import boto3
+import click
+import dns.resolver
+from clickclick import Action, action, ok, print_table, warning
+
+from .aws import StackReference, get_stacks, get_tag
+from .manaus.cloudformation import CloudFormationStack
+from .manaus.exceptions import StackNotFound, StackNotUpdated
+from .manaus.route53 import (RecordType, Route53, Route53HostedZone,
+                             convert_domain_records_to_alias)
 
 PERCENT_RESOLUTION = 2
 FULL_PERCENTAGE = PERCENT_RESOLUTION * 100
@@ -22,20 +29,21 @@ def get_weights(dns_names: list, identifier: str, all_identifiers) -> ({str: int
     partial_sum = 0
     known_record_weights = {}
     for dns_name in dns_names:
-        for record in get_records(dns_name.split('.', 1)[1]):
-            if record['Type'] == 'CNAME' and record['Name'] == dns_name:
+        for record in Route53.get_records(name=dns_name):
+            if record.type in [RecordType.CNAME, RecordType.A, RecordType.AAAA]:
                 try:
-                    if record['Weight']:
-                        weight = int(record['Weight'])
+                    if record.weight:
+                        weight = record.weight
                     else:
                         weight = 0
                 except KeyError:
                     continue
                 else:
-                    known_record_weights[record['SetIdentifier']] = weight
-                    if record['SetIdentifier'] != identifier and weight > 0:
-                        # we should ignore all versions that do not get any traffic
-                        # not to put traffic on the disabled versions when redistributing traffic weights
+                    known_record_weights[record.set_identifier] = weight
+                    if record.set_identifier != identifier and weight > 0:
+                        # we should ignore all versions that do not get any
+                        # traffic to not give traffic to disabled versions when
+                        # redistributing traffic weights
                         partial_sum += weight
                         partial_count += 1
     if identifier not in known_record_weights:
@@ -110,52 +118,51 @@ def compensate(calculation_error, compensations, identifier, new_record_weights,
     return percentage
 
 
-def set_new_weights(dns_names: list, identifier, lb_dns_name: str, new_record_weights, percentage):
+def set_new_weights(dns_names: list, identifier, lb_dns_name: str,
+                    new_record_weights: Dict, region: str):
     action('Setting weights for {dns_names}..', dns_names=', '.join(dns_names))
-    dns_changes = {}
     for idx, dns_name in enumerate(dns_names):
         domain = dns_name.split('.', 1)[1]
-        zone = get_zone(domain)
-        did_the_upsert = False
-        for r in get_records(domain):
-            if r['Type'] == 'CNAME' and r['Name'] == dns_name:
-                w = new_record_weights[r['SetIdentifier']]
-                if w:
-                    if int(r['Weight']) != w:
-                        r['Weight'] = w
-                        if dns_changes.get(zone['Id']) is None:
-                            dns_changes[zone['Id']] = []
-                        dns_changes[zone['Id']].append({'Action': 'UPSERT',
-                                                        'ResourceRecordSet': r})
-                    if identifier == r['SetIdentifier']:
-                        did_the_upsert = True
+        hosted_zone = Route53HostedZone.get_by_domain_name(domain)
+        convert_domain_records_to_alias(dns_name)
+
+        changed = False
+        for stack_name, percentage in new_record_weights.items():
+            try:
+                stack = CloudFormationStack.get_by_stack_name(stack_name,
+                                                              region=region)
+            except StackNotFound:
+                # The Route53 record doesn't have an associated stack
+                # fallback to the old logic
+                record = None
+                for r in Route53.get_records(name=dns_name):
+                    if r.set_identifier == stack_name:
+                        record = r
+                        break
+                if percentage:
+                    record.weight = percentage
+                    hosted_zone.upsert([record],
+                                       comment="Change weight of {} to {}".format(stack_name,
+                                                                                  percentage))
                 else:
-                    if dns_changes.get(zone['Id']) is None:
-                        dns_changes[zone['Id']] = []
-                    dns_changes[zone['Id']].append({'Action': 'DELETE',
-                                                    'ResourceRecordSet': r.copy()})
-        if new_record_weights[identifier] > 0 and not did_the_upsert:
-            if dns_changes.get(zone['Id']) is None:
-                dns_changes[zone['Id']] = []
-            dns_changes[zone['Id']].append({'Action': 'UPSERT',
-                                            'ResourceRecordSet': {'Name': dns_name,
-                                                                  'Type': 'CNAME',
-                                                                  'SetIdentifier': identifier,
-                                                                  'Weight': new_record_weights[identifier],
-                                                                  'TTL': 20,
-                                                                  'ResourceRecords': [{'Value': lb_dns_name[idx]}]}})
-    if dns_changes:
-        route53 = boto3.client('route53')
-        for hosted_zone_id, change in dns_changes.items():
-            route53.change_resource_record_sets(HostedZoneId=hosted_zone_id,
-                                                ChangeBatch={'Comment': 'Weight change of {}'.format(hosted_zone_id),
-                                                             'Changes': change})
-        if sum(new_record_weights.values()) == 0:
-            ok(' DISABLED')
-        else:
+                    hosted_zone.delete([record],
+                                       comment="Delete {} "
+                                               "because traffic for it is 0".format(stack_name))
+                changed = True
+                continue
+            load_balancer = stack.template['Resources']['AppLoadBalancerMainDomain']
+            load_balancer['Properties']['Weight'] = percentage
+            try:
+                stack.update()
+            except StackNotUpdated:
+                ...  # it doesn't really matter
+            else:
+                changed = True
+
+        if changed:
             ok()
-    else:
-        ok(' not changed')
+        else:
+            ok(' not changed')
 
 
 def dump_traffic_changes(stack_name: str,
@@ -213,7 +220,7 @@ class StackVersion(collections.namedtuple('StackVersion', 'name version domain l
         return ['{}.'.format(x) for x in self.domain]
 
 
-def get_stack_versions(stack_name: str, region: str):
+def get_stack_versions(stack_name: str, region: str) -> Iterator[StackVersion]:
     cf = boto3.resource('cloudformation', region)
     for stack in get_stacks([StackReference(name=stack_name, version=None)], region):
         if stack.StackStatus in ('ROLLBACK_COMPLETE', 'CREATE_FAILED'):
@@ -240,42 +247,15 @@ def get_version(versions: list, version: str):
     raise click.UsageError('Stack version {} not found'.format(version))
 
 
-def get_zone(domainname: str, *args, all=False):
-    if len(DNS_ZONE_CACHE) == 0:
-        route53 = boto3.client('route53')
-        result = route53.list_hosted_zones()
-        zones = result['HostedZones']
-        while result.get('IsTruncated', False):
-            recordfilter = {'Marker': result['NextMarker']}
-            result = route53.list_hosted_zones(**recordfilter)
-            zones.extend(result['HostedZones'])
-        if len(zones) == 0:
-            raise ValueError('No Zones are configured!')
-        for zone in zones:
-            DNS_ZONE_CACHE[zone['Name']] = zone
-    if domainname is None and all:
-        return list(DNS_ZONE_CACHE.values())
-    elif domainname is not None:
-        domainname = '{}.'.format(domainname.rstrip('.'))
-        domainlevel = domainname.split('.')
-        for i in range(len(domainlevel)):
-            if DNS_ZONE_CACHE.get('.'.join(domainlevel[i:])):
-                if all:
-                    return [DNS_ZONE_CACHE.get('.'.join(domainlevel[i:]))]
-                return DNS_ZONE_CACHE.get('.'.join(domainlevel[i:]))
-        raise ValueError('Zone {} not found'.format(domainname))
-    return None
-
-
 def get_records(domain: str):
     domain = '{}.'.format(domain.rstrip('.'))
     if DNS_RR_CACHE.get(domain) is None:
-        zone = get_zone(domain)
+        hosted_zone = Route53HostedZone.get_by_domain_name(domain)
         route53 = boto3.client('route53')
-        result = route53.list_resource_record_sets(HostedZoneId=zone['Id'])
+        result = route53.list_resource_record_sets(HostedZoneId=hosted_zone.id)
         records = result['ResourceRecordSets']
         while result['IsTruncated']:
-            recordfilter = {'HostedZoneId': zone['Id'],
+            recordfilter = {'HostedZoneId': hosted_zone.id,
                             'StartRecordName': result['NextRecordName'],
                             'StartRecordType': result['NextRecordType']
                             }
@@ -326,7 +306,8 @@ def print_version_traffic(stack_ref: StackReference, region):
                 sorted(rows, key=lambda x: identifier_versions.get(x['identifier'], '')))
 
 
-def change_version_traffic(stack_ref: StackReference, percentage: float, region):
+def change_version_traffic(stack_ref: StackReference, percentage: float,
+                           region: str):
     versions = list(get_stack_versions(stack_ref.name, region))
     arns = []
     for v in versions:
@@ -364,8 +345,9 @@ def change_version_traffic(stack_ref: StackReference, percentage: float, region)
             total_weight = sum(new_record_weights.values())
             calculation_error = FULL_PERCENTAGE - total_weight
             if calculation_error and calculation_error < FULL_PERCENTAGE:
-                percentage = compensate(calculation_error, compensations, identifier,
-                                        new_record_weights, partial_count, percentage, identifier_versions)
+                compensate(calculation_error, compensations, identifier,
+                           new_record_weights, partial_count, percentage,
+                           identifier_versions)
             assert sum(new_record_weights.values()) == FULL_PERCENTAGE
         message = dump_traffic_changes(stack_ref.name,
                                        identifier,
@@ -376,7 +358,8 @@ def change_version_traffic(stack_ref: StackReference, percentage: float, region)
                                        deltas)
         print_traffic_changes(message)
         inform_sns(arns, message, region)
-    set_new_weights(version.dns_name, identifier, version.lb_dns_name, new_record_weights, percentage)
+    set_new_weights(version.dns_name, identifier, version.lb_dns_name,
+                    new_record_weights, region)
 
 
 def inform_sns(arns: list, message: str, region):
@@ -385,3 +368,15 @@ def inform_sns(arns: list, message: str, region):
     sns = boto3.client('sns', region_name=region)
     for sns_topic in sns_topics:
         sns.publish(TopicArn=sns_topic, Subject="SenzaTrafficRedirect", Message=jsonizer.encode((message)))
+
+
+def resolve_to_ip_addresses(dns_name: str) -> set:
+    """
+    Try to resolve the given DNS name to IPv4 addresses and return empty set on ANY error.
+    """
+    try:
+        answers = dns.resolver.query(dns_name, 'A')
+    except:
+        return set()
+    else:
+        return {answer.address for answer in answers}

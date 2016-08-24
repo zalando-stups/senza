@@ -1,6 +1,12 @@
 import click
 from unittest.mock import MagicMock
-from senza.templates._helper import get_iam_role_policy, get_mint_bucket_name, check_value, prompt, choice
+from senza.templates._helper import (get_iam_role_policy, get_mint_bucket_name,
+                                     check_value, prompt, choice)
+from senza.templates.postgresapp import (ebs_optimized_supported,
+                                         generate_random_password,
+                                         set_default_variables,
+                                         generate_definition,
+                                         get_latest_image)
 
 
 def test_template_helper_get_mint_bucket_name(monkeypatch):
@@ -15,8 +21,8 @@ def test_template_helper_get_mint_bucket_name(monkeypatch):
     s3 = MagicMock()
     s3.return_value.Bucket.return_value.load.side_effect = Exception()
     monkeypatch.setattr('boto3.resource', s3)
-    assert ('myorg-stups-mint-123-otherregion' == get_mint_bucket_name('otherregion'),
-            'Return Name of Bucket, if no other Bucket found')
+    assert 'myorg-stups-mint-123-otherregion' == get_mint_bucket_name('otherregion'), \
+           'Return Name of Bucket, if no other Bucket found'
 
     exist_bucket = MagicMock()
     exist_bucket.name = 'myorg-stups-mint-123-myregion'
@@ -95,3 +101,43 @@ def test_prompt_type():
     variables = {'test': '42'}
     prompt(variables, 'test', type=int)
     assert variables['test'] == 42
+
+
+def test_ebs_optimized_supported():
+    assert ebs_optimized_supported('c3.xlarge')
+    assert not ebs_optimized_supported('t2.micro')
+
+
+def test_generate_random_password():
+    assert len(generate_random_password(62)) == 62
+
+
+def test_generate_definition():
+    variables = set_default_variables(dict())
+    assert len(generate_definition(variables)) > 300
+
+
+def test_get_latest_image(monkeypatch):
+
+    mock_response = MagicMock()
+    mock_response.json.return_value = [{'created': '2016-06-09T07:12:34.413Z',
+                                        'created_by': 'someone',
+                                        'name': '0.90-p7'},
+                                       {'created': '2016-06-28T10:19:47.788Z',
+                                        'created_by': 'someone',
+                                        'name': '0.90-p8'},
+                                       {'created': '2016-07-01T06:58:32.956Z',
+                                        'created_by': 'someone',
+                                        'name': '0.90-test'},
+                                       {'created': '2016-07-12T06:58:32.956Z',
+                                        'created_by': 'someone',
+                                        'name': '0.91-SNAPSHOT'}]
+
+    mock_get = MagicMock()
+    mock_get.return_value = mock_response
+    monkeypatch.setattr('requests.get', mock_get)
+
+    assert get_latest_image() == 'registry.opensource.zalan.do/acid/spilo-9.5:0.90-test'
+
+    mock_response.ok = False
+    assert get_latest_image() == ''

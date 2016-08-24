@@ -102,14 +102,17 @@ SenzaComponents:
           PGPASSWORD_STANDBY: "{{pgpassword_standby}}"
           BACKUP_SCHEDULE: "00 01 * * *"
           PATRONI_CONFIGURATION: | ## https://github.com/zalando/patroni#yaml-configuration
-            # postgresql:
-            #   pg_hba:
-            #   - hostnossl all all all reject
-            #   - hostssl   all all all md5
+            bootstrap:
+              dcs:
+                postgresql:
+                  parameters:
+                    log_connections: on
+              pg_hba:
+               - hostnossl all all all reject
         root: True
         sysctl:
           vm.overcommit_memory: 2
-          vm.overcommit_ratio: 60
+          vm.overcommit_ratio: 200
           vm.dirty_ratio: 8
           vm.dirty_background_ratio: 1
           vm.swappiness: 1
@@ -243,7 +246,6 @@ Resources:
           - Effect: Allow
             Action:
               - "kms:Decrypt"
-              - "kms:Encrypt"
             Resource:
               - {{kms_arn}}
           {{/kms_arn}}
@@ -341,13 +343,10 @@ Resources:
 
 
 def ebs_optimized_supported(instance_type):
-    # per http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EBSOptimized.html
     """
-    >>> ebs_optimized_supported('c3.xlarge')
-    True
-    >>> ebs_optimized_supported('t2.micro')
-    False
+    Per http://docs.aws.amazon.com/AWSEC2/latest/UserGuide/EBSOptimized.html
     """
+    # TODO move to manaus
     return instance_type in ('c1.large', 'c3.xlarge', 'c3.2xlarge', 'c3.4xlarge',
                              'c4.large', 'c4.xlarge', 'c4.2xlarge', 'c4.4xlarge', 'c4.8xlarge',
                              'd2.xlarge', 'd2.2xlarge', 'd2.4xlarge', 'd2.8xlarge',
@@ -419,14 +418,14 @@ def gather_user_variables(variables, region, account_info):
 
     # Find all Security Groups attached to the zmon worker with 'zmon' in their name
     ec2 = boto3.client('ec2', region)
-    filters = [{'Name': 'tag-key', 'Values': ['StackName']}, {'Name': 'tag-value', 'Values': ['zmon-worker']}]
+    filters = [{'Name': 'tag-key', 'Values': ['StackName']}, {'Name': 'tag-value', 'Values': ['zmon-appliance']}]
     zmon_sgs = list()
     for reservation in ec2.describe_instances(Filters=filters).get('Reservations', []):
         for instance in reservation.get('Instances', []):
             zmon_sgs += [sg['GroupId'] for sg in instance.get('SecurityGroups', []) if 'zmon' in sg['GroupName']]
 
     if len(zmon_sgs) == 0:
-        warning('Could not find zmon security group')
+        warning('Could not find zmon security group, do you have the zmon-appliance deployed?')
     else:
         click.confirm('Do you want to allow access to the Spilo nodes from zmon?', default=True)
         if len(zmon_sgs) > 1:
@@ -477,8 +476,9 @@ def gather_user_variables(variables, region, account_info):
         variables['kms_arn'] = [k['Arn'] for k in kms_keys if k['KeyId'] == kms_keyid][0]
 
         for key in [k for k in variables if k.startswith('pgpassword_') or k == 'scalyr_account_key']:
-            encrypted = encrypt(region=region, KeyId=kms_keyid, Plaintext=variables[key], b64encode=True)
-            variables[key] = 'aws:kms:{}'.format(encrypted)
+            if variables[key]:
+                encrypted = encrypt(region=region, KeyId=kms_keyid, Plaintext=variables[key], b64encode=True)
+                variables[key] = 'aws:kms:{}'.format(encrypted)
 
     set_default_variables(variables)
 
@@ -489,28 +489,21 @@ def gather_user_variables(variables, region, account_info):
 
 def generate_random_password(length=64):
     """
-    >>> len(generate_random_password(61))
-    61
+    Generates a random password containing upper case characters and digits
     """
-    return ''.join(random.SystemRandom().choice(string.ascii_uppercase + string.digits) for _ in range(length))
+    char_list = string.ascii_uppercase + string.digits
+    return ''.join(random.SystemRandom().choice(char_list)
+                   for _ in range(length))
 
 
 def generate_definition(variables):
-    """
-    >>> variables = set_default_variables(dict())
-    >>> len(generate_definition(variables)) > 300
-    True
-    """
     definition_yaml = pystache_render(TEMPLATE, variables)
     return definition_yaml
 
 
 def get_latest_image(registry_domain='registry.opensource.zalan.do', team='acid', artifact='spilo-9.5'):
     """
-    >>> 'registry.opensource.zalan.do' in get_latest_image()
-    True
-    >>> get_latest_image('dont.exist.url')
-    ''
+    Gets the full name of latest image for an artifact
     """
     try:
         r = requests.get('https://{0}/teams/{1}/artifacts/{2}/tags'.format(registry_domain, team, artifact))

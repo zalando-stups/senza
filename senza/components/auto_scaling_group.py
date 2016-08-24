@@ -20,11 +20,9 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         }
     }
 
-    if 'BlockDeviceMappings' in configuration:
-        definition['Resources'][config_name]['Properties']['BlockDeviceMappings'] = configuration['BlockDeviceMappings']
-
-    if "IamInstanceProfile" in configuration:
-        definition["Resources"][config_name]["Properties"]["IamInstanceProfile"] = configuration["IamInstanceProfile"]
+    for key in set(["BlockDeviceMappings", "IamInstanceProfile", "SpotPrice"]):
+        if key in configuration:
+            definition['Resources'][config_name]['Properties'][key] = configuration[key]
 
     if 'IamRoles' in configuration:
         logical_id = configuration['Name'] + 'InstanceProfile'
@@ -179,17 +177,18 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
             }
         }
 
-        metric_type = as_conf["MetricType"]
-        metricfns = {
-            "CPU": metric_cpu,
-            "NetworkIn": metric_network,
-            "NetworkOut": metric_network
-        }
-        # lowercase cpu is an acceptable metric, be compatible
-        if metric_type.lower() not in map(lambda t: t.lower(), metricfns.keys()):
-            raise click.UsageError('Auto scaling MetricType "{}" not supported.'.format(metric_type))
-        metricfn = metricfns[metric_type]
-        definition = metricfn(asg_name, definition, as_conf, args, info, force)
+        if "MetricType" in as_conf:
+            metric_type = as_conf["MetricType"]
+            metricfns = {
+                "CPU": metric_cpu,
+                "NetworkIn": metric_network,
+                "NetworkOut": metric_network
+            }
+            # lowercase cpu is an acceptable metric, be compatible
+            if metric_type.lower() not in map(lambda t: t.lower(), metricfns.keys()):
+                raise click.UsageError('Auto scaling MetricType "{}" not supported.'.format(metric_type))
+            metricfn = metricfns[metric_type]
+            definition = metricfn(asg_name, definition, as_conf, args, info, force)
     else:
         asg_properties["MaxSize"] = 1
         asg_properties["MinSize"] = 1

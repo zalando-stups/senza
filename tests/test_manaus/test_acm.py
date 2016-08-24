@@ -85,6 +85,24 @@ CERT2 = {'CertificateArn': 'arn:aws:acm:eu-west-1:cert2',
                                      '*.senza.aws.example.net',
                                      '*.app.example.net']}
 
+CERT_VALIDATION_TIMED_OUT = {
+    'KeyAlgorithm': 'RSA-2048',
+    'DomainName': 'alpha.example.org',
+    'InUseBy': [],
+    'CreatedAt': datetime(2016, 7,  11, 15,  15,  30),
+    'SubjectAlternativeNames': ['alpha.example.org'],
+    'SignatureAlgorithm': 'SHA256WITHRSA',
+    'Status': 'VALIDATION_TIMED_OUT',
+    'DomainValidationOptions': [{'DomainName': 'alpha.example.org',
+                                 'ValidationEmails': ['administrator@alpha.example.org',
+                                    'hostmaster@alpha.example.org',
+                                    'admin@alpha.example.org',
+                                    'webmaster@alpha.example.org',
+                                    'postmaster@alpha.example.org'],
+                                 'ValidationDomain': 'alpha.example.org'}],
+    'CertificateArn': 'arn:aws:acm:eu-central-1:123123:certificate/f8a0fa1a-381b-44b6-ab10-1b94ba1480a1',
+    'Subject': 'CN=alpha.example.org'}
+
 
 def test_certificate_valid():
     certificate1 = ACMCertificate.from_boto_dict(CERT1)
@@ -108,6 +126,9 @@ def test_certificate_valid():
     assert not certificate1_revoked.is_valid(when=datetime(2013, 4, 2, 10, 11, 12,
                                                            tzinfo=timezone.utc))
 
+    cert_invalid = ACMCertificate.from_boto_dict(CERT_VALIDATION_TIMED_OUT)
+    assert not cert_invalid.is_valid()
+
 
 def test_certificate_comparison():
     cert2 = CERT1.copy()
@@ -127,7 +148,8 @@ def test_certificate_get_by_arn(monkeypatch):
     m_client.describe_certificate.return_value = {'Certificate': CERT1}
     monkeypatch.setattr('boto3.client', m_client)
 
-    certificate1 = ACMCertificate.get_by_arn('arn:aws:acm:eu-west-1:cert')
+    certificate1 = ACMCertificate.get_by_arn('dummy-region',
+                                             'arn:aws:acm:eu-west-1:cert')
     assert certificate1.domain_name == '*.senza.example.com'
     assert certificate1.is_valid(when=datetime(2016, 4, 5, 12, 14, 14,
                                                tzinfo=timezone.utc))
@@ -162,7 +184,7 @@ def test_get_certificates(monkeypatch):
                                            tzinfo=timezone.utc)
     monkeypatch.setattr('senza.manaus.acm.datetime', m_datetime)
 
-    acm = ACM()
+    acm = ACM('dummy-region')
     certificates_default = list(acm.get_certificates())
     assert len(certificates_default) == 1  # Cert2 is excluded because it's REVOKED
     assert certificates_default[0].arn == 'arn:aws:acm:eu-west-1:cert1'

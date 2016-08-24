@@ -1,16 +1,14 @@
 class SenzaException(Exception):
     """
-    Base class for Senza execeptions
+    Base class for Senza exceptions
     """
 
 
-class VPCError(SenzaException, AttributeError):
+class InvalidState(SenzaException):
     """
-    Error raised when there are issues with VPCs configuration
+    Exception raised when executing an action would try to change a stack
+    to an invalid state
     """
-
-    def __init__(self, message):
-        super().__init__(message)
 
 
 class PiuNotFound(SenzaException, FileNotFoundError):

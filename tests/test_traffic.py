@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock
 from senza.aws import SenzaStackSummary
-from senza.traffic import get_stack_versions, StackVersion, get_weights
+from senza.traffic import get_stack_versions, StackVersion, get_weights, resolve_to_ip_addresses
+from senza.manaus.route53 import RecordType
 
 
 def test_get_stack_versions(monkeypatch):
@@ -41,10 +42,13 @@ def test_get_stack_versions(monkeypatch):
 
 
 def test_get_weights(monkeypatch):
-    get_records = MagicMock()
-    get_records.return_value = [{'Type': 'CNAME', 'Name': 'app1.example.com',
-                                 'Weight': 100, 'SetIdentifier': 'app-1'}]
-    monkeypatch.setattr('senza.traffic.get_records', get_records)
+    mock_route53 = MagicMock()
+    mock_record1 = MagicMock(name='app1.example.com',
+                             type=RecordType.A,
+                             weight=100,
+                             set_identifier='app-1')
+    mock_route53.get_records.return_value = [mock_record1]
+    monkeypatch.setattr('senza.traffic.Route53', mock_route53)
     all_identifiers = ['app-1', 'app-2', 'app-3']
     domains = ['app1.example.com']
     assert get_weights(domains, 'app-1', all_identifiers) == ({'app-1': 100,
@@ -54,8 +58,11 @@ def test_get_weights(monkeypatch):
                                                               0)
 
     # Without weight
-    get_records.return_value = [{'Type': 'CNAME', 'Name': 'app1.example.com',
-                                 'SetIdentifier': 'app-1'}]
+    mock_record2 = MagicMock(name='app1.example.com',
+                             type=RecordType.A,
+                             weight=None,
+                             set_identifier='app-1')
+    mock_route53.get_records.return_value = [mock_record2]
 
     all_identifiers = ['app-1', 'app-2', 'app-3']
     domains = ['app1.example.com']
@@ -64,3 +71,15 @@ def test_get_weights(monkeypatch):
                                                                'app-3': 0},
                                                               0,
                                                               0)
+
+
+def test_resolve_to_ip_addresses(monkeypatch):
+    query = MagicMock()
+    monkeypatch.setattr('dns.resolver.query', query)
+
+    query.side_effect = Exception()
+    assert resolve_to_ip_addresses('example.org') == set()
+
+    query.side_effect = None
+    query.return_value = [MagicMock(address='1.2.3.4')]
+    assert resolve_to_ip_addresses('example.org') == {'1.2.3.4'}

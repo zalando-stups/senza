@@ -10,8 +10,8 @@ from senza.components.auto_scaling_group import (component_auto_scaling_group,
                                                  normalize_asg_success,
                                                  normalize_network_threshold,
                                                  to_iso8601_duration)
-from senza.components.elastic_load_balancer import \
-    component_elastic_load_balancer
+from senza.components.elastic_load_balancer import (component_elastic_load_balancer,
+                                                    get_load_balancer_name)
 from senza.components.iam_role import component_iam_role, get_merged_policies
 from senza.components.redis_cluster import component_redis_cluster
 from senza.components.redis_node import component_redis_node
@@ -136,6 +136,28 @@ def test_component_load_balancer_idletimeout(monkeypatch):
     assert 'HTTPPort' not in result["Resources"]["test_lb"]["Properties"]
 
 
+def test_component_load_balancer_http_only(monkeypatch):
+    configuration = {
+        "Name": "test_lb",
+        "SecurityGroups": "",
+        "HTTPPort": "9999",
+        "SSLCertificateId": "arn:none", # should be ignored as we overwrite Listeners
+        "Listeners": [{"Foo": "Bar"}]
+    }
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    definition = {"Resources": {}}
+
+    args = MagicMock()
+    args.region = "foo"
+
+    mock_string_result = MagicMock()
+    mock_string_result.return_value = "foo"
+    monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
+    assert 'Bar' == result["Resources"]["test_lb"]["Properties"]["Listeners"][0]["Foo"]
+
+
 def test_component_load_balancer_namelength(monkeypatch):
     configuration = {
         "Name": "test_lb",
@@ -195,6 +217,42 @@ def test_component_stups_auto_configuration(monkeypatch):
     result = component_stups_auto_configuration({}, configuration, args, MagicMock(), False, MagicMock())
 
     assert {'myregion': {'Subnets': ['sn-1']}} == result['Mappings']['LoadBalancerSubnets']
+    assert {'myregion': {'Subnets': ['sn-3']}} == result['Mappings']['ServerSubnets']
+
+
+def test_component_stups_auto_configuration_vpc_id(monkeypatch):
+    args = MagicMock()
+    args.region = 'myregion'
+
+    configuration = {
+        'Name': 'Config',
+        'VpcId': 'vpc-123'
+    }
+
+    sn1 = MagicMock()
+    sn1.id = 'sn-1'
+    sn1.tags = [{'Key': 'Name', 'Value': 'dmz-1'}]
+    sn1.availability_zone = 'az-1'
+    sn2 = MagicMock()
+    sn2.id = 'sn-2'
+    sn2.tags = [{'Key': 'Name', 'Value': 'dmz-2'}]
+    sn2.availability_zone = 'az-2'
+    sn3 = MagicMock()
+    sn3.id = 'sn-3'
+    sn3.tags = [{'Key': 'Name', 'Value': 'internal-3'}]
+    sn3.availability_zone = 'az-1'
+    ec2 = MagicMock()
+    def get_subnets(Filters):
+        assert Filters == [{'Name': 'vpc-id', 'Values': ['vpc-123']}]
+        return [sn1, sn2, sn3]
+    ec2.subnets.filter = get_subnets
+    image = MagicMock()
+    ec2.images.filter.return_value = [image]
+    monkeypatch.setattr('boto3.resource', lambda x, y: ec2)
+
+    result = component_stups_auto_configuration({}, configuration, args, MagicMock(), False, MagicMock())
+
+    assert {'myregion': {'Subnets': ['sn-1', 'sn-2']}} == result['Mappings']['LoadBalancerSubnets']
     assert {'myregion': {'Subnets': ['sn-3']}} == result['Mappings']['ServerSubnets']
 
 
@@ -482,6 +540,33 @@ def test_component_auto_scaling_group_configurable_properties():
     assert result["Resources"]["FooCPUAlarmHigh"]["Properties"]["EvaluationPeriods"] == "1"
     assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["AlarmDescription"] == expected_desc
 
+def test_component_auto_scaling_group_configurable_properties():
+    definition = {"Resources": {}}
+    configuration = {
+        'Name': 'Foo',
+        'InstanceType': 't2.micro',
+        'Image': 'foo',
+        'SpotPrice': 0.250
+    }
+
+    args = MagicMock()
+    args.region = "foo"
+
+    info = {
+        'StackName': 'FooStack',
+        'StackVersion': 'FooVersion'
+    }
+
+    result = component_auto_scaling_group(definition, configuration, args, info, False, MagicMock())
+
+    assert result["Resources"]["FooConfig"]["Properties"]["SpotPrice"] == 0.250
+
+    del configuration["SpotPrice"]
+
+    result = component_auto_scaling_group(definition, configuration, args, info, False, MagicMock())
+
+    assert "SpotPrice" not in result["Resources"]["FooConfig"]["Properties"]
+
 
 def test_component_auto_scaling_group_metric_type():
     definition = {"Resources": {}}
@@ -532,6 +617,32 @@ def test_component_auto_scaling_group_metric_type():
     assert result["Resources"]["FooNetworkAlarmLow"]["Properties"]["Period"] == "60"
     assert result["Resources"]["FooNetworkAlarmLow"]["Properties"]["EvaluationPeriods"] == "10"
     assert result["Resources"]["FooNetworkAlarmLow"]["Properties"]["AlarmDescription"] == expected_low_desc
+
+
+def test_component_auto_scaling_group_optional_metric_type():
+    definition = {"Resources": {}}
+    configuration = {
+        'Name': 'Foo',
+        'InstanceType': 't2.micro',
+        'Image': 'foo',
+        'AutoScaling': {
+            'Minimum': 2,
+            'Maximum': 10,
+        }
+    }
+
+    args = MagicMock()
+    args.region = "foo"
+
+    info = {
+        'StackName': 'FooStack',
+        'StackVersion': 'FooVersion'
+    }
+
+    result = component_auto_scaling_group(definition, configuration, args, info, False, MagicMock())
+
+    assert "FooCPUAlarmHigh" not in result["Resources"]
+    assert "FooNetworkAlarmHigh" not in result["Resources"]
 
 
 def test_to_iso8601_duration():
@@ -712,3 +823,10 @@ def test_check_application_version():
 
     with pytest.raises(click.UsageError):
         check_application_id('1.')
+
+
+def test_get_load_balancer_name():
+    get_load_balancer_name('a', '1') == 'a-1'
+
+    get_load_balancer_name('toolong123456789012345678901234567890',
+                           '1') == 'toolong12345678901234567890123-1'

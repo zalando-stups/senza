@@ -17,7 +17,6 @@ from urllib.request import urlopen
 
 import boto3
 import click
-import dns.resolver
 import requests
 import senza
 import yaml
@@ -36,14 +35,16 @@ from .aws import (StackReference, get_account_alias, get_account_id,
 from .components import evaluate_template, get_component
 from .components.stups_auto_configuration import find_taupage_image
 from .error_handling import HandleExceptions
-from .exceptions import VPCError
-from .manaus.route53 import Route53
+from .manaus.ec2 import EC2
+from .manaus.exceptions import VPCError
+from .manaus.route53 import Route53, Route53Record
 from .patch import patch_auto_scaling_group
 from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
 from .stups.piu import Piu
 from .templates import get_template_description, get_templates
 from .templates._helper import get_mint_bucket_name
-from .traffic import change_version_traffic, get_records, print_version_traffic
+from .traffic import (change_version_traffic, get_records,
+                      print_version_traffic, resolve_to_ip_addresses)
 from .utils import (camel_case_to_underscore, ensure_keys, named_value,
                     pystache_render)
 
@@ -99,7 +100,12 @@ TITLES = {
     'main_dns': 'Main DNS',
     'id': 'ID',
     'ImageId': 'Image ID',
-    'OwnerId': 'Owner'
+    'OwnerId': 'Owner',
+    'healthy_hosts': 'Healthy #',
+    'requests_per_sec': 'Req./s',
+    '4xx_percentage': '4xx %',
+    '5xx_percentage': '5xx %',
+    'latency_ms': 'Latency (ms)',
 }
 
 MAX_COLUMN_WIDTHS = {
@@ -144,10 +150,6 @@ class DefinitionParamType(click.ParamType):
 
 
 class KeyValParamType(click.ParamType):
-    '''
-    >>> KeyValParamType().convert(('a', 'b'), None, None)
-    ('a', 'b')
-    '''
     name = 'key_val'
 
     def convert(self, value, param, ctx):
@@ -263,10 +265,6 @@ class TemplateArguments:
 class AccountArguments:
     """
     Account arguments to use in the definitions
-
-    >>> test = AccountArguments('blubber')
-    >>> test.Region
-    'blubber'
     """
     def __init__(self, region):
         self.Region = region
@@ -325,22 +323,21 @@ class AccountArguments:
     @property
     def VpcID(self):
         if self.__VpcID is None:
-            ec2 = boto3.resource('ec2', self.Region)
-            vpc_list = list()
-            for vpc in ec2.vpcs.all():  # don't use the list from blow. .all() use a internal pageing!
-                if vpc.is_default:
-                    self.__VpcID = vpc.vpc_id
-                    break
-                vpc_list.append(vpc)
-            else:
-                if len(vpc_list) == 1:
-                    # Use the only one VPC if no default VPC found
-                    self.__VpcID = vpc_list[0].vpc_id
-                elif len(vpc_list) > 1:
-                    raise VPCError('Multiple VPCs are only supported if one '
-                                   'VPC is the default VPC (IsDefault=true)!')
-                else:
-                    raise VPCError('Can\'t find any VPC!')
+            ec2 = EC2(self.Region)
+            try:
+                vpc = ec2.get_default_vpc()
+            except VPCError as error:
+                if sys.stdin.isatty() and error.number_of_vpcs:
+                    # if running in interactive terminal and there are VPCs
+                    # to choose from
+                    vpcs = ec2.get_all_vpcs()
+                    options = [(vpc.vpc_id, str(vpc)) for vpc in vpcs]
+                    print("Can't find a default VPC")
+                    vpc = choice("Select VPC to use",
+                                 options=options)
+                else:  # if not running in interactive terminal (e.g Jenkins)
+                    raise
+            self.__VpcID = vpc.vpc_id
         return self.__VpcID
 
     @property
@@ -433,6 +430,7 @@ def get_region(region):
     if not region:
         raise click.UsageError('Please specify the AWS region on the command line (--region) or in ~/.aws/config')
 
+    # FIXME bool(boto3.client('cloudformation', 'moon-1')) == True
     cf = boto3.client('cloudformation', region)
     if not cf:
         raise click.UsageError('Invalid region "{}"'.format(region))
@@ -445,19 +443,10 @@ def check_credentials(region):
 
 
 def get_stack_refs(refs: list):
-    '''
-    >>> get_stack_refs(['foobar-stack'])
-    [StackReference(name='foobar-stack', version=None)]
+    """
+    Converts a list of strings in a list of StackReferences
+    """
 
-    >>> get_stack_refs(['foobar-stack', '1'])
-    [StackReference(name='foobar-stack', version='1')]
-
-    >>> get_stack_refs(['foobar-stack', '1', 'other-stack'])
-    [StackReference(name='foobar-stack', version='1'), StackReference(name='other-stack', version=None)]
-    >>> get_stack_refs(['foobar-stack', 'v1', 'v2', 'v99', 'other-stack'])
-    [StackReference(name='foobar-stack', version='v1'), StackReference(name='foobar-stack', version='v2'), \
-StackReference(name='foobar-stack', version='v99'), StackReference(name='other-stack', version=None)]
-    '''
     refs = list(refs)
     refs.reverse()
     stack_refs = []
@@ -486,18 +475,9 @@ StackReference(name='foobar-stack', version='v99'), StackReference(name='other-s
 
 
 def all_with_version(stack_refs: list):
-    '''
-    >>> all_with_version([StackReference(name='foobar-stack', version='1'), \
-                          StackReference(name='other-stack', version=None)])
-    False
-    >>> all_with_version([StackReference(name='foobar-stack', version='1'), \
-                          StackReference(name='other-stack', version='v23')])
-    True
-    >>> all_with_version([StackReference(name='foobar-stack', version='1')])
-    True
-    >>> all_with_version([StackReference(name='other-stack', version=None)])
-    False
-    '''
+    """
+    Checks if all stackreferences have versions
+    """
     for ref in stack_refs:
         if not ref.version:
             return False
@@ -533,6 +513,78 @@ def list_stacks(region, stack_ref, all, output, w, watch):
 
         with OutputFormat(output):
             print_table('stack_name version status creation_time description'.split(), rows,
+                        styles=STYLES, titles=TITLES)
+
+
+@cli.command()
+@region_option
+@output_option
+@watch_option
+@watchrefresh_option
+@click.option('--all', is_flag=True, help='Show all stacks, including deleted ones')
+@click.argument('stack_ref', nargs=-1)
+@stacktrace_visible_option
+def health(region, stack_ref, all, output, w, watch):
+    '''Show stack health (ELB req/s, ..)'''
+
+    region = get_region(region)
+    check_credentials(region)
+
+    cloudwatch = boto3.client('cloudwatch', region)
+
+    stack_refs = get_stack_refs(stack_ref)
+
+    elb_metrics = {
+        'HealthyHostCount': 'Average', 'Latency': 'Average', 'RequestCount': 'Sum',
+        'HTTPCode_Backend_5XX': 'Sum', 'HTTPCode_Backend_4XX': 'Sum'}
+
+    for _ in watching(w, watch):
+        rows = []
+        start = datetime.datetime.utcnow() - datetime.timedelta(minutes=5)
+        now = datetime.datetime.utcnow()
+        for stack in get_stacks(stack_refs, region, all=all):
+            lb_name = stack.StackName
+            data = {}
+            for k, v in elb_metrics.items():
+                res = cloudwatch.get_metric_statistics(
+                    Namespace='AWS/ELB',
+                    MetricName=k,
+                    Dimensions=[{'Name': 'LoadBalancerName', 'Value': lb_name}],
+                    StartTime=start,
+                    EndTime=now,
+                    Period=60,
+                    Statistics=[v])
+                most_recent = sorted(res['Datapoints'], key=lambda x: x['Timestamp'])[-1:]
+                if most_recent:
+                    data[(k, v)] = most_recent[0][v]
+                else:
+                    data[(k, v)] = None
+            row = {
+                'stack_name': stack.name,
+                'version': stack.version,
+                'status': stack.StackStatus,
+                'creation_time': calendar.timegm(stack.CreationTime.timetuple()),
+            }
+            if data[('HealthyHostCount', 'Average')] is not None:
+                row['healthy_hosts'] = int(data[('HealthyHostCount', 'Average')])
+            if data[('RequestCount', 'Sum')] is not None:
+                requests_per_min = data[('RequestCount', 'Sum')]
+                row['requests_per_sec'] = round(requests_per_min / 60, 2)
+            else:
+                requests_per_min = 0
+            if data[('HTTPCode_Backend_4XX', 'Sum')] is not None:
+                row['4xx_percentage'] = round((data[('HTTPCode_Backend_4XX', 'Sum')]) / (requests_per_min + 0.0001), 2)
+            if data[('HTTPCode_Backend_5XX', 'Sum')] is not None:
+                row['5xx_percentage'] = round((data[('HTTPCode_Backend_5XX', 'Sum')]) / (requests_per_min + 0.0001), 2)
+            if data[('Latency', 'Average')] is not None:
+                row['latency_ms'] = int(round((data[('Latency', 'Average')]) * 1000, 0))
+            rows.append(row)
+
+        rows.sort(key=lambda x: (x['stack_name'], x['version']))
+
+        with OutputFormat(output):
+            print_table('stack_name version status healthy_hosts requests_per_sec '
+                        '4xx_percentage 5xx_percentage latency_ms'.split(), rows,
                         styles=STYLES, titles=TITLES)
 
 
@@ -963,7 +1015,9 @@ def status(stack_ref, region, output, w, watch):
         for stack in sorted(get_stacks(stack_refs, region)):
             instance_health = get_instance_health(elb, stack.StackName)
 
-            main_dns_resolves = False
+            main_dns_resolves = None
+            version_addresses = set()
+            main_addresses = set()
             http_status = None
             for res in cf.Stack(stack.StackId).resource_summaries.all():
                 if res.resource_type == 'AWS::Route53::RecordSet':
@@ -972,22 +1026,20 @@ def status(stack_ref, region, output, w, watch):
                         # physical resource ID will be empty during stack creation
                         continue
                     if 'version' in res.logical_id.lower():
+                        # VersionDomain -> check HTTPS reachability
+                        # (won't work for internal ELBs, but we don't care here)
                         try:
-                            requests.get('https://{}/'.format(name), timeout=2)
+                            requests.get('https://{}/'.format(name), timeout=1)
                             http_status = 'OK'
                         except:
                             http_status = 'ERROR'
+                        version_addresses = resolve_to_ip_addresses(name)
                     else:
-                        try:
-                            answers = dns.resolver.query(name, 'CNAME')
-                        except:
-                            answers = []
-                        for answer in answers:
-                            target = answer.target.to_text()
-                            if isinstance(target, bytes):
-                                target = target.decode()
-                            if target.startswith('{}-'.format(stack.StackName)):
-                                main_dns_resolves = True
+                        # MainDomain -> check whether DNS resolves to this stack version
+                        main_addresses = resolve_to_ip_addresses(name)
+
+            if version_addresses and main_addresses:
+                main_dns_resolves = bool(version_addresses & main_addresses)
 
             instances = list(ec2.instances.filter(Filters=[{'Name': 'tag:aws:cloudformation:stack-id',
                                                             'Values': [stack.StackId]}]))
@@ -1036,10 +1088,13 @@ def domains(stack_ref, region, output, w, watch):
                 if res.resource_type == 'AWS::Route53::RecordSet':
                     name = res.physical_resource_id
                     if name not in records_by_name:
-                        zone_name = name.split('.', 1)[1]
+                        hosted_zone = next(Route53.get_hosted_zones(name))
+                        zone_name = hosted_zone.domain_name
                         for rec in get_records(zone_name):
-                            records_by_name[(rec['Name'].rstrip('.'), rec.get('SetIdentifier'))] = rec
-                    record = records_by_name.get((name, stack.StackName)) or records_by_name.get((name, None))
+                            record = Route53Record.from_boto_dict(rec)
+                            records_by_name[(rec['Name'].rstrip('.'), rec.get('SetIdentifier'))] = record
+                    record = (records_by_name.get((name, stack.StackName)) or
+                              records_by_name.get((name, None)))  # type: Route53Record
                     row = {'stack_name': stack.name,
                            'version': stack.version,
                            'resource_id': res.logical_id,
@@ -1049,9 +1104,18 @@ def domains(stack_ref, region, output, w, watch):
                            'value': None,
                            'create_time': calendar.timegm(res.last_updated_timestamp.timetuple())}
                     if record:
-                        row.update({'weight': str(record.get('Weight', '')),
-                                    'type': record.get('Type'),
-                                    'value': ','.join([r['Value'] for r in record.get('ResourceRecords')])})
+                        if record.resource_records:
+                            value = ','.join([r['Value']
+                                              for r in record.resource_records])
+                        elif record.alias_target:
+                            value = record.alias_target['DNSName']
+                        else:
+                            value = ''
+                        row.update({'weight': (str(record.weight)
+                                               if record.weight is not None
+                                               else ''),
+                                    'type': record.type.value,
+                                    'value': value})
                     rows.append(row)
 
         with OutputFormat(output):
@@ -1147,38 +1211,17 @@ def images(stack_ref, region, output, hide_older_than, show_instances):
 
 
 def is_ip_address(x: str):
-    '''
-    >>> is_ip_address(None)
-    False
-
-    >>> is_ip_address('127.0.0.1')
-    True
-    '''
+    """
+    Checks if x is a valid ip address.
+    """
     try:
         ipaddress.ip_address(x)
         return True
-    except:
+    except ValueError:
         return False
 
 
 def get_console_line_style(line: str):
-    '''
-    >>> get_console_line_style('foo')
-    {}
-
-    >>> get_console_line_style('ERROR:')['fg']
-    'red'
-
-    >>> get_console_line_style('WARNING:')['fg']
-    'yellow'
-
-    >>> get_console_line_style('SUCCESS:')['fg']
-    'green'
-
-    >>> get_console_line_style('INFO:')['bold']
-    True
-    '''
-
     if 'ERROR:' in line:
         return {'fg': 'red', 'bold': True}
     elif 'WARNING:' in line:
@@ -1396,13 +1439,6 @@ def scale(stack_ref, region, desired_capacity):
 
 
 def failure_event(event: dict):
-    '''
-    >>> failure_event({})
-    False
-
-    >>> failure_event({'ResourceStatusReason': 'foo', 'ResourceStatus': 'FAIL'})
-    True
-    '''
     status = event.get('ResourceStatus')
     return bool(event.get('ResourceStatusReason') and ('FAIL' in status or 'ROLLBACK' in status))
 
@@ -1442,7 +1478,7 @@ def wait(stack_ref, region, deletion, timeout, interval):
         stacks_in_progress = set()
         successful_actions = set()
 
-        stacks_found = get_stacks(stack_refs, region, all=True, unique_only=True)
+        stacks_found = list(get_stacks(stack_refs, region, all=True, unique_only=True))
 
         if not stacks_found:
             raise click.UsageError('No matching stack for "{}" found'.format(' '.join(stack_ref)))

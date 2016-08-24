@@ -1,62 +1,35 @@
 import click
 from clickclick import fatal_error
-
 from senza.aws import resolve_security_groups
+
+from ..cli import AccountArguments, TemplateArguments
 from ..manaus import ClientError
-from ..manaus.iam import IAM, IAMServerCertificate
 from ..manaus.acm import ACM, ACMCertificate
+from ..manaus.iam import IAM, IAMServerCertificate
+from ..manaus.route53 import convert_domain_records_to_alias
 
 SENZA_PROPERTIES = frozenset(['Domains', 'HealthCheckPath', 'HealthCheckPort', 'HealthCheckProtocol',
                               'HTTPPort', 'Name', 'SecurityGroups', 'SSLCertificateId', 'Type'])
 
 
 def get_load_balancer_name(stack_name: str, stack_version: str):
-    '''
-    >>> get_load_balancer_name('a', '1')
-    'a-1'
-
-    >>> get_load_balancer_name('toolong123456789012345678901234567890', '1')
-    'toolong12345678901234567890123-1'
-    '''
+    """
+    Returns the name of the load balancer for the stack name and version,
+    truncating the name if necessary.
+    """
     # Loadbalancer name cannot exceed 32 characters, try to shorten
     l = 32 - len(stack_version) - 1
     return '{}-{}'.format(stack_name[:l], stack_version)
 
 
-def component_elastic_load_balancer(definition, configuration, args, info, force, account_info):
-    lb_name = configuration["Name"]
-
-    # domains pointing to the load balancer
-    subdomain = ''
-    main_zone = None
-    for name, domain in configuration.get('Domains', {}).items():
-        name = '{}{}'.format(lb_name, name)
-        definition["Resources"][name] = {
-            "Type": "AWS::Route53::RecordSet",
-            "Properties": {
-                "Type": "CNAME",
-                "TTL": 20,
-                "ResourceRecords": [
-                    {"Fn::GetAtt": [lb_name, "DNSName"]}
-                ],
-                "Name": "{0}.{1}".format(domain["Subdomain"], domain["Zone"]),
-                "HostedZoneName": "{0}".format(domain["Zone"])
-            },
-        }
-
-        if domain["Type"] == "weighted":
-            definition["Resources"][name]["Properties"]['Weight'] = 0
-            definition["Resources"][name]["Properties"]['SetIdentifier'] = "{0}-{1}".format(info["StackName"],
-                                                                                            info["StackVersion"])
-            subdomain = domain['Subdomain']
-            main_zone = domain['Zone']  # type: str
-
+def get_listeners(subdomain, main_zone, configuration,
+                  account_info: AccountArguments):
     ssl_cert = configuration.get('SSLCertificateId')
 
     if ACMCertificate.arn_is_acm_certificate(ssl_cert):
         # check if certificate really exists
         try:
-            ACMCertificate.get_by_arn(ssl_cert)
+            ACMCertificate.get_by_arn(account_info.Region, ssl_cert)
         except ClientError as e:
             error_msg = e.response['Error']['Message']
             fatal_error(error_msg)
@@ -64,24 +37,26 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
         # TODO check if certificate exists
         pass
     elif ssl_cert is not None:
-        certificate = IAMServerCertificate.get_by_name(ssl_cert)
+        certificate = IAMServerCertificate.get_by_name(account_info.Region,
+                                                       ssl_cert)
         ssl_cert = certificate.arn
     elif main_zone is not None:
         if main_zone:
             iam_pattern = main_zone.lower().rstrip('.').replace('.', '-')
             name = '{sub}.{zone}'.format(sub=subdomain,
                                          zone=main_zone.rstrip('.'))
-            acm_certificates = sorted(ACM.get_certificates(domain_name=name),
+            acm = ACM(account_info.Region)
+            acm_certificates = sorted(acm.get_certificates(domain_name=name),
                                       reverse=True)
         else:
             iam_pattern = ''
             acm_certificates = []
-
-        iam_certificates = sorted(IAM.get_certificates(name=iam_pattern))
+        iam = IAM(account_info.Region)
+        iam_certificates = sorted(iam.get_certificates(name=iam_pattern))
         if not iam_certificates:
             # if there are no iam certificates matching the pattern
             # try to use any certificate
-            iam_certificates = sorted(IAM.get_certificates(), reverse=True)
+            iam_certificates = sorted(iam.get_certificates(), reverse=True)
 
         # the priority is acm_certificate first and iam_certificate second
         certificates = (acm_certificates +
@@ -95,6 +70,51 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
                             'SSL certificate for "{}"'.format(name))
             else:
                 fatal_error('Could not find any SSL certificate')
+    return [
+        {
+            "PolicyNames": [],
+            "SSLCertificateId": ssl_cert,
+            "Protocol": "HTTPS",
+            "InstancePort": configuration["HTTPPort"],
+            "LoadBalancerPort": 443
+        }
+    ]
+
+
+def component_elastic_load_balancer(definition,
+                                    configuration: dict,
+                                    args: TemplateArguments,
+                                    info: dict,
+                                    force,
+                                    account_info: AccountArguments):
+    lb_name = configuration["Name"]
+    # domains pointing to the load balancer
+    subdomain = ''
+    main_zone = None
+    for name, domain in configuration.get('Domains', {}).items():
+        name = '{}{}'.format(lb_name, name)
+
+        domain_name = "{0}.{1}".format(domain["Subdomain"], domain["Zone"])
+
+        convert_domain_records_to_alias(domain_name)
+
+        properties = {"Type": "A",
+                      "Name": domain_name,
+                      "HostedZoneName": domain["Zone"],
+                      "AliasTarget": {"HostedZoneId": {"Fn::GetAtt": [lb_name,
+                                                                      "CanonicalHostedZoneNameID"]},
+                                      "DNSName": {"Fn::GetAtt": [lb_name, "DNSName"]}}}
+        definition["Resources"][name] = {"Type": "AWS::Route53::RecordSet",
+                                         "Properties": properties}
+
+        if domain["Type"] == "weighted":
+            definition["Resources"][name]["Properties"]['Weight'] = 0
+            definition["Resources"][name]["Properties"]['SetIdentifier'] = "{0}-{1}".format(info["StackName"],
+                                                                                            info["StackVersion"])
+            subdomain = domain['Subdomain']
+            main_zone = domain['Zone']  # type: str
+
+    listeners = configuration.get('Listeners') or get_listeners(subdomain, main_zone, configuration, account_info)
 
     health_check_protocol = "HTTP"
     allowed_health_check_protocols = ("HTTP", "TCP", "UDP", "SSL")
@@ -157,15 +177,7 @@ def component_elastic_load_balancer(definition, configuration, args, info, force
                 "Timeout": "5",
                 "Target": health_check_target
             },
-            "Listeners": [
-                {
-                    "PolicyNames": [],
-                    "SSLCertificateId": ssl_cert,
-                    "Protocol": "HTTPS",
-                    "InstancePort": configuration["HTTPPort"],
-                    "LoadBalancerPort": 443
-                }
-            ],
+            "Listeners": listeners,
             "ConnectionDrainingPolicy": {
                 "Enabled": True,
                 "Timeout": 60

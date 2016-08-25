@@ -540,6 +540,43 @@ def test_component_auto_scaling_group_configurable_properties():
     assert result["Resources"]["FooCPUAlarmHigh"]["Properties"]["EvaluationPeriods"] == "1"
     assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["AlarmDescription"] == expected_desc
 
+def test_component_auto_scaling_group_custom_tags():
+    definition = {"Resources": {}}
+    configuration = {
+        'Name': 'Foo',
+        'InstanceType': 't2.micro',
+        'Image': 'foo',
+        'Tags': [ 
+            { 'Key': 'Tag1', 'Value': 'alpha' },
+            { 'Key': 'Tag2', 'Value': 'beta' }
+        ]
+    }
+
+    args = MagicMock()
+    args.region = "foo"
+
+    info = {
+        'StackName': 'FooStack',
+        'StackVersion': 'FooVersion'
+    }
+
+    result = component_auto_scaling_group(definition, configuration, args, info, False, MagicMock())
+
+    assert result["Resources"]["Foo"] is not None
+    assert result["Resources"]["Foo"]["Properties"] is not None
+    assert result["Resources"]["Foo"]["Properties"]["Tags"] is not None
+    # verify custom tags:
+    t1 = next(t for t in result["Resources"]["Foo"]["Properties"]["Tags"] if t["Key"] == 'Tag1')
+    assert t1 is not None
+    assert t1["Value"] == 'alpha'
+    t2 = next(t for t in result["Resources"]["Foo"]["Properties"]["Tags"] if t["Key"] == 'Tag2')
+    assert t2 is not None
+    assert t2["Value"] == 'beta'
+    # verify default tags are in place:
+    ts = next(t for t in result["Resources"]["Foo"]["Properties"]["Tags"] if t["Key"] == 'Name')
+    assert ts is not None
+    assert ts["Value"] == 'FooStack-FooVersion'
+
 def test_component_auto_scaling_group_configurable_properties():
     definition = {"Resources": {}}
     configuration = {

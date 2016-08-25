@@ -6,7 +6,9 @@ from traceback import format_exception
 import yaml.constructor
 from botocore.exceptions import ClientError, NoCredentialsError
 from clickclick import error
+from raven import Client
 
+from .configuration import configuration
 from .exceptions import PiuNotFound
 from .manaus.exceptions import (ELBNotFound, HostedZoneNotFound, InvalidState,
                                 RecordNotFound)
@@ -54,6 +56,9 @@ class HandleExceptions:
         self.function = function
 
     def die_unknown_error(self, e: Exception):
+        if sentry:
+            # TODO remove if after a fake client is created
+            sentry.captureException()
         if not self.stacktrace_visible:
             file_name = store_exception(e)
             print('Unknown Error: {e}.\n'
@@ -116,3 +121,12 @@ class HandleExceptions:
         except Exception as e:
             # Catch All
             self.die_unknown_error(e)
+
+
+# Setup Sentry
+sentry_endpoint = configuration.get('sentry.endpoint')
+if sentry_endpoint is not None:
+    sentry = Client(sentry_endpoint)
+else:
+    # TODO Fake Client
+    sentry = None

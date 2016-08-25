@@ -5,18 +5,19 @@ import os
 from unittest.mock import MagicMock
 
 import botocore.exceptions
+import pytest
 import senza.traffic
 import yaml
 from click.testing import CliRunner
 from senza.cli import (AccountArguments, KeyValParamType, StackReference,
                        all_with_version, cli, failure_event,
                        get_console_line_style, get_stack_refs, is_ip_address)
-from senza.manaus.exceptions import StackNotFound, StackNotUpdated
+from senza.manaus.exceptions import ELBNotFound, StackNotFound, StackNotUpdated
 from senza.manaus.route53 import RecordType, Route53Record
 from senza.traffic import PERCENT_RESOLUTION, StackVersion
 
-from fixtures import (HOSTED_ZONE_EXAMPLE_NET, HOSTED_ZONE_EXAMPLE_ORG,  # noqa: F401
-                      boto_client, boto_resource)
+from fixtures import (HOSTED_ZONE_EXAMPLE_NET,  # noqa: F401
+                      HOSTED_ZONE_EXAMPLE_ORG, boto_client, boto_resource)
 
 
 def test_invalid_definition():
@@ -1272,9 +1273,16 @@ def test_traffic(monkeypatch, boto_client, boto_resource):  # noqa: F811
         assert region == 'aa-fakeregion-1'
         if name not in m_stacks:
             stack = m_stacks[name]
-            resources = {'AppLoadBalancerMainDomain': {'Properties': {'Weight': 20}}}
+            resources = {
+                'AppLoadBalancerMainDomain': {
+                    'Type': 'AWS::Route53::RecordSet',
+                    'Properties': {'Weight': 20,
+                                   'Name': 'myapp.zo.ne.'}
+                }
+            }
             stack.template = {'Resources': resources}
         return m_stacks[name]
+
     m_cfs.get_by_stack_name = get_stack
 
     def get_weight(stack):
@@ -1366,6 +1374,21 @@ def test_traffic(monkeypatch, boto_client, boto_resource):  # noqa: F811
 
         run(['v3', '10'])
         assert weights() == [0, 0, 20, 180]
+
+    # Test ELB Not found
+
+    def get_stack_no_resources(name, region):
+        assert region == 'aa-fakeregion-1'
+        stack = MagicMock()
+        resources = {}
+        stack.template = {'Resources': resources}
+        return stack
+
+    m_cfs.get_by_stack_name = get_stack_no_resources
+
+    with runner.isolated_filesystem():
+        with pytest.raises(ELBNotFound):
+            run(['v4', '100'])
 
 
 def test_AccountArguments(monkeypatch):

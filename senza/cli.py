@@ -23,7 +23,6 @@ from botocore.exceptions import ClientError
 from clickclick import (Action, FloatRange, OutputFormat, choice, error,
                         fatal_error, info, ok)
 from clickclick.console import print_table
-from senza.subcommands.root import cli
 
 from .arguments import (GLOBAL_OPTIONS, json_output_option, output_option,
                         parameter_file_option, region_option,
@@ -41,6 +40,8 @@ from .manaus.route53 import Route53, Route53Record
 from .patch import patch_auto_scaling_group
 from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
 from .stups.piu import Piu
+from .subcommands.config import cmd_config
+from .subcommands.root import cli
 from .templates import get_template_description, get_templates
 from .templates._helper import get_mint_bucket_name
 from .traffic import (change_version_traffic, get_records,
@@ -1505,6 +1506,8 @@ def wait(stack_ref, region, deletion, timeout, interval):
                                                          actions))
             return
     raise click.Abort()
+
+cli.add_command(cmd_config)
 
 
 def main():

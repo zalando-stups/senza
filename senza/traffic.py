@@ -154,11 +154,11 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str,
             for key, resource in stack.template['Resources'].items():
                 if (resource['Type'] == ResourceType.route53_record_set and
                         resource['Properties']['Name'] == dns_name):
-                    load_balancer = stack.template['Resources'][key]
+                    dns_record = stack.template['Resources'][key]
                     break
 
             try:
-                load_balancer['Properties']['Weight'] = percentage
+                dns_record['Properties']['Weight'] = percentage
             except NameError:
                 raise ELBNotFound(dns_name)
 

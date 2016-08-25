@@ -1757,34 +1757,25 @@ def test_traffic_fallback_route53api(monkeypatch, boto_client, boto_resource):  
     m_cfs = MagicMock()
     m_stacks = collections.defaultdict(MagicMock)
 
-    def stack_update(stack):
-        if stack.name == 'myapp-v1':
-            # CF will say "no need to update" as v1 was not updated via CF
-            raise StackNotUpdated('app-v1 record was manipulated through Route53 API')
-
     def get_stack(name, region):
-        assert region == 'aa-fakeregion-1'
         if name not in m_stacks:
             stack = m_stacks[name]
-            resources = {
-                'AppLoadBalancerMainDomain': {
+            stack.template = {'Resources': {
+                'MyMainDomain': {
                     'Type': 'AWS::Route53::RecordSet',
-                    'Properties': {'Weight': 999, # does not matter
+                    'Properties': {'Weight': 999,  # does not matter
                                    'Name': 'myapp.zo.ne.'}
                 }
-            }
-            stack.template = {'Resources': resources}
-            stack.name = name
-            stack.update = lambda : stack_update(stack)
+            }}
+            if name == 'myapp-v1':
+                # CF will say "no need to update" as v1 was not updated via CF
+                stack.update.side_effect = StackNotUpdated('app-v1 record was manipulated through Route53 API')
         return m_stacks[name]
 
     m_cfs.get_by_stack_name = get_stack
 
     def get_weight(stack):
-        resources = stack.template['Resources']
-        lb = resources['AppLoadBalancerMainDomain']
-        w = lb['Properties']['Weight']
-        return w
+        return stack.template['Resources']['MyMainDomain']['Properties']['Weight']
 
     monkeypatch.setattr('senza.traffic.CloudFormationStack', m_cfs)
 

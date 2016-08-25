@@ -13,13 +13,18 @@ class Piu:
     http://stups.readthedocs.io/en/latest/user-guide/ssh-access.html#ssh-access
     """
     @staticmethod
-    def request_access(instance: str, reason: str, odd_host: Optional[str]):
+    def request_access(instance: str, reason: str, odd_host: Optional[str],
+                       connect: bool):
         """
         Request SSH access to a single host
         """
         reason = '{} via senza'.format(reason)
-        cmd = ['piu', 'request-access', '--connect',
+        cmd = ['piu', 'request-access',
                instance, reason]
+
+        if connect:
+            cmd.append('--connect')
+
         if odd_host is not None:
             cmd.extend(['-O', odd_host])
 

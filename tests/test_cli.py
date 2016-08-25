@@ -1272,7 +1272,13 @@ def test_traffic(monkeypatch, boto_client, boto_resource):  # noqa: F811
         assert region == 'aa-fakeregion-1'
         if name not in m_stacks:
             stack = m_stacks[name]
-            resources = {'AppLoadBalancerMainDomain': {'Properties': {'Weight': 20}}}
+            resources = {
+                'AppLoadBalancerMainDomain': {
+                    'Type': 'AWS::Route53::RecordSet',
+                    'Properties': {'Weight': 20,
+                                   'Name': 'myapp.zo.ne.'}
+                }
+            }
             stack.template = {'Resources': resources}
         return m_stacks[name]
     m_cfs.get_by_stack_name = get_stack

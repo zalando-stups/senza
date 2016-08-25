@@ -8,7 +8,7 @@ import dns.resolver
 from clickclick import Action, action, ok, print_table, warning
 
 from .aws import StackReference, get_stacks, get_tag
-from .manaus.cloudformation import CloudFormationStack
+from .manaus.cloudformation import CloudFormationStack, ResourceType
 from .manaus.exceptions import StackNotFound, StackNotUpdated
 from .manaus.route53 import (RecordType, Route53, Route53HostedZone,
                              convert_domain_records_to_alias)
@@ -150,7 +150,15 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str,
                                                "because traffic for it is 0".format(stack_name))
                 changed = True
                 continue
-            load_balancer = stack.template['Resources']['AppLoadBalancerMainDomain']
+
+            for key, resource in stack.template['Resources'].items():
+                if (resource['Type'] == ResourceType.route53_record_set and
+                        resource['Properties']['Name'] == dns_name):
+                    load_balancer = stack.template['Resources'][key]
+                    break
+
+            # TODO error handling
+
             load_balancer['Properties']['Weight'] = percentage
             try:
                 stack.update()

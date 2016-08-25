@@ -165,7 +165,18 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str,
             try:
                 stack.update()
             except StackNotUpdated:
-                ...  # it doesn't really matter
+                # make sure we update DNS records which were not updated via CloudFormation
+                record = None
+                for r in Route53.get_records(name=dns_name):
+                    if r.set_identifier == stack_name:
+                        record = r
+                        break
+                if record and record.weight != percentage:
+                    record.weight = percentage
+                    hosted_zone.upsert([record],
+                                       comment="Change weight of {} to {}".format(stack_name,
+                                                                                  percentage))
+                    changed = True
             else:
                 changed = True
 

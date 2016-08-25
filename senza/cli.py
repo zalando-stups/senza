@@ -985,11 +985,13 @@ def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region,
 
         if piu is not None:
             odd_host = odd_host or Piu.find_odd_host(region)
+            auto_connect = len(rows) == 1
             for row in rows:
                 if row['private_ip'] is not None:
                     Piu.request_access(instance=row['private_ip'],
                                        reason=piu,
-                                       odd_host=odd_host)
+                                       odd_host=odd_host,
+                                       connect=auto_connect)
 
 
 @cli.command()

@@ -9,14 +9,21 @@ def test_request_access(monkeypatch):
     m_call = MagicMock()
     monkeypatch.setattr('senza.stups.piu.call', m_call)
 
-    Piu.request_access('127.0.0.1', 'no reason', None)
-    m_call.assert_called_once_with(['piu', 'request-access', '--connect',
+    Piu.request_access('127.0.0.1', 'no reason', None, True)
+    m_call.assert_called_once_with(['piu', 'request-access',
+                                    '127.0.0.1', 'no reason via senza',
+                                    '--connect'])
+
+    m_call.reset_mock()
+    Piu.request_access('127.0.0.1', 'no reason', None, False)
+    m_call.assert_called_once_with(['piu', 'request-access',
                                     '127.0.0.1', 'no reason via senza'])
 
     m_call.reset_mock()
-    Piu.request_access('127.0.0.1', 'no reason', 'example.com')
-    m_call.assert_called_once_with(['piu', 'request-access', '--connect',
+    Piu.request_access('127.0.0.1', 'no reason', 'example.com', True)
+    m_call.assert_called_once_with(['piu', 'request-access',
                                     '127.0.0.1', 'no reason via senza',
+                                    '--connect',
                                     '-O', 'example.com'])
 
 
@@ -56,6 +63,7 @@ def test_request_access_not_installed(monkeypatch):
     monkeypatch.setattr('senza.stups.piu.call', m_call)
 
     with pytest.raises(PiuNotFound):
-        Piu.request_access('127.0.0.1', 'no reason', None)
-    m_call.assert_called_once_with(['piu', 'request-access', '--connect',
-                                    '127.0.0.1', 'no reason via senza'])
+        Piu.request_access('127.0.0.1', 'no reason', None, True)
+    m_call.assert_called_once_with(['piu', 'request-access',
+                                    '127.0.0.1', 'no reason via senza',
+                                    '--connect'])

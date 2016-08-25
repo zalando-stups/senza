@@ -9,7 +9,7 @@ from clickclick import Action, action, ok, print_table, warning
 
 from .aws import StackReference, get_stacks, get_tag
 from .manaus.cloudformation import CloudFormationStack, ResourceType
-from .manaus.exceptions import StackNotFound, StackNotUpdated
+from .manaus.exceptions import StackNotFound, StackNotUpdated, ELBNotFound
 from .manaus.route53 import (RecordType, Route53, Route53HostedZone,
                              convert_domain_records_to_alias)
 
@@ -157,9 +157,11 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str,
                     load_balancer = stack.template['Resources'][key]
                     break
 
-            # TODO error handling
+            try:
+                load_balancer['Properties']['Weight'] = percentage
+            except NameError:
+                raise ELBNotFound(dns_name)
 
-            load_balancer['Properties']['Weight'] = percentage
             try:
                 stack.update()
             except StackNotUpdated:

@@ -1,5 +1,6 @@
-import click
 import re
+
+import click
 
 from .error_handling import HandleExceptions
 
@@ -54,3 +55,4 @@ watchrefresh_option = click.option('-w', '--watch',
                                    type=click.IntRange(1, 300),
                                    metavar='SECS',
                                    help='Auto update the screen every X seconds')
+GLOBAL_OPTIONS = {}

@@ -10,10 +10,11 @@ import senza.traffic
 import yaml
 from click.testing import CliRunner
 from senza.cli import (AccountArguments, KeyValParamType, StackReference,
-                       all_with_version, cli, failure_event,
+                       all_with_version, failure_event,
                        get_console_line_style, get_stack_refs, is_ip_address)
-from senza.manaus.exceptions import ELBNotFound, StackNotFound, StackNotUpdated
+from senza.manaus.exceptions import StackNotFound, StackNotUpdated, ELBNotFound
 from senza.manaus.route53 import RecordType, Route53Record
+from senza.subcommands.root import cli
 from senza.traffic import PERCENT_RESOLUTION, StackVersion
 
 from fixtures import (HOSTED_ZONE_EXAMPLE_NET,  # noqa: F401

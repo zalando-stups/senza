@@ -82,25 +82,26 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         if "SuccessRequires" in configuration["AutoScaling"]:
             asg_success = normalize_asg_success(configuration["AutoScaling"]["SuccessRequires"])
 
-    tags = [ # Tag "Name"
-             {
-                 "Key": "Name",
-                 "PropagateAtLaunch": True,
-                 "Value": "{0}-{1}".format(info["StackName"], info["StackVersion"])
-             },
-             # Tag "StackName"
-             {
-                 "Key": "StackName",
-                 "PropagateAtLaunch": True,
-                 "Value": info["StackName"],
-             },
-             # Tag "StackVersion"
-             {
-                 "Key": "StackVersion",
-                 "PropagateAtLaunch": True,
-                 "Value": info["StackVersion"]
-             }
-           ]
+    tags = [
+        # Tag "Name"
+        {
+            "Key": "Name",
+            "PropagateAtLaunch": True,
+            "Value": "{0}-{1}".format(info["StackName"], info["StackVersion"])
+        },
+        # Tag "StackName"
+        {
+            "Key": "StackName",
+            "PropagateAtLaunch": True,
+            "Value": info["StackName"],
+        },
+        # Tag "StackVersion"
+        {
+            "Key": "StackVersion",
+            "PropagateAtLaunch": True,
+            "Value": info["StackVersion"]
+        }
+    ]
 
     if "Tags" in configuration:
         for tag in configuration["Tags"]:
@@ -108,7 +109,7 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
                 "Key": tag["Key"],
                 "PropagateAtLaunch": True,
                 "Value": tag["Value"]
-                })
+            })
 
     definition["Resources"][asg_name] = {
         "Type": "AWS::AutoScaling::AutoScalingGroup",

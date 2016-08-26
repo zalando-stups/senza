@@ -2,6 +2,7 @@ from mock import MagicMock, mock_open
 
 import pytest
 import senza.configuration
+from senza.exceptions import InvalidConfigKey
 
 
 @pytest.fixture()
@@ -33,6 +34,12 @@ def test_dict_file_not_found(mock_path: MagicMock):
 def test_get(mock_path: MagicMock):
     config = senza.configuration.Configuration()
     assert config['section.key'] == 'value'
+
+
+def test_get_bad_key(mock_path: MagicMock):
+    config = senza.configuration.Configuration()
+    with pytest.raises(InvalidConfigKey):
+        config['key']
 
 
 def test_set(mock_path: MagicMock):

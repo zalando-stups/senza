@@ -1,8 +1,9 @@
-from typing import Dict, Any  # noqa: F401
 import sys
 from tempfile import NamedTemporaryFile
 from traceback import format_exception
+from typing import Any, Dict, Optional  # noqa: F401
 
+import senza
 import yaml.constructor
 from botocore.exceptions import ClientError, NoCredentialsError
 from clickclick import error
@@ -12,7 +13,7 @@ from .configuration import configuration
 from .exceptions import PiuNotFound
 from .manaus.exceptions import (ELBNotFound, HostedZoneNotFound, InvalidState,
                                 RecordNotFound)
-import senza
+
 
 def store_exception(exception: Exception) -> str:
     """
@@ -129,9 +130,17 @@ class HandleExceptions:
 
 
 # Setup Sentry
-sentry_endpoint = configuration.get('sentry.endpoint')
-if sentry_endpoint is not None:
-    sentry = Client(sentry_endpoint,
-                    release=senza.__version__)
-else:
-    sentry = None
+def setup_sentry(sentry_endpoint: Optional[str]):
+    """
+    This function setups sentry, this exists mostly to make sentry integration
+    easier to test
+    """
+    if sentry_endpoint is not None:
+        sentry = Client(sentry_endpoint,
+                        release=senza.__version__)
+    else:
+        sentry = None
+
+    return sentry
+
+sentry = setup_sentry(configuration.get('sentry.endpoint'))

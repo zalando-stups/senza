@@ -35,6 +35,14 @@ def mock_tempfile(monkeypatch):
     return mock
 
 
+@fixture()
+def mock_raven(monkeypatch):
+    mock = MagicMock()
+    mock.return_value = mock
+    monkeypatch.setattr('senza.error_handling.Client', mock)
+    return mock
+
+
 def test_store_exception(monkeypatch, mock_tempfile):
 
     line_n = lineno() + 2
@@ -130,7 +138,23 @@ def test_expired_credentials(capsys):
     assert 'AWS credentials have expired.' in err
 
 
-def test_unknown_ClientError_no_stack_trace(capsys):
+def test_unknown_ClientError_raven(capsys, mock_raven):
+    senza.error_handling.sentry = senza.error_handling.setup_sentry('test')
+    func = MagicMock(side_effect=botocore.exceptions.ClientError(
+        {'Error': {'Code': 'SomeUnknownError',
+                   'Message': 'A weird error happened'}},
+        'foobar'))
+
+    try:
+        senza.error_handling.HandleExceptions(func)()
+    except SystemExit:
+        pass
+
+    mock_raven.captureException.assert_called_once_with()
+
+
+def test_unknown_ClientError_no_stack_trace(capsys, mock_raven):
+    senza.error_handling.sentry = senza.error_handling.setup_sentry(None)
     func = MagicMock(side_effect=botocore.exceptions.ClientError(
         {'Error': {'Code': 'SomeUnknownError',
                    'Message': 'A weird error happened'}},
@@ -216,7 +240,8 @@ def test_yaml_error(capsys):
     assert 'Please quote all variable values' in err
 
 
-def test_unknown_error(capsys, mock_tempfile):
+def test_unknown_error(capsys, mock_tempfile, mock_raven):
+    senza.error_handling.sentry = senza.error_handling.setup_sentry(None)
     func = MagicMock(side_effect=Exception("something"))
     try:
         senza.error_handling.HandleExceptions(func)()
@@ -231,10 +256,24 @@ def test_unknown_error(capsys, mock_tempfile):
     assert 'Unknown Error: something.' in err
 
 
-def test_unknown_error_show_stacktrace(mock_tempfile):
+def test_unknown_error_sentry(capsys, mock_tempfile, mock_raven):
+    senza.error_handling.sentry = senza.error_handling.setup_sentry("test")
+    func = MagicMock(side_effect=Exception("something"))
+    try:
+        senza.error_handling.HandleExceptions(func)()
+    except SystemExit:
+        pass
+
+    mock_tempfile.assert_not_called()
+    mock_raven.captureException.assert_called_once_with()
+
+
+def test_unknown_error_show_stacktrace(mock_tempfile, mock_raven):
+    senza.error_handling.sentry = senza.error_handling.setup_sentry("test")
     senza.error_handling.HandleExceptions.stacktrace_visible = True
     func = MagicMock(side_effect=Exception("something"))
     with raises(Exception, message="something"):
         senza.error_handling.HandleExceptions(func)()
 
     mock_tempfile.assert_not_called()
+    mock_raven.captureException.assert_called_once_with()

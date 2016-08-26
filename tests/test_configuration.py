@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, mock_open
+from mock import MagicMock, mock_open
 
 import pytest
 import senza.configuration

@@ -128,6 +128,12 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         }
     }
 
+    if "CloudWatchMetrics" in configuration and configuration["CloudWatchMetrics"]:
+        # add collection of all ASG metrics once per a minute
+        definition["Resources"][asg_name]["Properties"]["MetricsCollection"] = [
+            {"Granularity": "1Minute"}
+        ]
+
     asg_properties = definition["Resources"][asg_name]["Properties"]
 
     if "OperatorTopicId" in info:

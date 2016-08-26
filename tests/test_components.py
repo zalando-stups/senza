@@ -579,6 +579,33 @@ def test_component_auto_scaling_group_custom_tags():
     assert ts is not None
     assert ts["Value"] == 'FooStack-FooVersion'
 
+def test_component_auto_scaling_metrics():
+    definition = {"Resources": {}}
+    configuration = {
+        'Name': 'Foo',
+        'InstanceType': 't2.micro',
+        'Image': 'foo',
+        'CloudWatchMetrics': True
+    }
+
+    args = MagicMock()
+    args.region = "foo"
+
+    info = {
+        'StackName': 'FooStack',
+        'StackVersion': 'FooVersion'
+    }
+
+    result = component_auto_scaling_group(definition, configuration, args, info, False, MagicMock())
+
+    assert result["Resources"]["Foo"] is not None
+    assert result["Resources"]["Foo"]["Properties"] is not None
+    assert result["Resources"]["Foo"]["Properties"]["Tags"] is not None
+    # verify metricscollection:
+    assert result["Resources"]["Foo"]["Properties"]["MetricsCollection"] is not None
+    assert len(result["Resources"]["Foo"]["Properties"]["MetricsCollection"]) == 1
+    assert result["Resources"]["Foo"]["Properties"]["MetricsCollection"][0]["Granularity"] is not None
+
 def test_component_auto_scaling_group_configurable_properties():
     definition = {"Resources": {}}
     configuration = {

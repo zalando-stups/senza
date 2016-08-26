@@ -5,6 +5,8 @@ from typing import Dict, Tuple
 import yaml
 from click import get_app_dir
 
+from .exceptions import InvalidConfigKey
+
 
 class Configuration(MutableMapping):
 
@@ -38,8 +40,12 @@ class Configuration(MutableMapping):
 
     @staticmethod
     def __split_key(key: str) -> Tuple[str, str]:
-        # TODO exception
-        section, sub_key = key.split('.')
+        try:
+            section, sub_key = key.split('.', 1)
+        except ValueError:
+            # error message inspired by git config
+            raise InvalidConfigKey('key does not contain '
+                                   'a section: {}'.format(key))
         return section, sub_key
 
     def __save(self, cfg):

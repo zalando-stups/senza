@@ -4,6 +4,7 @@ from click import argument, command
 from click.exceptions import BadArgumentUsage
 
 from ..configuration import configuration
+from ..exceptions import InvalidConfigKey
 
 
 @command('config')
@@ -17,13 +18,12 @@ def cmd_config(key: str, value: Optional[str]):
         try:
             value = configuration[key]
             print(value)
-            # TODO explicit errors for section and key not found
+        except InvalidConfigKey as e:
+            raise BadArgumentUsage(e)
         except KeyError:
-            raise BadArgumentUsage("key doesn't "
-                                   "contain a section: {}".format(key))
+            exit(1)
     else:
         try:
             configuration[key] = value
-        except KeyError:
-            raise BadArgumentUsage("key doesn't "
-                                   "contain a section: {}".format(key))
+        except InvalidConfigKey as e:
+            raise BadArgumentUsage(e)

@@ -18,3 +18,12 @@ class PiuNotFound(SenzaException, FileNotFoundError):
 
     def __init__(self):
         super().__init__('Command not found: piu')
+
+
+class InvalidConfigKey(SenzaException, ValueError):
+    """
+    Error raised when trying to use an Invalid Config Key
+    """
+
+    def __init__(self, message: str):
+        super().__init__(message)

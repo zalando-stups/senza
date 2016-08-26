@@ -12,7 +12,7 @@ from .configuration import configuration
 from .exceptions import PiuNotFound
 from .manaus.exceptions import (ELBNotFound, HostedZoneNotFound, InvalidState,
                                 RecordNotFound)
-
+import senza
 
 def store_exception(exception: Exception) -> str:
     """
@@ -131,6 +131,7 @@ class HandleExceptions:
 # Setup Sentry
 sentry_endpoint = configuration.get('sentry.endpoint')
 if sentry_endpoint is not None:
-    sentry = Client(sentry_endpoint)
+    sentry = Client(sentry_endpoint,
+                    release=senza.__version__)
 else:
     sentry = None

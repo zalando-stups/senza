@@ -150,6 +150,15 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
             asg_properties["LoadBalancerNames"] = [{'Ref': ref} for ref in configuration["ElasticLoadBalancer"]]
         # use ELB health check by default
         default_health_check_type = 'ELB'
+    elif "ElasticLoadBalancerV2" in configuration:
+        if isinstance(configuration["ElasticLoadBalancerV2"], str):
+            asg_properties["TargetGroupARNs"] = [{"Ref": configuration["ElasticLoadBalancerV2"] + 'TargetGroup'}]
+        elif isinstance(configuration["ElasticLoadBalancerV2"], list):
+            asg_properties["TargetGroupARNs"] = [
+                {'Ref': ref} for ref in configuration["ElasticLoadBalancerV2"] + 'TargetGroup'
+            ]
+        # use ELB health check by default
+        default_health_check_type = 'ELB'
 
     asg_properties['HealthCheckType'] = configuration.get('HealthCheckType', default_health_check_type)
     asg_properties['HealthCheckGracePeriod'] = configuration.get('HealthCheckGracePeriod', 300)

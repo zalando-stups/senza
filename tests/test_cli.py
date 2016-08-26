@@ -1701,3 +1701,89 @@ def test_status_main_dns(monkeypatch):
 
     data = json.loads(result.output.strip())
     assert data[0]['main_dns'] is True
+
+
+def test_traffic_fallback_route53api(monkeypatch, boto_client, boto_resource):  # noqa: F811
+    stacks = [
+        StackVersion('myapp', 'v1', ['myapp.zo.ne'],
+                     ['some-lb.eu-central-1.elb.amazonaws.com'], ['some-arn']),
+        StackVersion('myapp', 'v2', ['myapp.zo.ne'],
+                     ['another-elb.eu-central-1.elb.amazonaws.com'], ['some-arn']),
+    ]
+    monkeypatch.setattr('senza.traffic.get_stack_versions',
+                        MagicMock(return_value=stacks))
+
+    def record(dns_identifier, weight):
+        return Route53Record(name='myapp.zo.ne.',
+                             type=RecordType.A,
+                             weight=weight,
+                             set_identifier=dns_identifier)
+
+    rr = MagicMock()
+    records = collections.OrderedDict()
+
+    # scenario: v1 DNS record was manually updated to 100% (not via CF)
+    for ver, percentage in [('v1', 100),
+                            ('v2', 0)]:
+        dns_identifier = 'myapp-{}'.format(ver)
+        records[dns_identifier] = record(dns_identifier,
+                                         percentage * PERCENT_RESOLUTION)
+
+    rr.__iter__ = lambda x: iter(records.values())
+    monkeypatch.setattr('senza.traffic.Route53.get_records',
+                        MagicMock(return_value=rr))
+
+    def change_rr_set(HostedZoneId, ChangeBatch):
+        for change in ChangeBatch['Changes']:
+            action = change['Action']
+            rrset = change['ResourceRecordSet']
+            assert action == 'UPSERT'
+            records[rrset['SetIdentifier']] = Route53Record.from_boto_dict(rrset)
+
+    boto_client['route53'].change_resource_record_sets = change_rr_set
+
+    runner = CliRunner()
+
+    common_opts = ['traffic', '--region=aa-fakeregion-1', 'myapp']
+
+    def run(opts):
+        result = runner.invoke(cli, common_opts + opts, catch_exceptions=False)
+        assert 'Setting weights for myapp.zo.ne..' in result.output
+        return result
+
+    def weights():
+        return [r.weight for r in records.values()]
+
+    m_cfs = MagicMock()
+    m_stacks = collections.defaultdict(MagicMock)
+
+    def get_stack(name, region):
+        if name not in m_stacks:
+            stack = m_stacks[name]
+            stack.template = {'Resources': {
+                'MyMainDomain': {
+                    'Type': 'AWS::Route53::RecordSet',
+                    'Properties': {'Weight': 999,  # does not matter
+                                   'Name': 'myapp.zo.ne.'}
+                }
+            }}
+            if name == 'myapp-v1':
+                # CF will say "no need to update" as v1 was not updated via CF
+                stack.update.side_effect = StackNotUpdated('app-v1 record was manipulated through Route53 API')
+        return m_stacks[name]
+
+    m_cfs.get_by_stack_name = get_stack
+
+    def get_weight(stack):
+        return stack.template['Resources']['MyMainDomain']['Properties']['Weight']
+
+    monkeypatch.setattr('senza.traffic.CloudFormationStack', m_cfs)
+
+    with runner.isolated_filesystem():
+        run(['v2', '100'])
+        # check that template resource weights were updated..
+        assert get_weight(m_stacks['myapp-v1']) == 0
+        assert get_weight(m_stacks['myapp-v2']) == 200
+        # IMPORTANT: DNS record of v1 must have been updated!
+        assert records['myapp-v1'].weight == 0
+        # we won't check v2 as it was not manipulated (only via CF)

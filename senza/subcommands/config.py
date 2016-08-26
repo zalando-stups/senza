@@ -17,12 +17,13 @@ def cmd_config(key: str, value: Optional[str]):
         try:
             value = configuration[key]
             print(value)
+            # TODO explicit errors for section and key not found
         except KeyError:
-            raise BadArgumentUsage("Error: key doesn't "
+            raise BadArgumentUsage("key doesn't "
                                    "contain a section: {}".format(key))
     else:
         try:
             configuration[key] = value
         except KeyError:
-            raise BadArgumentUsage("Error: key doesn't "
+            raise BadArgumentUsage("key doesn't "
                                    "contain a section: {}".format(key))

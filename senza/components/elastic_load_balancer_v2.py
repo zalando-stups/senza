@@ -187,6 +187,7 @@ def component_elastic_load_balancer_v2(definition,
     definition["Resources"][target_group_name] = {
         'Type': 'AWS::ElasticLoadBalancingV2::TargetGroup',
         'Properties': {
+            'Name': loadbalancer_name,
             'HealthCheckIntervalSeconds': '10',
             'HealthCheckPath': health_check_path,
             'HealthCheckPort': health_check_port,

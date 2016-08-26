@@ -23,6 +23,8 @@ from senza.components.taupage_auto_scaling_group import (check_application_id,
                                                          generate_user_data)
 from senza.components.weighted_dns_elastic_load_balancer import \
     component_weighted_dns_elastic_load_balancer
+from senza.components.weighted_dns_elastic_load_balancer_v2 import \
+    component_weighted_dns_elastic_load_balancer_v2
 
 from fixtures import HOSTED_ZONE_ZO_NE_COM, HOSTED_ZONE_ZO_NE_DEV, boto_resource
 
@@ -546,7 +548,7 @@ def test_component_auto_scaling_group_custom_tags():
         'Name': 'Foo',
         'InstanceType': 't2.micro',
         'Image': 'foo',
-        'Tags': [ 
+        'Tags': [
             { 'Key': 'Tag1', 'Value': 'alpha' },
             { 'Key': 'Tag2', 'Value': 'beta' }
         ]
@@ -867,3 +869,55 @@ def test_get_load_balancer_name():
 
     get_load_balancer_name('toolong123456789012345678901234567890',
                            '1') == 'toolong12345678901234567890123-1'
+
+
+def test_weighted_dns_load_balancer_v2(monkeypatch, boto_resource):
+    senza.traffic.DNS_ZONE_CACHE = {}
+
+    def my_client(rtype, *args):
+        if rtype == 'route53':
+            route53 = MagicMock()
+            route53.list_hosted_zones.return_value = {'HostedZones': [HOSTED_ZONE_ZO_NE_COM],
+                                                      'IsTruncated': False,
+                                                      'MaxItems': '100'}
+            return route53
+        return MagicMock()
+
+    monkeypatch.setattr('boto3.client', my_client)
+
+    configuration = {
+        "Name": "MyLB",
+        "SecurityGroups": "",
+        "HTTPPort": "9999",
+        'MainDomain': 'great.api.zo.ne.com',
+        'VersionDomain': 'version.api.zo.ne.com'
+    }
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    definition = {"Resources": {}}
+
+    args = MagicMock()
+    args.region = "foo"
+
+    mock_string_result = MagicMock()
+    mock_string_result.return_value = "foo"
+    monkeypatch.setattr('senza.components.elastic_load_balancer_v2.resolve_security_groups', mock_string_result)
+
+    m_acm = MagicMock()
+    m_acm_certificate = MagicMock()
+    m_acm_certificate.arn = "foo"
+    m_acm.get_certificates.return_value = iter([m_acm_certificate])
+    monkeypatch.setattr('senza.components.elastic_load_balancer_v2.ACM', m_acm)
+
+    result = component_weighted_dns_elastic_load_balancer_v2(definition,
+                                                             configuration,
+                                                             args,
+                                                             info,
+                                                             False,
+                                                             AccountArguments('dummyregion'))
+
+    assert 'MyLB' in result["Resources"]
+    assert 'MyLBListener' in result["Resources"]
+    assert 'MyLBTargetGroup' in result["Resources"]
+
+    assert result['Resources']['MyLBTargetGroup']['Properties']['HealthCheckPort'] == '9999'
+    assert result['Resources']['MyLBListener']['Properties']['Certificates'] == [{'CertificateArn': 'arn:aws:123'}]

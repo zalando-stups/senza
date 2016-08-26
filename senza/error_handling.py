@@ -57,16 +57,21 @@ class HandleExceptions:
 
     def die_unknown_error(self, e: Exception):
         if sentry:
-            # TODO remove if after a fake client is created
+            # The exception should always be sent to sentry if sentry is
+            # configured
             sentry.captureException()
-        if not self.stacktrace_visible:
+        if self.stacktrace_visible:
+            raise e
+        elif sentry:
+            print("Unknown Error: {e}.\n"
+                  "This error will be pushed to sentry ".format(e=e))
+        elif not sentry:
             file_name = store_exception(e)
             print('Unknown Error: {e}.\n'
                   'Please create an issue '
                   'with the content of {fn}'.format(e=e, fn=file_name),
                   file=sys.stderr)
             sys.exit(1)
-        raise e
 
     def die_credential_error(self):
         print('No AWS credentials found. Use the "mai" command-line tool '
@@ -128,5 +133,4 @@ sentry_endpoint = configuration.get('sentry.endpoint')
 if sentry_endpoint is not None:
     sentry = Client(sentry_endpoint)
 else:
-    # TODO Fake Client
     sentry = None

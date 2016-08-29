@@ -72,6 +72,8 @@ def get_ssl_cert(subdomain, main_zone, configuration, account_info: AccountArgum
             else:
                 fatal_error('Could not find any SSL certificate')
 
+    return ssl_cert
+
 
 def get_listeners(subdomain, main_zone, configuration,
                   account_info: AccountArguments):

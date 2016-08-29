@@ -152,6 +152,6 @@ def component_elastic_load_balancer_v2(definition,
     for key, val in configuration.items():
         # overwrite any specified properties, but only properties which were defined by us already
         for res in resource_names:
-            if key in definition['Resources'][res]['Properties']:
+            if key in definition['Resources'][res]['Properties'] and key not in SENZA_PROPERTIES:
                 definition['Resources'][res]['Properties'][key] = val
     return definition

@@ -537,47 +537,97 @@ def health(region, stack_ref, all, output, w, watch):
     elb_metrics = {
         'HealthyHostCount': 'Average', 'Latency': 'Average', 'RequestCount': 'Sum',
         'HTTPCode_Backend_5XX': 'Sum', 'HTTPCode_Backend_4XX': 'Sum'}
+    alb_metrics = {
+        'HealthyHostCount': 'Average', 'TargetResponseTime': 'Average', 'RequestCount': 'Sum',
+        'HTTPCode_Target_5XX_Count': 'Sum', 'HTTPCode_Target_4XX_Count': 'Sum'}
 
     for _ in watching(w, watch):
         rows = []
         start = datetime.datetime.utcnow() - datetime.timedelta(minutes=5)
         now = datetime.datetime.utcnow()
+        paginator = cloudwatch.get_paginator('list_metrics')
+        alb_ids = {}
+        for page in paginator.paginate(Namespace='AWS/ApplicationELB', MetricName='RequestCount',
+                                       Dimensions=[{'Name': 'LoadBalancer'}]):
+            for metric in page['Metrics']:
+                alb_id = ''.join([d['Value'] for d in metric['Dimensions'] if d['Name'] == 'LoadBalancer'])
+                alb_ids[alb_id.split('/')[1]] = alb_id
         for stack in get_stacks(stack_refs, region, all=all):
             lb_name = stack.StackName
             data = {}
-            for k, v in elb_metrics.items():
-                res = cloudwatch.get_metric_statistics(
-                    Namespace='AWS/ELB',
-                    MetricName=k,
-                    Dimensions=[{'Name': 'LoadBalancerName', 'Value': lb_name}],
-                    StartTime=start,
-                    EndTime=now,
-                    Period=60,
-                    Statistics=[v])
-                most_recent = sorted(res['Datapoints'], key=lambda x: x['Timestamp'])[-1:]
-                if most_recent:
-                    data[(k, v)] = most_recent[0][v]
+            alb_id = alb_ids.get(lb_name)
+            if alb_id:
+                for k, v in alb_metrics.items():
+                    res = cloudwatch.get_metric_statistics(
+                        Namespace='AWS/ApplicationELB',
+                        MetricName=k,
+                        Dimensions=[{'Name': 'LoadBalancer', 'Value': alb_id}],
+                        StartTime=start,
+                        EndTime=now,
+                        Period=60,
+                        Statistics=[v])
+                    most_recent = sorted(res['Datapoints'], key=lambda x: x['Timestamp'])[-1:]
+                    if most_recent:
+                        data[(k, v)] = most_recent[0][v]
+                    else:
+                        data[(k, v)] = None
+                row = {
+                    'stack_name': stack.name,
+                    'version': stack.version,
+                    'status': stack.StackStatus,
+                    'creation_time': calendar.timegm(stack.CreationTime.timetuple()),
+                }
+                if data[('HealthyHostCount', 'Average')] is not None:
+                    row['healthy_hosts'] = int(data[('HealthyHostCount', 'Average')])
+                if data[('RequestCount', 'Sum')] is not None:
+                    requests_per_min = data[('RequestCount', 'Sum')]
+                    row['requests_per_sec'] = round(requests_per_min / 60, 2)
                 else:
-                    data[(k, v)] = None
-            row = {
-                'stack_name': stack.name,
-                'version': stack.version,
-                'status': stack.StackStatus,
-                'creation_time': calendar.timegm(stack.CreationTime.timetuple()),
-            }
-            if data[('HealthyHostCount', 'Average')] is not None:
-                row['healthy_hosts'] = int(data[('HealthyHostCount', 'Average')])
-            if data[('RequestCount', 'Sum')] is not None:
-                requests_per_min = data[('RequestCount', 'Sum')]
-                row['requests_per_sec'] = round(requests_per_min / 60, 2)
+                    requests_per_min = 0
+                if data[('HTTPCode_Target_4XX_Count', 'Sum')] is not None:
+                    row['4xx_percentage'] = round((data[('HTTPCode_Target_4XX_Count', 'Sum')]) /
+                                                  (requests_per_min + 0.0001), 2)
+                if data[('HTTPCode_Target_5XX_Count', 'Sum')] is not None:
+                    row['5xx_percentage'] = round((data[('HTTPCode_Target_5XX_Count', 'Sum')]) /
+                                                  (requests_per_min + 0.0001), 2)
+                if data[('TargetResponseTime', 'Average')] is not None:
+                    row['latency_ms'] = int(round((data[('TargetResponseTime', 'Average')]) * 1000, 0))
             else:
-                requests_per_min = 0
-            if data[('HTTPCode_Backend_4XX', 'Sum')] is not None:
-                row['4xx_percentage'] = round((data[('HTTPCode_Backend_4XX', 'Sum')]) / (requests_per_min + 0.0001), 2)
-            if data[('HTTPCode_Backend_5XX', 'Sum')] is not None:
-                row['5xx_percentage'] = round((data[('HTTPCode_Backend_5XX', 'Sum')]) / (requests_per_min + 0.0001), 2)
-            if data[('Latency', 'Average')] is not None:
-                row['latency_ms'] = int(round((data[('Latency', 'Average')]) * 1000, 0))
+                for k, v in elb_metrics.items():
+                    res = cloudwatch.get_metric_statistics(
+                        Namespace='AWS/ELB',
+                        MetricName=k,
+                        Dimensions=[{'Name': 'LoadBalancerName', 'Value': lb_name}],
+                        StartTime=start,
+                        EndTime=now,
+                        Period=60,
+                        Statistics=[v])
+                    most_recent = sorted(res['Datapoints'], key=lambda x: x['Timestamp'])[-1:]
+                    if most_recent:
+                        data[(k, v)] = most_recent[0][v]
+                    else:
+                        data[(k, v)] = None
+                row = {
+                    'stack_name': stack.name,
+                    'version': stack.version,
+                    'status': stack.StackStatus,
+                    'creation_time': calendar.timegm(stack.CreationTime.timetuple()),
+                }
+                if data[('HealthyHostCount', 'Average')] is not None:
+                    row['healthy_hosts'] = int(data[('HealthyHostCount', 'Average')])
+                if data[('RequestCount', 'Sum')] is not None:
+                    requests_per_min = data[('RequestCount', 'Sum')]
+                    row['requests_per_sec'] = round(requests_per_min / 60, 2)
+                else:
+                    requests_per_min = 0
+                if data[('HTTPCode_Backend_4XX', 'Sum')] is not None:
+                    row['4xx_percentage'] = round((data[('HTTPCode_Backend_4XX', 'Sum')]) /
+                                                  (requests_per_min + 0.0001), 2)
+                if data[('HTTPCode_Backend_5XX', 'Sum')] is not None:
+                    row['5xx_percentage'] = round((data[('HTTPCode_Backend_5XX', 'Sum')]) /
+                                                  (requests_per_min + 0.0001), 2)
+                if data[('Latency', 'Average')] is not None:
+                    row['latency_ms'] = int(round((data[('Latency', 'Average')]) * 1000, 0))
             rows.append(row)
 
         rows.sort(key=lambda x: (x['stack_name'], x['version']))

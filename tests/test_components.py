@@ -489,6 +489,7 @@ def test_component_auto_scaling_group_configurable_properties():
         'Name': 'Foo',
         'InstanceType': 't2.micro',
         'Image': 'foo',
+        'MetricsCollection': {'Granularity': '1Minute'},
         'AutoScaling': {
             'Minimum': 2,
             'Maximum': 10,
@@ -535,12 +536,14 @@ def test_component_auto_scaling_group_configurable_properties():
     assert result["Resources"]["Foo"]["Properties"]["MinSize"] == 2
     assert result["Resources"]["Foo"]["Properties"]["DesiredCapacity"] == 2
     assert result["Resources"]["Foo"]["Properties"]["MaxSize"] == 10
+    assert result['Resources']['Foo']['Properties']['MetricsCollection'] == {'Granularity': '1Minute'}
 
     expected_desc = "Scale-down if CPU < 20% for 1.0 minutes (Maximum)"
     assert result["Resources"]["FooCPUAlarmHigh"]["Properties"]["Statistic"] == "Maximum"
     assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["Period"] == "60"
     assert result["Resources"]["FooCPUAlarmHigh"]["Properties"]["EvaluationPeriods"] == "1"
     assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["AlarmDescription"] == expected_desc
+
 
 def test_component_auto_scaling_group_custom_tags():
     definition = {"Resources": {}}

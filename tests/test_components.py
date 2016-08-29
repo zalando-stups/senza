@@ -171,7 +171,7 @@ def test_component_load_balancer_cert_arn(monkeypatch):
 
     # issue 105: support additional ELB properties
     result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
-    assert "foo2" == result["Resources"]["test_lb"]["Properties"]["SSLCertificateId"]
+    assert "foo2" == result["Resources"]["test_lb"]["Properties"]["Listeners"][0]["SSLCertificateId"]
 
 
 def test_component_load_balancer_http_only(monkeypatch):

@@ -579,7 +579,7 @@ def test_component_auto_scaling_group_custom_tags():
     assert ts is not None
     assert ts["Value"] == 'FooStack-FooVersion'
 
-def test_component_auto_scaling_group_configurable_properties():
+def test_component_auto_scaling_group_configurable_properties2():
     definition = {"Resources": {}}
     configuration = {
         'Name': 'Foo',

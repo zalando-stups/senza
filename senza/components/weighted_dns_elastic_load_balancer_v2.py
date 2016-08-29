@@ -4,4 +4,5 @@ from senza.components.elastic_load_balancer_v2 import component_elastic_load_bal
 
 
 def component_weighted_dns_elastic_load_balancer_v2(definition, configuration, args, info, force, account_info):
-    return component_weighted_dns_elastic_load_balancer(definition, configuration, args, info, force, account_info, component_elastic_load_balancer_v2)
+    return component_weighted_dns_elastic_load_balancer(definition, configuration, args, info, force, account_info,
+                                                        lb_component=component_elastic_load_balancer_v2)

@@ -931,7 +931,9 @@ def test_weighted_dns_load_balancer_v2(monkeypatch, boto_resource):
         'MainDomain': 'great.api.zo.ne.com',
         'VersionDomain': 'version.api.zo.ne.com',
         # test overwritting specific properties in one of the resources
-        'TargetGroupAttributes': [{'Key': 'deregistration_delay.timeout_seconds', 'Value': '123'}]
+        'TargetGroupAttributes': [{'Key': 'deregistration_delay.timeout_seconds', 'Value': '123'}],
+        # test that Security Groups are resolved
+        'SecurityGroups': ['foo-security-group']
     }
     info = {'StackName': 'foobar', 'StackVersion': '0.1'}
     definition = {"Resources": {}}
@@ -940,7 +942,7 @@ def test_weighted_dns_load_balancer_v2(monkeypatch, boto_resource):
     args.region = "foo"
 
     mock_string_result = MagicMock()
-    mock_string_result.return_value = "foo"
+    mock_string_result.return_value = ['sg-foo']
     monkeypatch.setattr('senza.components.elastic_load_balancer_v2.resolve_security_groups', mock_string_result)
 
     get_ssl_cert = MagicMock()
@@ -962,6 +964,7 @@ def test_weighted_dns_load_balancer_v2(monkeypatch, boto_resource):
     assert result['Resources']['MyLBListener']['Properties']['Certificates'] == [{'CertificateArn': 'arn:aws:42'}]
     # test that our custom drain setting works
     assert result['Resources']['MyLBTargetGroup']['Properties']['TargetGroupAttributes'] == [{'Key': 'deregistration_delay.timeout_seconds', 'Value': '123'}]
+    assert result['Resources']['MyLB']['Properties']['SecurityGroups'] == ['sg-foo']
 
 
 def test_max_description_length():

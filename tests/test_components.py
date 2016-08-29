@@ -158,10 +158,16 @@ def test_component_load_balancer_cert_arn(monkeypatch):
     monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
 
     m_acm = MagicMock()
-    m_acm.is_arn_certificate.return_value = True
-    m_acm.get_by_arn.return_value = True
+    m_acm_certificate = MagicMock()
+    m_acm_certificate.arn = "foo"
+
+    m_acm.get_certificates.return_value = iter([m_acm_certificate])
+
+    m_acm_certificate.is_arn_certificate.return_value = True
+    m_acm_certificate.get_by_arn.return_value = True
 
     monkeypatch.setattr('senza.components.elastic_load_balancer.ACM', m_acm)
+    monkeypatch.setattr('senza.components.elastic_load_balancer.ACMCertificate', m_acm_certificate)
 
     # issue 105: support additional ELB properties
     result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())

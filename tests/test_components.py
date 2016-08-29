@@ -6,6 +6,7 @@ import pytest
 import senza.traffic
 from senza.cli import AccountArguments
 from senza.components import get_component
+from senza.components.configuration import component_configuration
 from senza.components.auto_scaling_group import (component_auto_scaling_group,
                                                  normalize_asg_success,
                                                  normalize_network_threshold,
@@ -926,3 +927,14 @@ def test_weighted_dns_load_balancer_v2(monkeypatch, boto_resource):
     assert result['Resources']['MyLBListener']['Properties']['Certificates'] == [{'CertificateArn': 'arn:aws:42'}]
     # test that our custom drain setting works
     assert result['Resources']['MyLBTargetGroup']['Properties']['TargetGroupAttributes'] == [{'Key': 'deregistration_delay.timeout_seconds', 'Value': '123'}]
+
+
+def test_max_description_length():
+    definition = {}
+    configuration = {}
+    args = MagicMock()
+    args.__dict__ = {'Param1': 'my param value', 'SecondParam': ('1234567890' * 100)}
+    info = {'StackName': 'My-Stack'}
+    component_configuration(definition, configuration, args, info, False, AccountArguments('dummyregion'))
+    assert definition['Description'].startswith('My Stack (Param1: my param value, SecondParam: 1234567890')
+    assert 0 < len(definition['Description']) <= 1024

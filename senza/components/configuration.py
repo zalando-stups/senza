@@ -3,7 +3,7 @@ from senza.utils import ensure_keys, named_value
 
 
 def format_params(args):
-    items = [(key, val) for key, val in args.__dict__.items() if key not in ('region', 'version')]
+    items = [(key, val) for key, val in sorted(args.__dict__.items()) if key not in ('region', 'version')]
     return ', '.join(['{}: {}'.format(key, val) for key, val in items])
 
 
@@ -27,7 +27,9 @@ def component_configuration(definition, configuration, args, info, force, accoun
 
     if 'Description' not in definition:
         # set some sane default stack description
-        definition['Description'] = get_default_description(info, args)
+        # we need to truncate at 1024 chars (should be Bytes actually)
+        # see http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/template-description-structure.html
+        definition['Description'] = get_default_description(info, args)[:1024]
 
     # ServerSubnets
     for region, subnets in configuration.get('ServerSubnets', {}).items():

@@ -890,7 +890,9 @@ def test_weighted_dns_load_balancer_v2(monkeypatch, boto_resource):
         "SecurityGroups": "",
         "HTTPPort": "9999",
         'MainDomain': 'great.api.zo.ne.com',
-        'VersionDomain': 'version.api.zo.ne.com'
+        'VersionDomain': 'version.api.zo.ne.com',
+        # test overwritting specific properties in one of the resources
+        'TargetGroupAttributes': [{'Key': 'deregistration_delay.timeout_seconds', 'Value': '123'}]
     }
     info = {'StackName': 'foobar', 'StackVersion': '0.1'}
     definition = {"Resources": {}}
@@ -902,11 +904,9 @@ def test_weighted_dns_load_balancer_v2(monkeypatch, boto_resource):
     mock_string_result.return_value = "foo"
     monkeypatch.setattr('senza.components.elastic_load_balancer_v2.resolve_security_groups', mock_string_result)
 
-    m_acm = MagicMock()
-    m_acm_certificate = MagicMock()
-    m_acm_certificate.arn = "foo"
-    m_acm.get_certificates.return_value = iter([m_acm_certificate])
-    monkeypatch.setattr('senza.components.elastic_load_balancer_v2.ACM', m_acm)
+    get_ssl_cert = MagicMock()
+    get_ssl_cert.return_value = 'arn:aws:42'
+    monkeypatch.setattr('senza.components.elastic_load_balancer_v2.get_ssl_cert', get_ssl_cert)
 
     result = component_weighted_dns_elastic_load_balancer_v2(definition,
                                                              configuration,
@@ -920,4 +920,6 @@ def test_weighted_dns_load_balancer_v2(monkeypatch, boto_resource):
     assert 'MyLBTargetGroup' in result["Resources"]
 
     assert result['Resources']['MyLBTargetGroup']['Properties']['HealthCheckPort'] == '9999'
-    assert result['Resources']['MyLBListener']['Properties']['Certificates'] == [{'CertificateArn': 'arn:aws:123'}]
+    assert result['Resources']['MyLBListener']['Properties']['Certificates'] == [{'CertificateArn': 'arn:aws:42'}]
+    # test that our custom drain setting works
+    assert result['Resources']['MyLBTargetGroup']['Properties']['TargetGroupAttributes'] == [{'Key': 'deregistration_delay.timeout_seconds', 'Value': '123'}]

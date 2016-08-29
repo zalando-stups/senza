@@ -1,7 +1,7 @@
 import click
 from clickclick import fatal_error
 from senza.aws import resolve_security_groups
-from senza.components.elastic_load_balancer import get_load_balancer_name
+from senza.components.elastic_load_balancer import ALLOWED_LOADBALANCER_SCHEMES, get_load_balancer_name, get_ssl_cert
 
 from ..cli import AccountArguments, TemplateArguments
 from ..manaus import ClientError
@@ -11,56 +11,12 @@ from ..manaus.route53 import convert_domain_records_to_alias
 
 SENZA_PROPERTIES = frozenset(['Domains', 'HealthCheckPath', 'HealthCheckPort', 'HealthCheckProtocol',
                               'HTTPPort', 'Name', 'SecurityGroups', 'SSLCertificateId', 'Type'])
+ALLOWED_HEALTH_CHECK_PROTOCOLS = frozenset(["HTTP", "HTTPS"])
 
 
 def get_listeners(lb_name, target_group_name, subdomain, main_zone, configuration,
                   account_info: AccountArguments):
-    ssl_cert = configuration.get('SSLCertificateId')
-
-    if ACMCertificate.arn_is_acm_certificate(ssl_cert):
-        # check if certificate really exists
-        try:
-            ACMCertificate.get_by_arn(account_info.Region, ssl_cert)
-        except ClientError as e:
-            error_msg = e.response['Error']['Message']
-            fatal_error(error_msg)
-    elif IAMServerCertificate.arn_is_server_certificate(ssl_cert):
-        # TODO check if certificate exists
-        pass
-    elif ssl_cert is not None:
-        certificate = IAMServerCertificate.get_by_name(account_info.Region,
-                                                       ssl_cert)
-        ssl_cert = certificate.arn
-    elif main_zone is not None:
-        if main_zone:
-            iam_pattern = main_zone.lower().rstrip('.').replace('.', '-')
-            name = '{sub}.{zone}'.format(sub=subdomain,
-                                         zone=main_zone.rstrip('.'))
-            acm = ACM(account_info.Region)
-            acm_certificates = sorted(acm.get_certificates(domain_name=name),
-                                      reverse=True)
-        else:
-            iam_pattern = ''
-            acm_certificates = []
-        iam = IAM(account_info.Region)
-        iam_certificates = sorted(iam.get_certificates(name=iam_pattern))
-        if not iam_certificates:
-            # if there are no iam certificates matching the pattern
-            # try to use any certificate
-            iam_certificates = sorted(iam.get_certificates(), reverse=True)
-
-        # the priority is acm_certificate first and iam_certificate second
-        certificates = (acm_certificates +
-                        iam_certificates)  # type: List[Union[ACMCertificate, IAMServerCertificate]]
-        try:
-            certificate = certificates[0]
-            ssl_cert = certificate.arn
-        except IndexError:
-            if main_zone:
-                fatal_error('Could not find any matching '
-                            'SSL certificate for "{}"'.format(name))
-            else:
-                fatal_error('Could not find any SSL certificate')
+    ssl_cert = get_ssl_cert(subdomain, main_zone, configuration, account_info)
     return [{
         'Type': 'AWS::ElasticLoadBalancingV2::Listener',
         'Properties': {
@@ -110,21 +66,13 @@ def component_elastic_load_balancer_v2(definition,
     listeners = configuration.get('Listeners') or get_listeners(
         lb_name, target_group_name, subdomain, main_zone, configuration, account_info)
 
-    health_check_protocol = "HTTP"
-    allowed_health_check_protocols = ("HTTP", "TCP", "UDP", "SSL")
-    if "HealthCheckProtocol" in configuration:
-        health_check_protocol = configuration["HealthCheckProtocol"]
+    health_check_protocol = configuration.get('HealthCheckProtocol') or 'HTTP'
 
-    if health_check_protocol not in allowed_health_check_protocols:
+    if health_check_protocol not in ALLOWED_HEALTH_CHECK_PROTOCOLS:
         raise click.UsageError('Protocol "{}" is not supported for LoadBalancer'.format(health_check_protocol))
 
-    health_check_path = "/ui/"
-    if "HealthCheckPath" in configuration:
-        health_check_path = configuration["HealthCheckPath"]
-
-    health_check_port = configuration["HTTPPort"]
-    if "HealthCheckPort" in configuration:
-        health_check_port = configuration["HealthCheckPort"]
+    health_check_path = configuration.get("HealthCheckPath") or '/health'
+    health_check_port = configuration.get("HealthCheckPort") or configuration["HTTPPort"]
 
     if configuration.get('NameSuffix'):
         version = '{}-{}'.format(info["StackVersion"],
@@ -135,19 +83,13 @@ def component_elastic_load_balancer_v2(definition,
         loadbalancer_name = get_load_balancer_name(info["StackName"],
                                                    info["StackVersion"])
 
-    loadbalancer_scheme = "internal"
-    allowed_loadbalancer_schemes = ("internet-facing", "internal")
-    if "Scheme" in configuration:
-        loadbalancer_scheme = configuration["Scheme"]
-    else:
-        configuration["Scheme"] = loadbalancer_scheme
-
+    loadbalancer_scheme = configuration.get('Scheme') or 'internal'
     if loadbalancer_scheme == 'internet-facing':
         click.secho('You are deploying an internet-facing ELB that will be '
                     'publicly accessible! You should have OAUTH2 and HTTPS '
                     'in place!', bold=True, err=True)
 
-    if loadbalancer_scheme not in allowed_loadbalancer_schemes:
+    if loadbalancer_scheme not in ALLOWED_LOADBALANCER_SCHEMES:
         raise click.UsageError('Scheme "{}" is not supported for LoadBalancer'.format(loadbalancer_scheme))
 
     if loadbalancer_scheme == "internal":
@@ -202,16 +144,18 @@ def component_elastic_load_balancer_v2(definition,
             'TargetGroupAttributes': [{'Key': 'deregistration_delay.timeout_seconds', 'Value': '60'}]
         }
     }
+    resource_names = set([lb_name, target_group_name])
     for i, listener in enumerate(listeners):
         if i == 0:
             suffix = ''
         else:
             suffix = str(i + 1)
-        definition['Resources'][lb_name + 'Listener' + suffix] = listener
+        resource_name = lb_name + 'Listener' + suffix
+        definition['Resources'][resource_name] = listener
+        resource_names.add(resource_name)
     for key, val in configuration.items():
-        # overwrite any specified properties, but
-        # ignore our special Senza properties as they are not supported by CF
-        if key not in SENZA_PROPERTIES:
-            definition['Resources'][lb_name]['Properties'][key] = val
-
+        # overwrite any specified properties, but only properties which were defined by us already
+        for res in resource_names:
+            if key in definition['Resources'][res]['Properties']:
+                definition['Resources'][res]['Properties'][key] = val
     return definition

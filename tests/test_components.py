@@ -6,6 +6,7 @@ import pytest
 import senza.traffic
 from senza.cli import AccountArguments
 from senza.components import get_component
+from senza.components.configuration import component_configuration
 from senza.components.auto_scaling_group import (component_auto_scaling_group,
                                                  normalize_asg_success,
                                                  normalize_network_threshold,
@@ -136,6 +137,41 @@ def test_component_load_balancer_idletimeout(monkeypatch):
     result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
     assert 300 == result["Resources"]["test_lb"]["Properties"]["ConnectionSettings"]["IdleTimeout"]
     assert 'HTTPPort' not in result["Resources"]["test_lb"]["Properties"]
+
+
+def test_component_load_balancer_cert_arn(monkeypatch):
+    configuration = {
+        "Name": "test_lb",
+        "SecurityGroups": "",
+        "HTTPPort": "9999",
+        "SSLCertificateId": "foo2"
+    }
+
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    definition = {"Resources": {}}
+
+    args = MagicMock()
+    args.region = "foo"
+
+    mock_string_result = MagicMock()
+    mock_string_result.return_value = "foo"
+    monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    m_acm = MagicMock()
+    m_acm_certificate = MagicMock()
+    m_acm_certificate.arn = "foo"
+
+    m_acm.get_certificates.return_value = iter([m_acm_certificate])
+
+    m_acm_certificate.is_arn_certificate.return_value = True
+    m_acm_certificate.get_by_arn.return_value = True
+
+    monkeypatch.setattr('senza.components.elastic_load_balancer.ACM', m_acm)
+    monkeypatch.setattr('senza.components.elastic_load_balancer.ACMCertificate', m_acm_certificate)
+
+    # issue 105: support additional ELB properties
+    result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
+    assert "foo2" == result["Resources"]["test_lb"]["Properties"]["Listeners"][0]["SSLCertificateId"]
 
 
 def test_component_load_balancer_http_only(monkeypatch):
@@ -489,6 +525,7 @@ def test_component_auto_scaling_group_configurable_properties():
         'Name': 'Foo',
         'InstanceType': 't2.micro',
         'Image': 'foo',
+        'MetricsCollection': {'Granularity': '1Minute'},
         'AutoScaling': {
             'Minimum': 2,
             'Maximum': 10,
@@ -535,12 +572,14 @@ def test_component_auto_scaling_group_configurable_properties():
     assert result["Resources"]["Foo"]["Properties"]["MinSize"] == 2
     assert result["Resources"]["Foo"]["Properties"]["DesiredCapacity"] == 2
     assert result["Resources"]["Foo"]["Properties"]["MaxSize"] == 10
+    assert result['Resources']['Foo']['Properties']['MetricsCollection'] == {'Granularity': '1Minute'}
 
     expected_desc = "Scale-down if CPU < 20% for 1.0 minutes (Maximum)"
     assert result["Resources"]["FooCPUAlarmHigh"]["Properties"]["Statistic"] == "Maximum"
     assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["Period"] == "60"
     assert result["Resources"]["FooCPUAlarmHigh"]["Properties"]["EvaluationPeriods"] == "1"
     assert result["Resources"]["FooCPUAlarmLow"]["Properties"]["AlarmDescription"] == expected_desc
+
 
 def test_component_auto_scaling_group_custom_tags():
     definition = {"Resources": {}}
@@ -923,3 +962,14 @@ def test_weighted_dns_load_balancer_v2(monkeypatch, boto_resource):
     assert result['Resources']['MyLBListener']['Properties']['Certificates'] == [{'CertificateArn': 'arn:aws:42'}]
     # test that our custom drain setting works
     assert result['Resources']['MyLBTargetGroup']['Properties']['TargetGroupAttributes'] == [{'Key': 'deregistration_delay.timeout_seconds', 'Value': '123'}]
+
+
+def test_max_description_length():
+    definition = {}
+    configuration = {}
+    args = MagicMock()
+    args.__dict__ = {'Param1': 'my param value', 'SecondParam': ('1234567890' * 100)}
+    info = {'StackName': 'My-Stack'}
+    component_configuration(definition, configuration, args, info, False, AccountArguments('dummyregion'))
+    assert definition['Description'].startswith('My Stack (Param1: my param value, SecondParam: 1234567890')
+    assert 0 < len(definition['Description']) <= 1024

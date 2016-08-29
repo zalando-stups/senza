@@ -139,6 +139,35 @@ def test_component_load_balancer_idletimeout(monkeypatch):
     assert 'HTTPPort' not in result["Resources"]["test_lb"]["Properties"]
 
 
+def test_component_load_balancer_cert_arn(monkeypatch):
+    configuration = {
+        "Name": "test_lb",
+        "SecurityGroups": "",
+        "HTTPPort": "9999",
+        "SSLCertificateId": "foo2"
+    }
+
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    definition = {"Resources": {}}
+
+    args = MagicMock()
+    args.region = "foo"
+
+    mock_string_result = MagicMock()
+    mock_string_result.return_value = "foo"
+    monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    m_acm = MagicMock()
+    m_acm.is_arn_certificate.return_value = True
+    m_acm.get_by_arn.return_value = True
+
+    monkeypatch.setattr('senza.components.elastic_load_balancer.ACM', m_acm)
+
+    # issue 105: support additional ELB properties
+    result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
+    assert "foo2" == result["Resources"]["test_lb"]["Properties"]["SSLCertificateId"]
+
+
 def test_component_load_balancer_http_only(monkeypatch):
     configuration = {
         "Name": "test_lb",

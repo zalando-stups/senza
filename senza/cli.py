@@ -74,6 +74,7 @@ STYLES = {
     'UPDATE_FAILED': {'fg': 'red'},
     'UPDATE_ROLLBACK_COMPLETE': {'fg': 'red'},
     'IN_SERVICE': {'fg': 'green'},
+    'HEALTHY': {'fg': 'green'},
     'OUT_OF_SERVICE': {'fg': 'red'},
     'OK': {'fg': 'green'},
     'ERROR': {'fg': 'red'},
@@ -518,7 +519,7 @@ def list_stacks(region, stack_ref, all, output, w, watch):
 
 def get_application_load_balancer_metrics(cloudwatch, alb_id, start, now):
     alb_metrics = {
-        'HealthyHostCount': 'Average', 'TargetResponseTime': 'Average', 'RequestCount': 'Sum',
+        'TargetResponseTime': 'Average', 'RequestCount': 'Sum',
         'HTTPCode_Target_5XX_Count': 'Sum', 'HTTPCode_Target_4XX_Count': 'Sum'}
     row = {}
     data = {}
@@ -531,13 +532,12 @@ def get_application_load_balancer_metrics(cloudwatch, alb_id, start, now):
             EndTime=now,
             Period=60,
             Statistics=[v])
-        most_recent = sorted(res['Datapoints'], key=lambda x: x['Timestamp'])[-1:]
+        # NOTE: we get the most recent two (!) datapoints as the newest point might be incomplete
+        most_recent = sorted(res['Datapoints'], key=lambda x: x['Timestamp'])[-2:]
         if most_recent:
             data[(k, v)] = most_recent[0][v]
         else:
             data[(k, v)] = None
-    if data[('HealthyHostCount', 'Average')] is not None:
-        row['healthy_hosts'] = int(data[('HealthyHostCount', 'Average')])
     if data[('RequestCount', 'Sum')] is not None:
         requests_per_min = data[('RequestCount', 'Sum')]
         row['requests_per_sec'] = round(requests_per_min / 60, 2)
@@ -556,7 +556,7 @@ def get_application_load_balancer_metrics(cloudwatch, alb_id, start, now):
 
 def get_classic_load_balancer_metrics(cloudwatch, lb_name, start, now):
     elb_metrics = {
-        'HealthyHostCount': 'Average', 'Latency': 'Average', 'RequestCount': 'Sum',
+        'Latency': 'Average', 'RequestCount': 'Sum',
         'HTTPCode_Backend_5XX': 'Sum', 'HTTPCode_Backend_4XX': 'Sum'}
     row = {}
     data = {}
@@ -574,8 +574,6 @@ def get_classic_load_balancer_metrics(cloudwatch, lb_name, start, now):
             data[(k, v)] = most_recent[0][v]
         else:
             data[(k, v)] = None
-    if data[('HealthyHostCount', 'Average')] is not None:
-        row['healthy_hosts'] = int(data[('HealthyHostCount', 'Average')])
     if data[('RequestCount', 'Sum')] is not None:
         requests_per_min = data[('RequestCount', 'Sum')]
         row['requests_per_sec'] = round(requests_per_min / 60, 2)
@@ -623,10 +621,12 @@ def health(region, stack_ref, all, output, w, watch):
                 alb_ids[alb_id.split('/')[1]] = alb_id
         for stack in get_stacks(stack_refs, region, all=all):
             lb_name = stack.StackName
+            instance_health = get_instance_health(lb_name, region)
             row = {
                 'stack_name': stack.name,
                 'version': stack.version,
                 'status': stack.StackStatus,
+                'healthy_hosts': get_healthy_instances(instance_health),
                 'creation_time': calendar.timegm(stack.CreationTime.timetuple()),
             }
             alb_id = alb_ids.get(lb_name)
@@ -943,21 +943,41 @@ def init(definition_file, region, template, user_variable):
         definition_file.write(definition)
 
 
-def get_instance_health(elb, stack_name: str) -> dict:
+def get_instance_health(stack_name: str, region: str) -> dict:
     if stack_name is None:
         return {}
     instance_health = {}
+    elb = boto3.client('elb', region)
     try:
         instance_states = elb.describe_instance_health(LoadBalancerName=stack_name)['InstanceStates']
         for istate in instance_states:
             instance_health[istate['InstanceId']] = camel_case_to_underscore(istate['State']).upper()
     except ClientError as e:
-        # ignore non existing ELBs
+        # retry with ELBv2
+        if e.response['Error']['Code'] == 'LoadBalancerNotFound':
+            elbv2 = boto3.client('elbv2', region)
+            try:
+                response = elbv2.describe_target_groups(Names=[stack_name])
+                for tg in response['TargetGroups']:
+                    response = elbv2.describe_target_health(TargetGroupArn=tg['TargetGroupArn'])
+                    for target_health in response['TargetHealthDescriptions']:
+                        instance_health[target_health['Target']['Id']] = \
+                            camel_case_to_underscore(target_health['TargetHealth']['State']).upper()
+            except ClientError as e:
+                if e.response['Error']['Code'] not in ('TargetGroupNotFound', 'ValidationError', 'Throttling'):
+                    raise
         # ignore ValidationError "LoadBalancer name cannot be longer than 32 characters"
         # ignore rate limit exceeded errors
-        if e.response['Error']['Code'] not in ('LoadBalancerNotFound', 'ValidationError', 'Throttling'):
+        elif e.response['Error']['Code'] not in ('ValidationError', 'Throttling'):
             raise
     return instance_health
+
+
+def get_healthy_instances(instance_health: dict) -> int:
+    if not instance_health:
+        # if we have no instances at all -> treat as "unknown"
+        return None
+    return len([i for i in instance_health.values() if i in ('IN_SERVICE', 'HEALTHY')])
 
 
 def get_instance_user_data(instance) -> dict:
@@ -998,7 +1018,6 @@ def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region,
     check_credentials(region)
 
     ec2 = boto3.resource('ec2', region)
-    elb = boto3.client('elb', region)
 
     if all:
         filters = []
@@ -1016,7 +1035,7 @@ def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region,
             stack_name = get_tag(instance.tags, 'StackName')
             stack_version = get_tag(instance.tags, 'StackVersion')
             if not stack_refs or matches_any(cf_stack_name, stack_refs):
-                instance_health = get_instance_health(elb, cf_stack_name)
+                instance_health = get_instance_health(cf_stack_name, region)
                 if instance.state['Name'].upper() != 'TERMINATED' or terminated:
 
                     docker_source = get_instance_docker_image_source(instance) if docker_image else ''
@@ -1065,13 +1084,12 @@ def status(stack_ref, region, output, w, watch):
     check_credentials(region)
 
     ec2 = boto3.resource('ec2', region)
-    elb = boto3.client('elb', region)
     cf = boto3.resource('cloudformation', region)
 
     for _ in watching(w, watch):
         rows = []
         for stack in sorted(get_stacks(stack_refs, region)):
-            instance_health = get_instance_health(elb, stack.StackName)
+            instance_health = get_instance_health(stack.StackName, region)
 
             main_dns_resolves = None
             version_addresses = set()
@@ -1106,7 +1124,7 @@ def status(stack_ref, region, output, w, watch):
                          'status': stack.StackStatus,
                          'total_instances': len(instances),
                          'running_instances': len([i for i in instances if i.state['Name'] == 'running']),
-                         'healthy_instances': len([i for i in instance_health.values() if i == 'IN_SERVICE']),
+                         'healthy_instances': get_healthy_instances(instance_health),
                          'lb_status': ','.join(set(instance_health.values())),
                          'main_dns': main_dns_resolves,
                          'http_status': http_status

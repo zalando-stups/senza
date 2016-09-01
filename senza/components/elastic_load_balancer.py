@@ -164,6 +164,7 @@ def component_elastic_load_balancer(definition,
     definition["Resources"][lb_name] = {
         "Type": "AWS::ElasticLoadBalancing::LoadBalancer",
         "Properties": {
+            "Scheme": loadbalancer_scheme,
             "Subnets": {"Fn::FindInMap": [loadbalancer_subnet_map, {"Ref": "AWS::Region"}, "Subnets"]},
             "HealthCheck": {
                 "HealthyThreshold": "2",

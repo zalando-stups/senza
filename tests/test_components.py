@@ -976,3 +976,23 @@ def test_max_description_length():
     component_configuration(definition, configuration, args, info, False, AccountArguments('dummyregion'))
     assert definition['Description'].startswith('My Stack (Param1: my param value, SecondParam: 1234567890')
     assert 0 < len(definition['Description']) <= 1024
+
+
+def test_component_load_balancer_default_internal_scheme(monkeypatch):
+    configuration = {
+        "Name": "test_lb",
+        "SecurityGroups": "",
+        "HTTPPort": "9999"
+    }
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    definition = {"Resources": {}}
+
+    args = MagicMock()
+    args.region = "foo"
+
+    mock_string_result = MagicMock()
+    mock_string_result.return_value = "foo"
+    monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
+    assert 'internal' == result["Resources"]["test_lb"]["Properties"]["Scheme"]

@@ -7,7 +7,7 @@ import yaml.constructor
 from botocore.exceptions import ClientError, NoCredentialsError
 from clickclick import error
 
-from .exceptions import PiuNotFound
+from .exceptions import PiuNotFound, InvalidDefinition
 from .manaus.exceptions import (ELBNotFound, HostedZoneNotFound, InvalidState,
                                 RecordNotFound)
 
@@ -110,7 +110,8 @@ class HandleExceptions:
         except InvalidState as e:
             error('Invalid State: {}'.format(e))
             sys.exit(1)
-        except (ELBNotFound, HostedZoneNotFound, RecordNotFound) as e:
+        except (ELBNotFound, HostedZoneNotFound, RecordNotFound,
+                InvalidDefinition) as e:
             error(e)
             sys.exit(1)
         except Exception as e:

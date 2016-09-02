@@ -34,6 +34,7 @@ from .aws import (StackReference, get_account_alias, get_account_id,
                   parse_time, resolve_topic_arn)
 from .components import evaluate_template, get_component
 from .components.stups_auto_configuration import find_taupage_image
+from .exceptions import InvalidDefinition
 from .error_handling import HandleExceptions
 from .manaus.ec2 import EC2
 from .manaus.exceptions import VPCError
@@ -461,7 +462,11 @@ def get_stack_refs(refs: list):
             try:
                 with open(ref) as fd:
                     data = yaml.safe_load(fd)
-                ref = data['SenzaInfo']['StackName']
+
+                try:
+                    ref = data['SenzaInfo']['StackName']
+                except (KeyError, TypeError):
+                    raise InvalidDefinition(path=ref)
             except (OSError, IOError):
                 # It's still possible that the ref is a regex
                 pass

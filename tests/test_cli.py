@@ -2,7 +2,7 @@ import collections
 import datetime
 import json
 import os
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, mock_open
 
 import botocore.exceptions
 import pytest
@@ -12,6 +12,7 @@ from click.testing import CliRunner
 from senza.cli import (AccountArguments, KeyValParamType, StackReference,
                        all_with_version, cli, failure_event,
                        get_console_line_style, get_stack_refs, is_ip_address)
+from senza.exceptions import InvalidDefinition
 from senza.manaus.exceptions import ELBNotFound, StackNotFound, StackNotUpdated
 from senza.manaus.route53 import RecordType, Route53Record
 from senza.traffic import PERCENT_RESOLUTION, StackVersion
@@ -1588,7 +1589,7 @@ def test_account_arguments():
     assert test.Region == 'blubber'
 
 
-def test_get_stack_reference():
+def test_get_stack_reference(monkeypatch):
 
     fb_none = StackReference(name='foobar-stack', version=None)
     fb_v1 = StackReference(name='foobar-stack', version='v1')
@@ -1605,6 +1606,16 @@ def test_get_stack_reference():
     assert get_stack_refs(['foobar-stack', 'v1', 'v2', 'v99',
                            'other-stack']) == [fb_v1, fb_v2, fb_v99,
                                                os_none]
+
+    monkeypatch.setattr('builtins.open',
+                        mock_open(read_data='{"SenzaInfo": '
+                                            '{"StackName": "foobar-stack"}}'))
+    assert get_stack_refs(['test.yaml']) == [fb_none]
+
+    monkeypatch.setattr('builtins.open',
+                        mock_open(read_data='invalid: true'))
+    with pytest.raises(InvalidDefinition):
+        get_stack_refs(['test.yaml'])
 
 
 def test_all_with_version():

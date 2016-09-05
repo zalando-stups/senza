@@ -18,3 +18,15 @@ class PiuNotFound(SenzaException, FileNotFoundError):
 
     def __init__(self):
         super().__init__('Command not found: piu')
+
+
+class InvalidDefinition(SenzaException):
+    """
+    Exception raised when trying to parse and invalid senza definition
+    """
+
+    def __init__(self, path: str):
+        self.path = path
+
+    def __str__(self):
+        return "{} is not a valid senza definition".format(self.path)

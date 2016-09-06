@@ -5,7 +5,7 @@ from traceback import format_exception
 
 import yaml.constructor
 from botocore.exceptions import ClientError, NoCredentialsError
-from clickclick import error, fatal_error
+from clickclick import fatal_error
 
 from .exceptions import PiuNotFound, InvalidDefinition
 from .manaus.exceptions import (ELBNotFound, HostedZoneNotFound, InvalidState,
@@ -62,8 +62,8 @@ class HandleExceptions:
         if not self.stacktrace_visible:
             file_name = store_exception(e)
             die_fatal_error('Unknown Error: {e}.\n'
-                  'Please create an issue '
-                  'with the content of {fn}'.format(e=e, fn=file_name))
+                            'Please create an issue with the '
+                            'content of {fn}'.format(e=e, fn=file_name))
         raise e
 
     def __call__(self, *args, **kwargs):
@@ -79,8 +79,8 @@ class HandleExceptions:
             sys.stdout.flush()
             if is_credentials_expired_error(e):
                 die_fatal_error('AWS credentials have expired.\n'
-                      'Use the "mai" command line tool to get a new'
-                      ' temporary access key.')
+                                'Use the "mai" command line tool to get a new '
+                                'temporary access key.')
             elif is_access_denied_error(e):
                 die_fatal_error(
                     "AWS missing access rights.\n{}".format(

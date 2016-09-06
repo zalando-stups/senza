@@ -99,9 +99,12 @@ def test_missing_credentials(capsys):
     out, err = capsys.readouterr()
     assert 'No AWS credentials found.' in err
 
+
+def test_access_denied(capsys):
+    err_mesg = "User: myuser is not authorized to perform: service:TaskName"
     func = MagicMock(side_effect=botocore.exceptions.ClientError(
         {'Error': {'Code': 'AccessDenied',
-                   'Message': 'User: myuser is not authorized to perform: service:TaskName'}},
+                   'Message': err_mesg}},
         'foobar'))
 
     try:
@@ -111,7 +114,8 @@ def test_missing_credentials(capsys):
 
     out, err = capsys.readouterr()
 
-    assert 'No AWS credentials found.' in err
+    assert 'AWS missing access rights.' in err
+    assert err_mesg in err
 
 
 def test_expired_credentials(capsys):

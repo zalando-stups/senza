@@ -163,6 +163,10 @@ class CloudFormationStack:
             else:
                 raise
 
+    def delete(self):
+        client = boto3.client('cloudformation', self.region)
+        client.delete_stack(StackName=self.stack_id)
+
 
 class CloudFormation:
 

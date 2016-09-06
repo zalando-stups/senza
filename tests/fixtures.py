@@ -97,6 +97,14 @@ SERVER_CERT_ZO_NE.server_certificate_metadata = {'Arn': 'arn:aws:123',
 @pytest.fixture
 def boto_client(monkeypatch):
     mocks = defaultdict(lambda: MagicMock())
+
+    mocks['cloudformation'] = MagicMock()
+    mocks['cloudformation'].list_stacks.return_value = {'StackSummaries': [
+        {'StackName': 'test-1',
+         'StackId': 'arn:aws:cf:eu-1:test',
+         'CreationTime': '2016-06-14'}]
+    }
+
     mocks['route53'] = MagicMock()
     mocks['route53'].list_hosted_zones.return_value = {
         'HostedZones': [HOSTED_ZONE_ZO_NE],
@@ -129,9 +137,7 @@ def boto_client(monkeypatch):
         ]}
 
     def my_client(rtype, *args, **kwargs):
-        if rtype == 'route53':
-            return mocks['route53']
-        elif rtype == 'acm':
+        if rtype == 'acm':
             acm = mocks['acm']
             summary_list = {'CertificateSummaryList': [
                 {'CertificateArn': 'arn:aws:acm:eu-west-1:cert1'},
@@ -148,9 +154,23 @@ def boto_client(monkeypatch):
                                         'ResourceType': 'AWS::IAM::Role',
                                         'PhysicalResourceId': 'my-referenced-role'}}
             cf.describe_stack_resource.return_value = resource
-            cf.list_stacks.return_value = {
-                'StackSummaries': [{'StackName': 'test-1',
-                                    'CreationTime': '2016-06-14'}]}
+            cf.describe_stacks.return_value = {
+                'Stacks': [{
+                    'Parameters': [],
+                    'Tags': [],
+                    'StackName': 'test-1',
+                    'CreationTime': datetime(2016, 8, 31, 6, 16, 37, 917000,
+                                             tzinfo=timezone.utc),
+                    'DisableRollback': False,
+                    'Description': 'Test1',
+                    'StackStatus': 'CREATE_COMPLETE',
+                    'NotificationARNs': [],
+                    'StackId': 'arn:aws:cloudformation:eu-central-1:test'}
+                ],
+                'ResponseMetadata': {},
+                'RequestId': 'test'
+            }
+
             return cf
         return mocks[rtype]
 

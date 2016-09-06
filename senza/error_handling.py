@@ -87,7 +87,7 @@ class HandleExceptions:
                         e.response['Error']['Message']))
             elif is_validation_error(e):
                 die_fatal_error(
-                    "Validation Error: \n{}".format(
+                    "Validation Error: {}".format(
                         e.response['Error']['Message']))
             else:
                 self.die_unknown_error(e)

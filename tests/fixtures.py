@@ -104,6 +104,54 @@ def boto_client(monkeypatch):
          'StackId': 'arn:aws:cf:eu-1:test',
          'CreationTime': '2016-06-14'}]
     }
+    summary = [{'LastUpdatedTimestamp': datetime(2016, 7, 20, 7, 3, 7,
+                                                 108000,
+                                                 tzinfo=timezone.utc),
+                'LogicalResourceId': 'AppLoadBalancer',
+                'PhysicalResourceId': 'myapp1-1',
+                'ResourceStatus': 'CREATE_COMPLETE',
+                'ResourceType': 'AWS::ElasticLoadBalancing::LoadBalancer'},
+               {'LastUpdatedTimestamp': datetime(2016, 7, 20, 7, 3,
+                                                 45, 70000,
+                                                 tzinfo=timezone.utc),
+                'LogicalResourceId': 'AppLoadBalancerMainDomain',
+                'PhysicalResourceId': 'myapp1.example.com',
+                'ResourceStatus': 'CREATE_COMPLETE',
+                'ResourceType': 'AWS::Route53::RecordSet'},
+               {'LastUpdatedTimestamp': datetime(2016, 7, 20, 7, 3,
+                                                 43, 871000,
+                                                 tzinfo=timezone.utc),
+                'LogicalResourceId': 'AppLoadBalancerVersionDomain',
+                'PhysicalResourceId': 'myapp1-1.example.com',
+                'ResourceStatus': 'CREATE_COMPLETE',
+                'ResourceType': 'AWS::Route53::RecordSet'},
+               {'LastUpdatedTimestamp': datetime(2016, 7, 20, 7, 7,
+                                                 38, 495000,
+                                                 tzinfo=timezone.utc),
+                'LogicalResourceId': 'AppServer',
+                'PhysicalResourceId': 'myapp1-1-AppServer-00000',
+                'ResourceStatus': 'CREATE_COMPLETE',
+                'ResourceType': 'AWS::AutoScaling::AutoScalingGroup'},
+               {'LastUpdatedTimestamp': datetime(2016, 7, 20, 7, 5,
+                                                 10, 48000,
+                                                 tzinfo=timezone.utc),
+                'LogicalResourceId': 'AppServerConfig',
+                'PhysicalResourceId': 'myapp1-1-AppServerConfig-00000',
+                'ResourceStatus': 'CREATE_COMPLETE',
+                'ResourceType': 'AWS::AutoScaling::LaunchConfiguration'},
+               {'LastUpdatedTimestamp': datetime(2016, 7, 20, 7, 5, 6,
+                                                 745000,
+                                                 tzinfo=timezone.utc),
+                'LogicalResourceId': 'AppServerInstanceProfile',
+                'PhysicalResourceId': 'myapp1-1-AppServerInstanceProfile-000',
+                'ResourceStatus': 'CREATE_COMPLETE',
+                'ResourceType': 'AWS::IAM::InstanceProfile'}]
+
+
+    response = {'ResponseMetadata': {'HTTPStatusCode': 200,
+                                     'RequestId': '0000'},
+                'StackResourceSummaries': summary}
+    mocks['cloudformation'].list_stack_resources.return_value = response
 
     mocks['route53'] = MagicMock()
     mocks['route53'].list_hosted_zones.return_value = {

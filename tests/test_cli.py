@@ -1019,6 +1019,37 @@ def test_delete_interactive(monkeypatch, boto_client, boto_resource):  # noqa: F
         assert "OK" in result.output
 
 
+def test_delete_with_traffic(monkeypatch, boto_resource, boto_client):  # noqa: F811
+
+    stack = {'StackName': 'test-1',
+             'StackId': 'test-1',
+             'CreationTime': datetime.datetime.utcnow()}
+
+    runner = CliRunner()
+
+    data = {'SenzaInfo': {'StackName': 'test'}}
+
+    mock_route53 = MagicMock()
+
+    mock_route53.return_value = [MagicMock(spec=Route53Record,
+                                           set_identifier='test-1',
+                                           weight=200)]
+    monkeypatch.setattr('senza.manaus.cloudformation.Route53.get_records',
+                        mock_route53)
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+
+        result = runner.invoke(cli, ['delete', 'myapp.yaml', '--region=aa-fakeregion-1'],
+                               catch_exceptions=False)
+        assert 'Stack test-1 has traffic!' in result.output
+
+        result = runner.invoke(cli, ['delete', 'myapp.yaml', '--region=aa-fakeregion-1', '--force'],
+                               catch_exceptions=False)
+        assert 'OK' in result.output
+
+
 def test_create(monkeypatch):
     cf = MagicMock()
 

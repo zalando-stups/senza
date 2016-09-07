@@ -826,7 +826,7 @@ def delete(stack_ref, region, dry_run, force, interactive, ignore_non_existent):
               for stack in cf.get_stacks()
               if matches_any(stack.name, stack_refs)]
 
-    if not (all_with_version(stack_refs) and len(stacks) > 1 and
+    if (not all_with_version(stack_refs) and len(stacks) > 1 and
             not dry_run and not force):
         fatal_error('Error: {} matching stacks found. '.format(len(stacks)) +
                     'Please use the "--force" flag if you really want to '
@@ -836,6 +836,16 @@ def delete(stack_ref, region, dry_run, force, interactive, ignore_non_existent):
         fatal_error('Error: Stack {} not found!'.format(stack_refs[0].name))
 
     for stack in stacks:
+
+        for r in stack.resources:
+            if isinstance(r, Route53Record):
+                has_traffic = r.weight is not None and r.weight
+                # TODO implement force
+                if has_traffic:
+                    fatal_error('Error: Stack {} has traffic!\n'
+                                'Use --force if you really want '
+                                'to delete it'.format(stack.name))
+
         if interactive and not click.confirm("Delete '{}'?".format(stack.name)):
             continue
 

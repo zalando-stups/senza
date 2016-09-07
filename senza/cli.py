@@ -807,7 +807,7 @@ def create_cf_template(definition, region, version, parameter, force, parameter_
 @click.option('-g', '--ignore-non-existent', is_flag=True,
               help='Do not show error when stack does not exist')
 @click.option('-f', '--force', is_flag=True,
-              help='Allow deleting multiple stacks')
+              help='Allow deleting multiple stacks and stacks with traffic')
 @click.option('-i', '--interactive', is_flag=True,
               help='Prompt before every deletion')
 @stacktrace_visible_option

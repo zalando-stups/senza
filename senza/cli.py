@@ -840,8 +840,7 @@ def delete(stack_ref, region, dry_run, force, interactive, ignore_non_existent):
         for r in stack.resources:
             if isinstance(r, Route53Record):
                 has_traffic = r.weight is not None and r.weight
-                # TODO implement force
-                if has_traffic:
+                if has_traffic and not force:
                     fatal_error('Error: Stack {} has traffic!\n'
                                 'Use --force if you really want '
                                 'to delete it'.format(stack.name))

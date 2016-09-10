@@ -95,7 +95,7 @@ class HandleExceptions:
             err_mesg = "Error parsing definition file:\n{}".format(e)
             if e.problem == "found unhashable key":
                 err_mesg += "Please quote all variable values"
-                die_fatal_error(err_mesg)
+            die_fatal_error(err_mesg)
         except PiuNotFound as e:
             die_fatal_error(
                 "{}\nYou can install piu with the following command:"

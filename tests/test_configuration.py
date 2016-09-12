@@ -20,7 +20,7 @@ class MockConfig:
 
 def test_dict():
     config = senza.configuration.Configuration(MockConfig())
-    assert config.dict == {'section': {'key': 'value'}}
+    assert config.raw_dict == {'section': {'key': 'value'}}
     assert len(config) == 1
     assert next(iter(config)) == 'section'
 
@@ -29,7 +29,7 @@ def test_dict_file_not_found():
     m_config = MockConfig()
     m_config.open.side_effect = FileNotFoundError
     config = senza.configuration.Configuration(m_config)
-    assert config.dict == {}
+    assert config.raw_dict == {}
     assert len(config) == 0
 
 

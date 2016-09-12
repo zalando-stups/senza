@@ -14,18 +14,18 @@ class Configuration(MutableMapping):
         self.config_path = path
 
     def __iter__(self):
-        yield from self.dict
+        yield from self.raw_dict
 
     def __len__(self):
-        return len(self.dict)
+        return len(self.raw_dict)
 
     def __getitem__(self, key: str) -> str:
         section, sub_key = self.__split_key(key)
-        return self.dict[section][sub_key]
+        return self.raw_dict[section][sub_key]
 
     def __setitem__(self, key: str, value):
         section, sub_key = self.__split_key(key)
-        configuration = self.dict
+        configuration = self.raw_dict
 
         if section not in configuration:
             configuration[section] = {}
@@ -34,12 +34,15 @@ class Configuration(MutableMapping):
 
     def __delitem__(self, key):
         section, sub_key = self.__split_key(key)
-        cfg = self.dict
+        cfg = self.raw_dict
         del cfg[section][sub_key]
         self.__save(cfg)
 
     @staticmethod
     def __split_key(key: str) -> Tuple[str, str]:
+        """
+        Splits the full key in section and subkey
+        """
         try:
             section, sub_key = key.split('.', 1)
         except ValueError:
@@ -49,13 +52,20 @@ class Configuration(MutableMapping):
         return section, sub_key
 
     def __save(self, cfg):
+        """
+        Saves the configuration in the configuration path, creating the
+        directory if necessary.
+        """
         self.config_path.parent.mkdir(parents=True, exist_ok=True)
         with self.config_path.open('w+') as config_file:
             yaml.safe_dump(cfg, config_file,
                            default_flow_style=False)
 
     @property
-    def dict(self) -> Dict[str, Dict[str, str]]:
+    def raw_dict(self) -> Dict[str, Dict[str, str]]:
+        """
+        Returns a dict with the configuration data as stored in config.yaml
+        """
         try:
             with self.config_path.open() as config_file:
                 cfg = yaml.safe_load(config_file)

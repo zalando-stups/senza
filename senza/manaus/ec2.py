@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Dict, List, Iterator
+from typing import Dict, List, Iterator, Optional
 
 import boto3
 
@@ -16,14 +16,11 @@ class EC2VPC:
     def __init__(self,
                  vpc_id: str,
                  is_default: bool,
-                 tags: List[Dict[str, str]]):
+                 tags: Optional[List[Dict[str, str]]]):
         self.vpc_id = vpc_id
         self.is_default = is_default
-        if tags is not None:
-            self.tags = OrderedDict([(t['Key'], t['Value'])  # type: Dict[str, str]
-                                     for t in tags])
-        else:
-            self.tags = OrderedDict()  # type: Dict[str, str]
+        tags = tags or []  # type: List[Dict[str, str]]
+        self.tags = OrderedDict([(t['Key'], t['Value']) for t in tags])  # type: Dict[str, str]
 
         self.name = self.tags.get('Name', self.vpc_id)
 

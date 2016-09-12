@@ -125,7 +125,10 @@ class CloudFormationStack:
             resource_type = resource["ResourceType"]
             if resource_type == ResourceType.route53_record_set:
                 records = Route53.get_records(name=resource['PhysicalResourceId'])
-                yield next(records)
+                for record in records:
+                    if (record.set_identifier is None or
+                            record.set_identifier == self.name):
+                        yield record
             else:  # pragma: no cover
                 # TODO implement the other resource types
                 # Ignore resources that are still not implemented in manaus
@@ -162,6 +165,10 @@ class CloudFormationStack:
                 raise StackNotUpdated(self.name)
             else:
                 raise
+
+    def delete(self):
+        client = boto3.client('cloudformation', self.region)
+        client.delete_stack(StackName=self.stack_id)
 
 
 class CloudFormation:

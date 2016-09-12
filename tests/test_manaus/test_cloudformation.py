@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 
 import botocore.exceptions
 import pytest
@@ -139,16 +139,16 @@ def test_cf_resources(monkeypatch):
     monkeypatch.setattr('boto3.client', mock_client)
 
     mock_route53 = MagicMock()
+    mock_route53.side_effect = [[MagicMock(set_identifier=None)],
+                                [MagicMock(set_identifier='myapp-42')]]
     monkeypatch.setattr('senza.manaus.cloudformation.Route53.get_records',
                         mock_route53)
 
     stack = CloudFormationStack.get_by_stack_name('myapp')
 
     resources = list(stack.resources)
-    mock_route53.assert_has_calls([call(name='myapp1.example.com'),
-                                   call().__next__(),
-                                   call(name='myapp1-1.example.com'),
-                                   call().__next__()])
+    mock_route53.assert_any_call(name='myapp1.example.com')
+    mock_route53.assert_any_call(name='myapp1-1.example.com')
     assert len(resources) == 2
 
 

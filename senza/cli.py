@@ -36,6 +36,7 @@ from .components import evaluate_template, get_component
 from .components.stups_auto_configuration import find_taupage_image
 from .exceptions import InvalidDefinition
 from .error_handling import HandleExceptions
+from .manaus.cloudformation import CloudFormation
 from .manaus.ec2 import EC2
 from .manaus.exceptions import VPCError
 from .manaus.route53 import Route53, Route53Record
@@ -801,9 +802,12 @@ def create_cf_template(definition, region, version, parameter, force, parameter_
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
 @region_option
-@click.option('--dry-run', is_flag=True, help='No-op mode: show what would be deleted')
-@click.option('-g', '--ignore-non-existent', is_flag=True, help='Do not show error when stack does not exist')
-@click.option('-f', '--force', is_flag=True, help='Allow deleting multiple stacks')
+@click.option('--dry-run', is_flag=True,
+              help='No-op mode: show what would be deleted')
+@click.option('-g', '--ignore-non-existent', is_flag=True,
+              help='Do not show error when stack does not exist')
+@click.option('-f', '--force', is_flag=True,
+              help='Allow deleting multiple stacks and stacks with traffic')
 @click.option('-i', '--interactive', is_flag=True,
               help='Prompt before every deletion')
 @stacktrace_visible_option
@@ -813,27 +817,40 @@ def delete(stack_ref, region, dry_run, force, interactive, ignore_non_existent):
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
     check_credentials(region)
-    cf = boto3.client('cloudformation', region)
 
     if not stack_refs:
         raise click.UsageError('Please specify at least one stack')
 
-    stacks = list(get_stacks(stack_refs, region))
+    cf = CloudFormation(region=region)
+    stacks = [stack
+              for stack in cf.get_stacks()
+              if matches_any(stack.name, stack_refs)]
 
-    if not all_with_version(stack_refs) and len(stacks) > 1 and not dry_run and not force:
+    if (not all_with_version(stack_refs) and len(stacks) > 1 and
+            not dry_run and not force):
         fatal_error('Error: {} matching stacks found. '.format(len(stacks)) +
-                    'Please use the "--force" flag if you really want to delete multiple stacks.')
+                    'Please use the "--force" flag if you really want to '
+                    'delete multiple stacks.')
 
     if not stacks and not ignore_non_existent:
         fatal_error('Error: Stack {} not found!'.format(stack_refs[0].name))
 
     for stack in stacks:
-        if interactive and not click.confirm("Delete '{}'?".format(stack.StackName)):
+
+        for r in stack.resources:
+            if isinstance(r, Route53Record):
+                has_traffic = r.weight is not None and r.weight
+                if has_traffic and not force:
+                    fatal_error('Error: Stack {} has traffic!\n'
+                                'Use --force if you really want '
+                                'to delete it'.format(stack.name))
+
+        if interactive and not click.confirm("Delete '{}'?".format(stack.name)):
             continue
 
-        with Action('Deleting Cloud Formation stack {}..'.format(stack.StackName)):
+        with Action('Deleting Cloud Formation stack {}..'.format(stack.name)):
             if not dry_run:
-                cf.delete_stack(StackName=stack.StackName)
+                stack.delete()
 
 
 def format_resource_type(resource_type):

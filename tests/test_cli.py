@@ -1624,7 +1624,8 @@ def test_get_stack_reference(monkeypatch):
         get_stack_refs(['test.yaml'])
 
     assert (str(exc_info1.value) == "test.yaml is not a valid "
-                                    "senza definition: SenzaInfo is missing")
+                                    "senza definition: SenzaInfo is missing "
+                                    "or invalid")
 
     monkeypatch.setattr('builtins.open',
                         mock_open(read_data='{"SenzaInfo": 42}'))

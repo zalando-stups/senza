@@ -476,7 +476,8 @@ def get_stack_refs(refs: list):
                     ref = data['SenzaInfo']['StackName']
                 except KeyError:
                     raise InvalidDefinition(path=ref,
-                                            reason="SenzaInfo is missing")
+                                            reason="SenzaInfo is missing "
+                                                   "or invalid")
                 except TypeError:
                     raise InvalidDefinition(path=ref,
                                             reason="Invalid SenzaInfo")

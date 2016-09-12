@@ -1620,9 +1620,27 @@ def test_get_stack_reference(monkeypatch):
 
     monkeypatch.setattr('builtins.open',
                         mock_open(read_data='invalid: true'))
-    with pytest.raises(InvalidDefinition):
+    with pytest.raises(InvalidDefinition) as exc_info1:
         get_stack_refs(['test.yaml'])
 
+    assert (str(exc_info1.value) == "test.yaml is not a valid "
+                                    "senza definition: SenzaInfo is missing")
+
+    monkeypatch.setattr('builtins.open',
+                        mock_open(read_data='{"SenzaInfo": 42}'))
+    with pytest.raises(InvalidDefinition) as exc_info2:
+        get_stack_refs(['test.yaml'])
+
+    assert (str(exc_info2.value) == "test.yaml is not a valid "
+                                    "senza definition: Invalid SenzaInfo")
+
+    monkeypatch.setattr('builtins.open',
+                        mock_open(read_data='"badxml'))
+
+    with pytest.raises(InvalidDefinition) as exc_info3:
+        get_stack_refs(['test.yaml'])
+
+    assert "while scanning a quoted scalar" in str(exc_info3.value)
 
 def test_all_with_version():
     assert not all_with_version([StackReference(name='foobar-stack',

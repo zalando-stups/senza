@@ -25,8 +25,10 @@ class InvalidDefinition(SenzaException):
     Exception raised when trying to parse and invalid senza definition
     """
 
-    def __init__(self, path: str):
+    def __init__(self, path: str, reason: str):
         self.path = path
+        self.reason = reason
 
     def __str__(self):
-        return "{} is not a valid senza definition".format(self.path)
+        return ("{path} is not a valid senza definition: "
+                "{reason}".format_map(vars(self)))

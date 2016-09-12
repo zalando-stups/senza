@@ -139,7 +139,11 @@ class DefinitionParamType(click.ParamType):
                 #     url = 'file://{}'.format(quote(os.path.abspath(value)))
 
                 response = urlopen(url)
-                data = yaml.safe_load(response.read())
+                try:
+                    data = yaml.safe_load(response.read())
+                except yaml.YAMLError as e:
+                    raise InvalidDefinition(path=value,
+                                            reason=str(e))
             except URLError:
                 self.fail('"{}" not found'.format(value), param, ctx)
         else:
@@ -462,12 +466,20 @@ def get_stack_refs(refs: list):
         else:
             try:
                 with open(ref) as fd:
-                    data = yaml.safe_load(fd)
+                    try:
+                        data = yaml.safe_load(fd)
+                    except yaml.YAMLError as e:
+                        raise InvalidDefinition(path=ref,
+                                                reason=str(e))
 
                 try:
                     ref = data['SenzaInfo']['StackName']
-                except (KeyError, TypeError):
-                    raise InvalidDefinition(path=ref)
+                except KeyError:
+                    raise InvalidDefinition(path=ref,
+                                            reason="SenzaInfo is missing")
+                except TypeError:
+                    raise InvalidDefinition(path=ref,
+                                            reason="Invalid SenzaInfo")
             except (OSError, IOError):
                 # It's still possible that the ref is a regex
                 pass

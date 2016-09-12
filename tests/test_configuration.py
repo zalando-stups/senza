@@ -5,56 +5,60 @@ import senza.configuration
 from senza.exceptions import InvalidConfigKey
 
 
-@pytest.fixture()
-def mock_path(monkeypatch):
-    mock = MagicMock()
-    mock.return_value = mock
-    mock.__truediv__.return_value = mock
+class MockConfig:
 
-    mock.open = mock_open(read_data='{"section": {"key": "value"}}')
+    def __init__(self):
+        self.open = mock_open(read_data='{"section": {"key": "value"}}')
 
-    monkeypatch.setattr('senza.configuration.Path', mock)
-    return mock
+    @property
+    def parent(self):
+        return self
+
+    def mkdir(self, *args, **kwargs):
+        return True
 
 
-def test_dict(mock_path: MagicMock):
-    config = senza.configuration.Configuration()
+def test_dict():
+    config = senza.configuration.Configuration(MockConfig())
     assert config.dict == {'section': {'key': 'value'}}
     assert len(config) == 1
     assert next(iter(config)) == 'section'
 
 
-def test_dict_file_not_found(mock_path: MagicMock):
-    mock_path.open.side_effect = FileNotFoundError
-    config = senza.configuration.Configuration()
+def test_dict_file_not_found():
+    m_config = MockConfig()
+    m_config.open.side_effect = FileNotFoundError
+    config = senza.configuration.Configuration(m_config)
     assert config.dict == {}
     assert len(config) == 0
 
 
-def test_get(mock_path: MagicMock):
-    config = senza.configuration.Configuration()
+def test_get():
+    config = senza.configuration.Configuration(MockConfig())
     assert config['section.key'] == 'value'
 
 
-def test_get_bad_key(mock_path: MagicMock):
-    config = senza.configuration.Configuration()
+def test_get_bad_key():
+    config = senza.configuration.Configuration(MockConfig())
     with pytest.raises(InvalidConfigKey):
         config['key']
 
 
-def test_set(mock_path: MagicMock):
-    config = senza.configuration.Configuration()
+def test_set():
+    mock = MockConfig()
+    config = senza.configuration.Configuration(mock)
     config['section.new_key'] = 'other_value'
-    mock_path.open.assert_called_with('w+')
+    mock.open.assert_called_with('w+')
 
     # new sections don't raise errors
     config['section2.new_key'] = 'other_value'
 
 
-def test_del(mock_path: MagicMock):
-    config = senza.configuration.Configuration()
+def test_del():
+    mock = MockConfig()
+    config = senza.configuration.Configuration(mock)
     del config['section.key']
-    mock_path.open.assert_called_with('w+')
+    mock.open.assert_called_with('w+')
 
     with pytest.raises(KeyError):
         del config['section2.new_key']

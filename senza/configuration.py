@@ -10,8 +10,8 @@ from .exceptions import InvalidConfigKey
 
 class Configuration(MutableMapping):
 
-    def __init__(self):
-        self.config_path = Path(get_app_dir('senza')) / "config.yaml"
+    def __init__(self, path: Path):
+        self.config_path = path
 
     def __iter__(self):
         yield from self.dict
@@ -63,4 +63,4 @@ class Configuration(MutableMapping):
             cfg = {}
         return cfg
 
-configuration = Configuration()
+configuration = Configuration(Path(get_app_dir('senza')) / "config.yaml")

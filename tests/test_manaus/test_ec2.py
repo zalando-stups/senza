@@ -37,6 +37,11 @@ def test_get_default_vpc(monkeypatch):
     mock_vpc3.is_default = False
     mock_vpc3.tags = []
 
+    mock_vpc4 = MagicMock()
+    mock_vpc4.vpc_id = 'vpc-id4'
+    mock_vpc4.is_default = True
+    mock_vpc4.tags = None
+
     m_resource = MagicMock()
     m_resource.return_value = m_resource
     monkeypatch.setattr('boto3.resource', m_resource)
@@ -59,10 +64,15 @@ def test_get_default_vpc(monkeypatch):
         ec2.get_default_vpc()
     assert str(exc_info.value) == "Can't find any VPC!"
 
-    # no vpcs
+    # multiple vpcs
     m_resource.vpcs.all.return_value = [mock_vpc2, mock_vpc3]
     with pytest.raises(VPCError) as exc_info:
         ec2.get_default_vpc()
+
+    # no tags in vpc return default vpc
+    m_resource.vpcs.all.return_value = [mock_vpc4, mock_vpc2]
+    vpc3 = ec2.get_default_vpc()
+    assert vpc3.vpc_id == 'vpc-id4'
 
     assert str(exc_info.value) == ("Multiple VPCs are only supported if one "
                                    "VPC is the default VPC (IsDefault=true)!")

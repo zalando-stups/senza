@@ -19,7 +19,11 @@ class EC2VPC:
                  tags: List[Dict[str, str]]):
         self.vpc_id = vpc_id
         self.is_default = is_default
-        self.tags = OrderedDict([(t['Key'], t['Value']) for t in tags])  # type: Dict[str, str]
+        if tags is not None:
+            self.tags = OrderedDict([(t['Key'], t['Value'])  # type: Dict[str, str]
+                                     for t in tags])
+        else:
+            self.tags = OrderedDict()  # type: Dict[str, str]
 
         self.name = self.tags.get('Name', self.vpc_id)
 

@@ -116,6 +116,7 @@ SenzaComponents:
           vm.dirty_ratio: 8
           vm.dirty_background_ratio: 1
           vm.swappiness: 1
+        appdynamics_application: "postgresapp-{{version}}"
         mounts:
           /home/postgres/pgdata:
             partition: /dev/xvdk
@@ -127,9 +128,6 @@ SenzaComponents:
             erase_on_boot: true
             {{/snapshot_id}}
             options: {{fsoptions}}
-        {{#scalyr_account_key}}
-        scalyr_account_key: "{{scalyr_account_key}}"
-        {{/scalyr_account_key}}
 Resources:
   {{#add_replica_loadbalancer}}
   PostgresReplicaRoute53Record:
@@ -376,7 +374,6 @@ def set_default_variables(variables):
     variables.setdefault('pgpassword_superuser', 'zalando')
     variables.setdefault('postgres_port', POSTGRES_PORT)
     variables.setdefault('promotheus_port', '9100')
-    variables.setdefault('scalyr_account_key', None)
     variables.setdefault('snapshot_id', None)
     variables.setdefault('use_ebs', True)
     variables.setdefault('volume_iops', 300)
@@ -453,7 +450,6 @@ def gather_user_variables(variables, region, account_info):
     prompt(variables, "fstype", "Filesystem for the data partition", default=defaults['fstype'])
     prompt(variables, "fsoptions", "Filesystem mount options (comma-separated)",
            default=defaults['fsoptions'])
-    prompt(variables, "scalyr_account_key", "Account key for your scalyr account", "")
 
     prompt(variables, 'pgpassword_superuser', "Password for PostgreSQL superuser [random]", show_default=False,
            default=generate_random_password, hide_input=True, confirmation_prompt=True)
@@ -475,7 +471,7 @@ def gather_user_variables(variables, region, account_info):
 
         variables['kms_arn'] = [k['Arn'] for k in kms_keys if k['KeyId'] == kms_keyid][0]
 
-        for key in [k for k in variables if k.startswith('pgpassword_') or k == 'scalyr_account_key']:
+        for key in [k for k in variables if k.startswith('pgpassword_')]:
             if variables[key]:
                 encrypted = encrypt(region=region, KeyId=kms_keyid, Plaintext=variables[key], b64encode=True)
                 variables[key] = 'aws:kms:{}'.format(encrypted)

@@ -349,9 +349,22 @@ class Route53:
         if name is not None and not name.endswith('.'):
             name += '.'
         for zone in cls.get_hosted_zones():
-            # TODO use paginator
             response = client.list_resource_record_sets(HostedZoneId=zone.id)
             resources = response["ResourceRecordSets"]  # type: List[Dict[str, Any]]
+
+            # If the response includes more than maxitems resource record sets,
+            # the value of the IsTruncated element in the response is true,
+            # and the values of the NextRecordName and NextRecordType elements
+            # in the response identify the first resource record set in the
+            # next group of maxitems resource record sets.
+            while response.get('IsTruncated', False):
+                next_name = response['NextRecordName']
+                next_type = response['NextRecordType']
+                response = client.list_resource_record_sets(HostedZoneId=zone.id,
+                                                            StartRecordName=next_name,
+                                                            StartRecordType=next_type)
+                resources.extend(response['ResourceRecordSets'])
+
             for resource in resources:
                 record = Route53Record.from_boto_dict(resource,
                                                       hosted_zone=zone)

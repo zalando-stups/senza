@@ -121,7 +121,6 @@ class HandleExceptions:
             self.die_unknown_error(e)
 
 
-# Setup Sentry
 def setup_sentry(sentry_endpoint: Optional[str]):
     """
     This function setups sentry, this exists mostly to make sentry integration

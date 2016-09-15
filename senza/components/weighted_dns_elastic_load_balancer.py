@@ -2,7 +2,8 @@
 from senza.components.elastic_load_balancer import component_elastic_load_balancer
 
 
-def component_weighted_dns_elastic_load_balancer(definition, configuration, args, info, force, account_info):
+def component_weighted_dns_elastic_load_balancer(definition, configuration, args, info, force, account_info,
+                                                 lb_component=component_elastic_load_balancer):
     if 'Domains' not in configuration:
         if 'MainDomain' in configuration:
             main_domain = configuration['MainDomain']
@@ -26,4 +27,4 @@ def component_weighted_dns_elastic_load_balancer(definition, configuration, args
                                     'VersionDomain': {'Type': 'standalone',
                                                       'Zone': '{}.'.format(version_zone.rstrip('.')),
                                                       'Subdomain': version_subdomain}}
-    return component_elastic_load_balancer(definition, configuration, args, info, force, account_info)
+    return lb_component(definition, configuration, args, info, force, account_info)

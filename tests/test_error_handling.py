@@ -99,27 +99,27 @@ def test_store_nested_exception(monkeypatch, mock_tempfile):
 def test_missing_credentials(capsys):
     func = MagicMock(side_effect=botocore.exceptions.NoCredentialsError())
 
-    try:
+    with raises(SystemExit):
         senza.error_handling.HandleExceptions(func)()
-    except SystemExit:
-        pass
 
     out, err = capsys.readouterr()
     assert 'No AWS credentials found.' in err
 
+
+def test_access_denied(capsys):
+    err_mesg = "User: myuser is not authorized to perform: service:TaskName"
     func = MagicMock(side_effect=botocore.exceptions.ClientError(
         {'Error': {'Code': 'AccessDenied',
-                   'Message': 'User: myuser is not authorized to perform: service:TaskName'}},
+                   'Message': err_mesg}},
         'foobar'))
 
-    try:
+    with raises(SystemExit):
         senza.error_handling.HandleExceptions(func)()
-    except SystemExit:
-        pass
 
     out, err = capsys.readouterr()
 
-    assert 'No AWS credentials found.' in err
+    assert 'AWS missing access rights.' in err
+    assert err_mesg in err
 
 
 def test_expired_credentials(capsys):
@@ -128,10 +128,8 @@ def test_expired_credentials(capsys):
                    'Message': 'Token expired'}},
         'foobar'))
 
-    try:
+    with raises(SystemExit):
         senza.error_handling.HandleExceptions(func)()
-    except SystemExit:
-        pass
 
     out, err = capsys.readouterr()
 
@@ -145,10 +143,8 @@ def test_unknown_ClientError_raven(capsys, mock_raven):
                    'Message': 'A weird error happened'}},
         'foobar'))
 
-    try:
+    with raises(SystemExit):
         senza.error_handling.HandleExceptions(func)()
-    except SystemExit:
-        pass
 
     mock_raven.captureException.assert_called_once_with()
 
@@ -160,10 +156,8 @@ def test_unknown_ClientError_no_stack_trace(capsys, mock_raven):
                    'Message': 'A weird error happened'}},
         'foobar'))
 
-    try:
+    with raises(SystemExit):
         senza.error_handling.HandleExceptions(func)()
-    except SystemExit:
-        pass
 
     out, err = capsys.readouterr()
 
@@ -173,10 +167,8 @@ def test_unknown_ClientError_no_stack_trace(capsys, mock_raven):
 def test_piu_not_found(capsys):
     func = MagicMock(side_effect=PiuNotFound())
 
-    try:
+    with raises(SystemExit):
         senza.error_handling.HandleExceptions(func)()
-    except SystemExit:
-        pass
 
     out, err = capsys.readouterr()
 
@@ -186,10 +178,8 @@ def test_piu_not_found(capsys):
 def test_elb_not_found(capsys):
     func = MagicMock(side_effect=ELBNotFound('example.com'))
 
-    try:
+    with raises(SystemExit):
         senza.error_handling.HandleExceptions(func)()
-    except SystemExit:
-        pass
 
     out, err = capsys.readouterr()
 
@@ -199,10 +189,8 @@ def test_elb_not_found(capsys):
 def test_invalid_state(capsys):
     func = MagicMock(side_effect=InvalidState('test state'))
 
-    try:
+    with raises(SystemExit):
         senza.error_handling.HandleExceptions(func)()
-    except SystemExit:
-        pass
 
     out, err = capsys.readouterr()
 
@@ -215,10 +203,8 @@ def test_validation(capsys):
                    'Message': 'Validation Error'}},
         'foobar'))
 
-    try:
+    with raises(SystemExit):
         senza.error_handling.HandleExceptions(func)()
-    except SystemExit:
-        pass
 
     out, err = capsys.readouterr()
 
@@ -228,10 +214,9 @@ def test_validation(capsys):
 def test_yaml_error(capsys):
     def func():
         return yaml.load("[]: value")
-    try:
+
+    with raises(SystemExit):
         senza.error_handling.HandleExceptions(func)()
-    except SystemExit:
-        pass
 
     out, err = capsys.readouterr()
 
@@ -243,10 +228,9 @@ def test_yaml_error(capsys):
 def test_unknown_error(capsys, mock_tempfile, mock_raven):
     senza.error_handling.sentry = senza.error_handling.setup_sentry(None)
     func = MagicMock(side_effect=Exception("something"))
-    try:
+
+    with raises(SystemExit):
         senza.error_handling.HandleExceptions(func)()
-    except SystemExit:
-        pass
 
     out, err = capsys.readouterr()
 
@@ -259,10 +243,8 @@ def test_unknown_error(capsys, mock_tempfile, mock_raven):
 def test_unknown_error_sentry(capsys, mock_tempfile, mock_raven):
     senza.error_handling.sentry = senza.error_handling.setup_sentry("test")
     func = MagicMock(side_effect=Exception("something"))
-    try:
+    with raises(SystemExit):
         senza.error_handling.HandleExceptions(func)()
-    except SystemExit:
-        pass
 
     mock_tempfile.assert_not_called()
     mock_raven.captureException.assert_called_once_with()

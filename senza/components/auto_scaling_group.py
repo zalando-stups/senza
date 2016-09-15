@@ -4,6 +4,16 @@ from senza.aws import resolve_security_groups, resolve_topic_arn, resolve_refere
 from senza.utils import ensure_keys
 from senza.components.iam_role import get_merged_policies
 
+# properties evaluated by Senza
+SENZA_PROPERTIES = frozenset(['SecurityGroups', 'Tags'])
+
+# additional CF properties which can be overwritten
+ADDITIONAL_PROPERTIES = {
+    'AWS::AutoScaling::LaunchConfiguration': frozenset(['BlockDeviceMappings', 'IamInstanceProfile', 'SpotPrice']),
+    'AWS::AutoScaling::AutoScalingGroup': frozenset(['MetricsCollection', 'TargetGroupARNs',
+                                                     'TerminationPolicies', 'PlacementGroup'])
+}
+
 
 def component_auto_scaling_group(definition, configuration, args, info, force, account_info):
     definition = ensure_keys(definition, "Resources")
@@ -19,10 +29,6 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
             "EbsOptimized": configuration.get('EbsOptimized', False)
         }
     }
-
-    for key in set(["BlockDeviceMappings", "IamInstanceProfile", "SpotPrice"]):
-        if key in configuration:
-            definition['Resources'][config_name]['Properties'][key] = configuration[key]
 
     if 'IamRoles' in configuration:
         logical_id = configuration['Name'] + 'InstanceProfile'
@@ -150,6 +156,15 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
             asg_properties["LoadBalancerNames"] = [{'Ref': ref} for ref in configuration["ElasticLoadBalancer"]]
         # use ELB health check by default
         default_health_check_type = 'ELB'
+    elif "ElasticLoadBalancerV2" in configuration:
+        if isinstance(configuration["ElasticLoadBalancerV2"], str):
+            asg_properties["TargetGroupARNs"] = [{"Ref": configuration["ElasticLoadBalancerV2"] + 'TargetGroup'}]
+        elif isinstance(configuration["ElasticLoadBalancerV2"], list):
+            asg_properties["TargetGroupARNs"] = [
+                {'Ref': ref} for ref in configuration["ElasticLoadBalancerV2"] + 'TargetGroup'
+            ]
+        # use ELB health check by default
+        default_health_check_type = 'ELB'
 
     asg_properties['HealthCheckType'] = configuration.get('HealthCheckType', default_health_check_type)
     asg_properties['HealthCheckGracePeriod'] = configuration.get('HealthCheckGracePeriod', 300)
@@ -202,6 +217,14 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
     else:
         asg_properties["MaxSize"] = 1
         asg_properties["MinSize"] = 1
+
+    for res in (config_name, asg_name):
+        props = definition['Resources'][res]['Properties']
+        additional_cf_properties = ADDITIONAL_PROPERTIES.get(definition['Resources'][res]['Type'])
+        properties_allowed_to_overwrite = (set(props.keys()) - SENZA_PROPERTIES) | additional_cf_properties
+        for key in properties_allowed_to_overwrite:
+            if key in configuration:
+                props[key] = configuration[key]
 
     return definition
 

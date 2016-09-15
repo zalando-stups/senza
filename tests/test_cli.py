@@ -2,7 +2,7 @@ import collections
 import datetime
 import json
 import os
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, mock_open
 
 import botocore.exceptions
 import pytest
@@ -10,9 +10,10 @@ import senza.traffic
 import yaml
 from click.testing import CliRunner
 from senza.cli import (AccountArguments, KeyValParamType, StackReference,
-                       all_with_version, failure_event,
-                       get_console_line_style, get_stack_refs, is_ip_address)
-from senza.manaus.exceptions import StackNotFound, StackNotUpdated, ELBNotFound
+                       all_with_version, failure_event, get_console_line_style,
+                       get_stack_refs, is_ip_address)
+from senza.exceptions import InvalidDefinition
+from senza.manaus.exceptions import ELBNotFound, StackNotFound, StackNotUpdated
 from senza.manaus.route53 import RecordType, Route53Record
 from senza.subcommands.root import cli
 from senza.traffic import PERCENT_RESOLUTION, StackVersion
@@ -951,23 +952,11 @@ def test_images(monkeypatch):
     assert 'mystack' in result.output
 
 
-def test_delete(monkeypatch):
+def test_delete(monkeypatch, boto_resource, boto_client):  # noqa: F811
 
-    cf = MagicMock()
     stack = {'StackName': 'test-1',
+             'StackId': 'test-1',
              'CreationTime': datetime.datetime.utcnow()}
-    cf.list_stacks.return_value = {'StackSummaries': [stack]}
-
-    def my_resource(rtype, *args):
-        return MagicMock()
-
-    def my_client(rtype, *args):
-        if rtype == 'cloudformation':
-            return cf
-        return MagicMock()
-
-    monkeypatch.setattr('boto3.resource', my_resource)
-    monkeypatch.setattr('boto3.client', my_client)
 
     runner = CliRunner()
 
@@ -980,7 +969,11 @@ def test_delete(monkeypatch):
                                catch_exceptions=False)
         assert 'OK' in result.output
 
-        cf.list_stacks.return_value = {'StackSummaries': [stack, stack]}
+        cf = boto_client['cloudformation']
+        cf.list_stacks.return_value = {
+            'StackSummaries': [stack, stack]
+        }
+
         result = runner.invoke(cli, ['delete', 'myapp.yaml', '--region=aa-fakeregion-1'],
                                catch_exceptions=False)
         assert 'Please use the "--force" flag if you really want to delete multiple stacks' in result.output
@@ -1003,24 +996,7 @@ def test_delete(monkeypatch):
         assert result.exit_code == 0
 
 
-def test_delete_interactive(monkeypatch):
-
-    cf = MagicMock()
-    stack = {'StackName': 'test-1',
-             'CreationTime': datetime.datetime.utcnow()}
-    cf.list_stacks.return_value = {'StackSummaries': [stack]}
-
-    def my_resource(rtype, *args):
-        return MagicMock()
-
-    def my_client(rtype, *args):
-        if rtype == 'cloudformation':
-            return cf
-        return MagicMock()
-
-    monkeypatch.setattr('boto3.resource', my_resource)
-    monkeypatch.setattr('boto3.client', my_client)
-
+def test_delete_interactive(monkeypatch, boto_client, boto_resource):  # noqa: F811
     runner = CliRunner()
 
     data = {'SenzaInfo': {'StackName': 'test'}}
@@ -1042,6 +1018,33 @@ def test_delete_interactive(monkeypatch):
                                catch_exceptions=False)
         assert "Delete 'test-1'" in result.output
         assert "OK" in result.output
+
+
+def test_delete_with_traffic(monkeypatch, boto_resource, boto_client):  # noqa: F811
+
+    runner = CliRunner()
+
+    data = {'SenzaInfo': {'StackName': 'test'}}
+
+    mock_route53 = MagicMock()
+
+    mock_route53.return_value = [MagicMock(spec=Route53Record,
+                                           set_identifier='test-1',
+                                           weight=200)]
+    monkeypatch.setattr('senza.manaus.cloudformation.Route53.get_records',
+                        mock_route53)
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+
+        result = runner.invoke(cli, ['delete', 'myapp.yaml', '--region=aa-fakeregion-1'],
+                               catch_exceptions=False)
+        assert 'Stack test-1 has traffic!' in result.output
+
+        result = runner.invoke(cli, ['delete', 'myapp.yaml', '--region=aa-fakeregion-1', '--force'],
+                               catch_exceptions=False)
+        assert 'OK' in result.output
 
 
 def test_create(monkeypatch):
@@ -1589,7 +1592,7 @@ def test_account_arguments():
     assert test.Region == 'blubber'
 
 
-def test_get_stack_reference():
+def test_get_stack_reference(monkeypatch):
 
     fb_none = StackReference(name='foobar-stack', version=None)
     fb_v1 = StackReference(name='foobar-stack', version='v1')
@@ -1606,6 +1609,36 @@ def test_get_stack_reference():
     assert get_stack_refs(['foobar-stack', 'v1', 'v2', 'v99',
                            'other-stack']) == [fb_v1, fb_v2, fb_v99,
                                                os_none]
+
+    monkeypatch.setattr('builtins.open',
+                        mock_open(read_data='{"SenzaInfo": '
+                                            '{"StackName": "foobar-stack"}}'))
+    assert get_stack_refs(['test.yaml']) == [fb_none]
+
+    monkeypatch.setattr('builtins.open',
+                        mock_open(read_data='invalid: true'))
+    with pytest.raises(InvalidDefinition) as exc_info1:
+        get_stack_refs(['test.yaml'])
+
+    assert (str(exc_info1.value) == "test.yaml is not a valid "
+                                    "senza definition: SenzaInfo is missing "
+                                    "or invalid")
+
+    monkeypatch.setattr('builtins.open',
+                        mock_open(read_data='{"SenzaInfo": 42}'))
+    with pytest.raises(InvalidDefinition) as exc_info2:
+        get_stack_refs(['test.yaml'])
+
+    assert (str(exc_info2.value) == "test.yaml is not a valid "
+                                    "senza definition: Invalid SenzaInfo")
+
+    monkeypatch.setattr('builtins.open',
+                        mock_open(read_data='"badxml'))
+
+    with pytest.raises(InvalidDefinition) as exc_info3:
+        get_stack_refs(['test.yaml'])
+
+    assert "while scanning a quoted scalar" in str(exc_info3.value)
 
 
 def test_all_with_version():

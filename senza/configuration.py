@@ -56,7 +56,12 @@ class Configuration(MutableMapping):
         Saves the configuration in the configuration path, creating the
         directory if necessary.
         """
-        self.config_path.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            self.config_path.parent.mkdir(parents=True)
+        except FileExistsError:
+            # this try...except can be replaced with exist_ok=True when
+            # we drop python3.4 support
+            pass
         with self.config_path.open('w+') as config_file:
             yaml.safe_dump(cfg, config_file,
                            default_flow_style=False)

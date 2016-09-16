@@ -1,13 +1,16 @@
-from typing import Dict, Any  # noqa: F401
 import sys
 from tempfile import NamedTemporaryFile
 from traceback import format_exception
+from typing import Any, Dict, Optional  # noqa: F401
 
+import senza
 import yaml.constructor
 from botocore.exceptions import ClientError, NoCredentialsError
 from clickclick import fatal_error
+from raven import Client
 
-from .exceptions import PiuNotFound, InvalidDefinition
+from .configuration import configuration
+from .exceptions import InvalidDefinition, PiuNotFound
 from .manaus.exceptions import (ELBNotFound, HostedZoneNotFound, InvalidState,
                                 RecordNotFound)
 
@@ -59,12 +62,20 @@ class HandleExceptions:
         self.function = function
 
     def die_unknown_error(self, e: Exception):
-        if not self.stacktrace_visible:
+        if sentry:
+            # The exception should always be sent to sentry if sentry is
+            # configured
+            sentry.captureException()
+        if self.stacktrace_visible:
+            raise e
+        elif sentry:
+            die_fatal_error("Unknown Error: {e}.\n"
+                            "This error will be pushed to sentry ".format(e=e))
+        elif not sentry:
             file_name = store_exception(e)
             die_fatal_error('Unknown Error: {e}.\n'
                             'Please create an issue with the '
                             'content of {fn}'.format(e=e, fn=file_name))
-        raise e
 
     def __call__(self, *args, **kwargs):
         try:
@@ -108,3 +119,19 @@ class HandleExceptions:
         except Exception as e:
             # Catch All
             self.die_unknown_error(e)
+
+
+def setup_sentry(sentry_endpoint: Optional[str]):
+    """
+    This function setups sentry, this exists mostly to make sentry integration
+    easier to test
+    """
+    if sentry_endpoint is not None:
+        sentry = Client(sentry_endpoint,
+                        release=senza.__version__)
+    else:
+        sentry = None
+
+    return sentry
+
+sentry = setup_sentry(configuration.get('sentry.endpoint'))

@@ -10,11 +10,12 @@ import senza.traffic
 import yaml
 from click.testing import CliRunner
 from senza.cli import (AccountArguments, KeyValParamType, StackReference,
-                       all_with_version, cli, failure_event,
-                       get_console_line_style, get_stack_refs, is_ip_address)
+                       all_with_version, failure_event, get_console_line_style,
+                       get_stack_refs, is_ip_address)
 from senza.exceptions import InvalidDefinition
 from senza.manaus.exceptions import ELBNotFound, StackNotFound, StackNotUpdated
 from senza.manaus.route53 import RecordType, Route53Record
+from senza.subcommands.root import cli
 from senza.traffic import PERCENT_RESOLUTION, StackVersion
 
 from fixtures import (HOSTED_ZONE_EXAMPLE_NET,  # noqa: F401
@@ -1021,10 +1022,6 @@ def test_delete_interactive(monkeypatch, boto_client, boto_resource):  # noqa: F
 
 def test_delete_with_traffic(monkeypatch, boto_resource, boto_client):  # noqa: F811
 
-    stack = {'StackName': 'test-1',
-             'StackId': 'test-1',
-             'CreationTime': datetime.datetime.utcnow()}
-
     runner = CliRunner()
 
     data = {'SenzaInfo': {'StackName': 'test'}}
@@ -1642,6 +1639,7 @@ def test_get_stack_reference(monkeypatch):
         get_stack_refs(['test.yaml'])
 
     assert "while scanning a quoted scalar" in str(exc_info3.value)
+
 
 def test_all_with_version():
     assert not all_with_version([StackReference(name='foobar-stack',

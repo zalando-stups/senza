@@ -130,7 +130,7 @@ def setup_package():
         install_requires=install_reqs,
         setup_requires=['flake8'],
         cmdclass=cmdclass,
-        tests_require=['pytest-cov', 'pytest'],
+        tests_require=['pytest-cov', 'pytest', 'mock'],
         command_options=command_options,
         entry_points={'console_scripts': CONSOLE_SCRIPTS,
                       'senza.templates': ['bgapp = senza.templates.bgapp',

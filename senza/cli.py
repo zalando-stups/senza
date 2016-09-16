@@ -18,14 +18,13 @@ from urllib.request import urlopen
 import boto3
 import click
 import requests
-import senza
 import yaml
 from botocore.exceptions import ClientError
-from clickclick import (Action, AliasedGroup, FloatRange, OutputFormat, choice,
-                        error, fatal_error, info, ok)
+from clickclick import (Action, FloatRange, OutputFormat, choice, error,
+                        fatal_error, info, ok)
 from clickclick.console import print_table
 
-from .arguments import (json_output_option, output_option,
+from .arguments import (GLOBAL_OPTIONS, json_output_option, output_option,
                         parameter_file_option, region_option,
                         stacktrace_visible_option, watch_option,
                         watchrefresh_option)
@@ -43,14 +42,14 @@ from .manaus.route53 import Route53, Route53Record
 from .patch import patch_auto_scaling_group
 from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
 from .stups.piu import Piu
+from .subcommands.config import cmd_config
+from .subcommands.root import cli
 from .templates import get_template_description, get_templates
 from .templates._helper import get_mint_bucket_name
 from .traffic import (change_version_traffic, get_records,
                       print_version_traffic, resolve_to_ip_addresses)
 from .utils import (camel_case_to_underscore, ensure_keys, named_value,
                     pystache_render)
-
-CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 STYLES = {
     'RUNNING': {'fg': 'green'},
@@ -116,8 +115,6 @@ MAX_COLUMN_WIDTHS = {
     'stacks': 20,
     'ResourceStatusReason': 50
 }
-
-GLOBAL_OPTIONS = {}
 
 
 def print_json(data, output=None):
@@ -205,13 +202,6 @@ BASE_TEMPLATE = {
 }
 
 
-def print_version(ctx, param, value):
-    if not value or ctx.resilient_parsing:
-        return
-    click.echo('Senza {}'.format(senza.__version__))
-    ctx.exit()
-
-
 def evaluate(definition, args, account_info, force: bool):
     # extract Senza* meta information
     info = definition.pop("SenzaInfo")
@@ -253,14 +243,6 @@ def evaluate(definition, args, account_info, force: bool):
     definition = yaml.load(definition)
 
     return definition
-
-
-@click.group(cls=AliasedGroup, context_settings=CONTEXT_SETTINGS)
-@click.option('-V', '--version', is_flag=True, callback=print_version, expose_value=False, is_eager=True,
-              help='Print the current version number and exit.')
-@region_option
-def cli(region):
-    GLOBAL_OPTIONS['region'] = region
 
 
 class TemplateArguments:
@@ -1633,6 +1615,8 @@ def wait(stack_ref, region, deletion, timeout, interval):
                                                          actions))
             return
     raise click.Abort()
+
+cli.add_command(cmd_config)
 
 
 def main():

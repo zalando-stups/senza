@@ -307,9 +307,9 @@ class StackReference(collections.namedtuple('StackReference', 'name version')):
             try:
                 with open(self.name) as fd:
                     data = yaml.safe_load(fd)
-                ref = data['SenzaInfo']['StackName']
+                assert data['SenzaInfo']['StackName']
             except (OSError, IOError) as error:
-                raise FileError(ref, str(error))
+                raise FileError(self.name, error.strerror)
             except KeyError as error:
                 raise ValueError("SenzaInfo.StackName missing from definition file")
 

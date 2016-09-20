@@ -18,8 +18,8 @@ from senza.manaus.route53 import RecordType, Route53Record
 from senza.subcommands.root import cli
 from senza.traffic import PERCENT_RESOLUTION, StackVersion
 
-from fixtures import (HOSTED_ZONE_EXAMPLE_NET,  # noqa: F401
-                      HOSTED_ZONE_EXAMPLE_ORG, boto_client, boto_resource)
+from fixtures import (HOSTED_ZONE_EXAMPLE_NET, HOSTED_ZONE_EXAMPLE_ORG,  # noqa: F401
+                      boto_client, boto_resource, disable_version_check)
 
 
 def test_invalid_definition():
@@ -114,12 +114,6 @@ def test_parameter_file_syntax_error():
                                catch_exceptions=False)
 
     assert 'Error: Error while parsing a flow node' in result.output
-
-
-def test_version():
-    runner = CliRunner()
-    result = runner.invoke(cli, ['--version'])
-    assert result.output.startswith('Senza ')
 
 
 def test_print_minimal(monkeypatch):
@@ -302,7 +296,7 @@ def test_print_account_info_and_arguments_in_name(monkeypatch):
     assert 'AppImage-dummy-0123456789' in result.output
 
 
-def test_print_auto(monkeypatch, boto_client, boto_resource):  # noqa: F811
+def test_print_auto(monkeypatch, boto_client, boto_resource, disable_version_check):  # noqa: F811
     senza.traffic.DNS_ZONE_CACHE = {}
 
     data = {'SenzaInfo': {'StackName': 'test',
@@ -388,7 +382,7 @@ def test_print_default_value(monkeypatch, boto_client, boto_resource):  # noqa: 
         assert 'ExtraParam: extra value\\n' in result.output
 
 
-def test_print_taupage_config_without_ref(monkeypatch):
+def test_print_taupage_config_without_ref(monkeypatch, disable_version_check):  # noqa: F811
     def my_resource(rtype, *args):
         if rtype == 'ec2':
             ec2 = MagicMock()
@@ -436,7 +430,7 @@ def test_print_taupage_config_without_ref(monkeypatch):
     assert expected_user_data == awsjson["Resources"]["AppServerConfig"]["Properties"]["UserData"]["Fn::Base64"]
 
 
-def test_print_taupage_config_with_ref(monkeypatch):
+def test_print_taupage_config_with_ref(monkeypatch, disable_version_check):  # noqa: F811
     def my_resource(rtype, *args):
         if rtype == 'ec2':
             ec2 = MagicMock()
@@ -492,7 +486,7 @@ def test_print_taupage_config_with_ref(monkeypatch):
     assert expected_user_data == awsjson["Resources"]["AppServerConfig"]["Properties"]["UserData"]["Fn::Base64"]
 
 
-def test_dump(monkeypatch):
+def test_dump(monkeypatch, disable_version_check):  # noqa: F811
     cf = MagicMock()
     cf.list_stacks.return_value = {'StackSummaries': [{'StackName': 'mystack-1',
                                                        'CreationTime': '2016-06-14'}]}
@@ -1682,7 +1676,7 @@ def test_failure_event():
                           'ResourceStatus': 'FAIL'})
 
 
-def test_status_main_dns(monkeypatch):
+def test_status_main_dns(monkeypatch, disable_version_check):  # noqa: F811
     def my_resource(rtype, *args):
         if rtype == 'ec2':
             ec2 = MagicMock()

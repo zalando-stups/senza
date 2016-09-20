@@ -1,5 +1,5 @@
 from collections import defaultdict
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
 import pytest
@@ -147,7 +147,6 @@ def boto_client(monkeypatch):
                 'ResourceStatus': 'CREATE_COMPLETE',
                 'ResourceType': 'AWS::IAM::InstanceProfile'}]
 
-
     response = {'ResponseMetadata': {'HTTPStatusCode': 200,
                                      'RequestId': '0000'},
                 'StackResourceSummaries': summary}
@@ -281,3 +280,9 @@ def boto_resource(monkeypatch):
         return MagicMock()
 
     monkeypatch.setattr('boto3.resource', my_resource)
+
+
+@pytest.fixture
+def disable_version_check(monkeypatch):
+    m = MagicMock()
+    monkeypatch.setattr('senza.subcommands.root.check_senza_version', m)

@@ -10,9 +10,7 @@ from ..arguments import GLOBAL_OPTIONS, region_option
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
 
-def check_senza_version(current_version):
-    # TODO move to own module
-
+def check_senza_version(current_version: str):
     current_version = LooseVersion(current_version)
 
     url = "https://pypi.python.org/pypi/stups-senza/json"
@@ -30,6 +28,7 @@ def check_senza_version(current_version):
         warning("Your senza version ({current}) is outdated. "
                 "Please install the new one using '{cmd}'".format(current=current_version,
                                                                   cmd=cmd))
+
 
 def print_version(ctx, param, value):
     if not value or ctx.resilient_parsing:

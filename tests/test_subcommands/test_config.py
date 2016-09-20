@@ -1,10 +1,12 @@
-from pathlib import Path
 from os import makedirs
+from pathlib import Path
 
 import yaml
 from click.testing import CliRunner
 from senza.cli import cli
 from senza.subcommands.config import configuration
+
+from fixtures import disable_version_check  # noqa: F401
 
 
 def create_config(app_dir):
@@ -21,7 +23,7 @@ def read_config(app_dir):
     return data
 
 
-def test_get_config():
+def test_get_config(disable_version_check):  # noqa: F811
     runner = CliRunner()
 
     with runner.isolated_filesystem() as (test_dir):
@@ -33,7 +35,7 @@ def test_get_config():
     assert result.output == 'value\n'
 
 
-def test_get_config_not_found():
+def test_get_config_not_found(disable_version_check):  # noqa: F811
     runner = CliRunner()
 
     with runner.isolated_filesystem() as (test_dir):

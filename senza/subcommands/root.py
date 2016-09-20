@@ -1,4 +1,7 @@
+import time
 from distutils.version import LooseVersion
+from pathlib import Path
+from typing import Optional
 
 import click
 import requests
@@ -9,17 +12,70 @@ from ..arguments import GLOBAL_OPTIONS, region_option
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
 
+PYPI_URL = "https://pypi.python.org/pypi/stups-senza/json"
+ONE_DAY = 86400  # seconds
 
-def check_senza_version(current_version: str):
-    current_version = LooseVersion(current_version)
 
-    url = "https://pypi.python.org/pypi/stups-senza/json"
-    pypi_response = requests.get(url)
+def get_latest_version_from_disc() -> Optional[str]:
+    """
+    Tries to read a cached latest version from the disk returning None if the
+    file doesn't exist or if it's older than 24 hours
+    """
+    version_cache = Path(click.get_app_dir('senza')) / 'pypi_version'
+    now = time.time()
+    latest_version = None
+    if (version_cache.exists() and
+            now - version_cache.stat().st_mtime < ONE_DAY):
+        with version_cache.open() as fd:
+            str_version = fd.read()
+            if str_version:
+                latest_version = LooseVersion(str_version)
+    return latest_version
+
+
+def get_latest_version_from_pypi() -> str:
+    """
+    Gets the latest release version pypi api using distutils order
+    to sort the releases (same as pip).
+    """
+    pypi_response = requests.get(PYPI_URL)
     pypi_data = pypi_response.json()
     releases = pypi_data['releases']
     versions = [LooseVersion(version) for version in releases.keys()]
-    last_version = sorted(versions)[-1]
-    if current_version < last_version:
+    return sorted(versions)[-1]
+
+
+def get_latest_version() -> LooseVersion:
+    """
+    Gets the latest version either from the file cache or from pip.
+
+    If the file cache exists it will be valid for 24 hours.
+    """
+    version_cache = Path(click.get_app_dir('senza')) / 'pypi_version'
+    latest_version = (get_latest_version_from_disc() or
+                      get_latest_version_from_pypi())
+
+    try:
+        version_cache.parent.mkdir(parents=True)
+    except FileExistsError:
+        # this try...except can be replaced with exist_ok=True when
+        # we drop python3.4 support
+        pass
+
+    with version_cache.open('w') as fd:
+        fd.write(str(latest_version))
+    return latest_version
+
+
+def check_senza_version(current_version: str):
+    """
+    Checks if senza is updated and prints a warning with instructions to update
+    if it's not.
+    """
+    current_version = LooseVersion(current_version)
+    latest_version = get_latest_version()
+
+    if current_version < latest_version:
         if __file__.startswith('/home'):
             # if it's installed in the user folder
             cmd = "pip install --upgrade stups-senza"

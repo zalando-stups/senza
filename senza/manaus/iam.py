@@ -4,6 +4,8 @@ from typing import Any, Dict, Iterator, Optional, Union
 import boto3
 from botocore.exceptions import ClientError
 
+from .boto_proxy import BotoClientProxy
+
 
 class IAMServerCertificate:
     """
@@ -65,7 +67,7 @@ class IAMServerCertificate:
         """
         Get IAMServerCertificate using the name of the server certificate
         """
-        client = boto3.client('iam', region)
+        client = BotoClientProxy('iam', region)
         iam = IAM(region)
 
         try:

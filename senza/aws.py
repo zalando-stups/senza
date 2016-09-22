@@ -1,20 +1,22 @@
 import base64
-import boto3
 import collections
 import datetime
 import functools
 import re
 import time
+
+import boto3
 import yaml
 from botocore.exceptions import ClientError
 from click import FileError
 
+from .manaus.boto_proxy import BotoClientProxy
 from .stack_references import check_file_exceptions
 
 
 def resolve_referenced_resource(ref: dict, region: str):
     if 'Stack' in ref and 'LogicalId' in ref:
-        cf = boto3.client('cloudformation', region)
+        cf = BotoClientProxy('cloudformation', region)
         resource = cf.describe_stack_resource(
             StackName=ref['Stack'],
             LogicalResourceId=ref['LogicalId'])['StackResourceDetail']
@@ -30,7 +32,7 @@ def resolve_referenced_resource(ref: dict, region: str):
         else:
             return resource_id
     elif 'Stack' in ref and 'Output' in ref:
-        cf = boto3.client('cloudformation', region)
+        cf = BotoClientProxy('cloudformation', region)
         stack = cf.describe_stacks(
             StackName=ref['Stack'])['Stacks'][0]
         if not is_status_complete(stack['StackStatus']):
@@ -81,7 +83,7 @@ def get_vpc_attribute(region: str, vpc_id: str, attribute: str):
 
 
 def encrypt(region: str, KeyId: str, Plaintext: str, b64encode=False):
-    kms = boto3.client('kms', region)
+    kms = BotoClientProxy('kms', region)
     encrypted = kms.encrypt(KeyId=KeyId, Plaintext=Plaintext)['CiphertextBlob']
     if b64encode:
         return base64.b64encode(encrypted).decode('utf-8')
@@ -90,7 +92,7 @@ def encrypt(region: str, KeyId: str, Plaintext: str, b64encode=False):
 
 
 def list_kms_keys(region: str, details=True):
-    kms = boto3.client('kms', region)
+    kms = BotoClientProxy('kms', region)
     keys = list(kms.list_keys()['Keys'])
     if details:
         aliases = kms.list_aliases()['Aliases']
@@ -191,7 +193,7 @@ class SenzaStackSummary:
 
 def get_stacks(stack_refs: list, region, all=False, unique_only=False):
     # boto3.resource('cf')-stacks.filter() doesn't support status_filter, only StackName
-    cf = boto3.client('cloudformation', region)
+    cf = BotoClientProxy('cloudformation', region)
     if all:
         status_filter = []
     else:
@@ -262,7 +264,7 @@ def get_tag(tags: list, key: str, default=None):
 
 
 def get_account_id():
-    conn = boto3.client('iam')
+    conn = BotoClientProxy('iam')
     try:
         own_user = conn.get_user()['User']
     except:
@@ -288,7 +290,7 @@ def get_account_id():
 
 
 def get_account_alias():
-    conn = boto3.client('iam')
+    conn = BotoClientProxy('iam')
     return conn.list_account_aliases()['AccountAliases'][0]
 
 

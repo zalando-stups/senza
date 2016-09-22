@@ -1,5 +1,5 @@
 from collections import OrderedDict
-from typing import Dict, List, Iterator, Optional
+from typing import Dict, Iterator, List, Optional
 
 import boto3
 

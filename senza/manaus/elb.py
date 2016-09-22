@@ -2,8 +2,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
-import boto3
-
+from .boto_proxy import BotoClientProxy
 from .exceptions import ELBNotFound
 from .route53 import Route53HostedZone
 
@@ -161,7 +160,7 @@ class ELB:
     @classmethod
     def get_by_dns_name(cls, dns_name: str) -> "ELB":
         _, region, _ = dns_name.split('.', maxsplit=2)
-        client = boto3.client('elb', region)
+        client = BotoClientProxy('elb', region)
 
         # TODO pagination
         response = client.describe_load_balancers()

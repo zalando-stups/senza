@@ -1,10 +1,10 @@
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Iterator, List, Dict, Any, Optional
 from functools import total_ordering
-from ssl import match_hostname, CertificateError
+from ssl import CertificateError, match_hostname
+from typing import Any, Dict, Iterator, List, Optional
 
-import boto3
+from .boto_proxy import BotoClientProxy
 
 
 class ACMCertificateStatus(str, Enum):
@@ -105,7 +105,7 @@ class ACMCertificate:
         """
         Gets a ACMCertificate based on ARN alone
         """
-        client = boto3.client('acm', region)
+        client = BotoClientProxy('acm', region)
         certificate = client.describe_certificate(CertificateArn=arn)['Certificate']
         return cls.from_boto_dict(certificate)
 
@@ -171,7 +171,7 @@ class ACM:
         :param domain_name: Return only certificates that match the domain
         """
         # TODO implement pagination
-        client = boto3.client('acm', self.region)
+        client = BotoClientProxy('acm', self.region)
         certificates = client.list_certificates()['CertificateSummaryList']
         for summary in certificates:
             arn = summary['CertificateArn']

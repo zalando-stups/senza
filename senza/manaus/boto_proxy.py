@@ -3,6 +3,7 @@ from time import sleep
 import boto3
 from botocore.exceptions import ClientError
 
+
 __all__ = ['BotoClientProxy']
 
 
@@ -13,8 +14,8 @@ class BotoClientProxy:
     @staticmethod
     def __decorator(function, *args, **kwargs):
         def wrapper(*args, **kwargs):
-            max_tries = 5  # TODO make configurable
-            sleep_time = 5  # TODO make configurable
+            max_tries = 5
+            sleep_time = 10
             last_error = None
             for i in range(max_tries):
                 try:

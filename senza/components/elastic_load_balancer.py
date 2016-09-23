@@ -6,7 +6,7 @@ from ..cli import AccountArguments, TemplateArguments
 from ..manaus import ClientError
 from ..manaus.acm import ACM, ACMCertificate
 from ..manaus.iam import IAM, IAMServerCertificate
-from ..manaus.route53 import convert_domain_records_to_alias
+from ..manaus.route53 import convert_cname_records_to_alias
 
 SENZA_PROPERTIES = frozenset(['Domains', 'HealthCheckPath', 'HealthCheckPort', 'HealthCheckProtocol',
                               'HTTPPort', 'Name', 'SecurityGroups', 'SSLCertificateId', 'Type'])
@@ -104,7 +104,7 @@ def component_elastic_load_balancer(definition,
 
         domain_name = "{0}.{1}".format(domain["Subdomain"], domain["Zone"])
 
-        convert_domain_records_to_alias(domain_name)
+        convert_cname_records_to_alias(domain_name)
 
         properties = {"Type": "A",
                       "Name": domain_name,

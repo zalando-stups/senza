@@ -9,6 +9,7 @@ Resources:
       EngineVersion: 9.4.7
       MasterUsername: postgres
       MasterUserPassword: postgres
+			AllocatedStorage: "100"
     DeletionPolicy: Snapshot
 Outputs:
   DatabaseHost:

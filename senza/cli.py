@@ -418,12 +418,9 @@ def get_region(region):
             pass
 
     if not region:
-        raise click.UsageError('Please specify the AWS region on the command line (--region) or in ~/.aws/config')
+        raise click.UsageError('Please specify the AWS region on the '
+                               'command line (--region) or in ~/.aws/config')
 
-    # FIXME bool(BotoClientProxy('cloudformation', 'moon-1')) == True
-    cf = BotoClientProxy('cloudformation', region)
-    if not cf:
-        raise click.UsageError('Invalid region "{}"'.format(region))
     return region
 
 

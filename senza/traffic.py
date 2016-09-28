@@ -12,7 +12,7 @@ from .manaus.boto_proxy import BotoClientProxy
 from .manaus.cloudformation import CloudFormationStack, ResourceType
 from .manaus.exceptions import ELBNotFound, StackNotFound, StackNotUpdated
 from .manaus.route53 import (RecordType, Route53, Route53HostedZone,
-                             convert_domain_records_to_alias)
+                             convert_cname_records_to_alias)
 
 PERCENT_RESOLUTION = 2
 FULL_PERCENTAGE = PERCENT_RESOLUTION * 100
@@ -125,7 +125,7 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str,
     for idx, dns_name in enumerate(dns_names):
         domain = dns_name.split('.', 1)[1]
         hosted_zone = Route53HostedZone.get_by_domain_name(domain)
-        convert_domain_records_to_alias(dns_name)
+        convert_cname_records_to_alias(dns_name)
 
         changed = False
         for stack_name, percentage in new_record_weights.items():

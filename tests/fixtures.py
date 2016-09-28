@@ -281,3 +281,12 @@ def boto_resource(monkeypatch):
         return MagicMock()
 
     monkeypatch.setattr('boto3.resource', my_resource)
+
+
+@pytest.fixture(autouse=True)
+def valid_regions(monkeypatch):
+    m_session = MagicMock()
+    m_session.return_value = m_session
+    m_session.get_available_regions.return_value = ['aa-fakeregion-1']
+    monkeypatch.setattr('boto3.session.Session', m_session)
+    return m_session

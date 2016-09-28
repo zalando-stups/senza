@@ -7,7 +7,7 @@ from senza.manaus.exceptions import (HostedZoneNotFound, InvalidState,
                                      RecordNotFound)
 from senza.manaus.route53 import (RecordType, Route53, Route53HostedZone,
                                   Route53Record,
-                                  convert_domain_records_to_alias)
+                                  convert_cname_records_to_alias)
 
 
 def test_hosted_zone_from_boto_dict():
@@ -438,7 +438,7 @@ def test_convert_domain_records_to_alias(monkeypatch):
     mock_isatty = MagicMock(return_value=True)
     monkeypatch.setattr('sys.stdin.isatty', mock_isatty)
 
-    convert_domain_records_to_alias("app1.example.com")
+    convert_cname_records_to_alias("app1.example.com")
 
     mock_hz1.delete.assert_called_once_with([mock_record1],
                                             comment='Records that will be converted to Alias')
@@ -448,7 +448,7 @@ def test_convert_domain_records_to_alias(monkeypatch):
 
     mock_confirm.return_value = False
     with pytest.raises(InvalidState):
-        convert_domain_records_to_alias("app1.example.com")
+        convert_cname_records_to_alias("app1.example.com")
 
 
 def test_hosted_zone_get_by_domain_name(monkeypatch):

@@ -281,7 +281,7 @@ class Route53Record:
         if self.alias_target is not None:
             # Record is already an Alias
             return deepcopy(self)
-        elif self.type == RecordType.CNAME:
+        if self.type == RecordType.CNAME:
             dns_name = self.resource_records[0]['Value']
             # dns name looks like lb-name-123456.aws-region-1.elb.amazonaws.com
             sub_domain, _ = dns_name.split('.', maxsplit=1)  # type: str
@@ -373,12 +373,12 @@ class Route53:
                 yield record
 
 
-def convert_domain_records_to_alias(domain_name: str):
+def convert_cname_records_to_alias(domain_name: str):
     records = Route53.get_records(name=domain_name)
     converted_records = defaultdict(lambda: {'delete': [],
                                              'upsert': []})
     for record in records:
-        if record.type != 'A':
+        if record.type == RecordType.CNAME:
             converted_records[record.hosted_zone]['delete'].append(record)
             try:
                 alias_record = record.to_alias()

@@ -124,6 +124,11 @@ class CloudFormationStack:
         for resource in resources:
             resource_type = resource["ResourceType"]
             if resource_type == ResourceType.route53_record_set:
+                physical_resource_id = resource.get('PhysicalResourceId')
+                if physical_resource_id is None:
+                    # if there is no Physical Resource Id we can't fetch the
+                    # record
+                    continue
                 records = Route53.get_records(name=resource['PhysicalResourceId'])
                 for record in records:
                     if (record.set_identifier is None or

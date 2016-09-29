@@ -13,6 +13,7 @@ from .configuration import configuration
 from .exceptions import InvalidDefinition, PiuNotFound
 from .manaus.exceptions import (ELBNotFound, HostedZoneNotFound, InvalidState,
                                 RecordNotFound)
+from .manaus.utils import extract_client_error_code
 
 
 def store_exception(exception: Exception) -> str:
@@ -35,15 +36,16 @@ def store_exception(exception: Exception) -> str:
 
 def is_credentials_expired_error(client_error: ClientError) -> bool:
     """Return true if the exception's error code is ExpiredToken or RequestExpired"""
-    return client_error.response['Error']['Code'] in ['ExpiredToken', 'RequestExpired']
+    return extract_client_error_code(client_error) in ['ExpiredToken',
+                                                       'RequestExpired']
 
 
 def is_access_denied_error(e: ClientError) -> bool:
-    return e.response['Error']['Code'] in ['AccessDenied']
+    return extract_client_error_code(e) in ['AccessDenied']
 
 
 def is_validation_error(e: ClientError) -> bool:
-    return e.response['Error']['Code'] == 'ValidationError'
+    return extract_client_error_code(e) == 'ValidationError'
 
 
 def die_fatal_error(mesg):

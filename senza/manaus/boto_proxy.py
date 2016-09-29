@@ -3,6 +3,7 @@ from time import sleep
 import boto3
 from botocore.exceptions import ClientError
 
+from .utils import extract_client_error_code
 
 __all__ = ['BotoClientProxy']
 
@@ -22,7 +23,7 @@ class BotoClientProxy:
                     return function(*args, **kwargs)
                 except ClientError as error:
                     last_error = error
-                    if error.response['Error']['Code'] == "Throttling":
+                    if extract_client_error_code(error) == "Throttling":
                         sleep(sleep_time)
                     else:
                         raise

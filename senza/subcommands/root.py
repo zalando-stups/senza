@@ -17,7 +17,7 @@ PYPI_URL = "https://pypi.python.org/pypi/stups-senza/json"
 ONE_DAY = 86400  # seconds
 
 
-def get_latest_version_from_disc() -> Optional[LooseVersion]:
+def get_latest_version_from_disk() -> Optional[LooseVersion]:
     """
     Tries to read a cached latest version from the disk returning None if the
     file doesn't exist or if it's older than 24 hours
@@ -60,7 +60,7 @@ def get_latest_version() -> Optional[LooseVersion]:
     If the file cache exists it will be valid for 24 hours.
     """
     version_cache = Path(click.get_app_dir('senza')) / 'pypi_version'
-    latest_version = (get_latest_version_from_disc() or
+    latest_version = (get_latest_version_from_disk() or
                       get_latest_version_from_pypi())
 
     if latest_version is not None:

@@ -2,17 +2,18 @@
 HA Postgres app, which needs an S3 bucket to store WAL files
 '''
 
-import click
-from clickclick import choice, warning
-from senza.aws import encrypt, list_kms_keys, get_vpc_attribute, get_security_group
-from senza.utils import pystache_render
-import requests
 import random
 import string
-import boto3
 
+import click
+import requests
+from clickclick import choice, warning
+from senza.aws import (encrypt, get_security_group, get_vpc_attribute,
+                       list_kms_keys)
+from senza.utils import pystache_render
 
-from ._helper import prompt, check_s3_bucket, get_account_alias
+from ..manaus.boto_proxy import BotoClientProxy
+from ._helper import check_s3_bucket, get_account_alias, prompt
 
 POSTGRES_PORT = 5432
 HEALTHCHECK_PORT = 8008
@@ -414,7 +415,7 @@ def gather_user_variables(variables, region, account_info):
         variables['odd_sg_id'] = odd_sg.group_id
 
     # Find all Security Groups attached to the zmon worker with 'zmon' in their name
-    ec2 = boto3.client('ec2', region)
+    ec2 = BotoClientProxy('ec2', region)
     filters = [{'Name': 'tag-key', 'Values': ['StackName']}, {'Name': 'tag-value', 'Values': ['zmon-appliance']}]
     zmon_sgs = list()
     for reservation in ec2.describe_instances(Filters=filters).get('Reservations', []):

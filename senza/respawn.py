@@ -1,8 +1,8 @@
-import boto3
 import time
 
 from clickclick import Action, info
 
+from .manaus.boto_proxy import BotoClientProxy
 
 SCALING_PROCESSES_TO_SUSPEND = ['AZRebalance', 'AlarmNotification', 'ScheduledActions']
 RUNNING_LIFECYCLE_STATES = set(['Pending', 'InService', 'Rebooting'])
@@ -40,7 +40,7 @@ def get_instances_in_service(group, region: str):
     lb_names = group['LoadBalancerNames']
     if lb_names:
         # check ELB status
-        elb = boto3.client('elb', region)
+        elb = BotoClientProxy('elb', region)
         for lb_name in lb_names:
             result = elb.describe_instance_health(LoadBalancerName=lb_name)
             for instance in result['InstanceStates']:
@@ -48,7 +48,7 @@ def get_instances_in_service(group, region: str):
                     instances_in_service.add(instance['InstanceId'])
     else:
         # just use ASG LifecycleState
-        group = get_auto_scaling_group(boto3.client('autoscaling', region), group['AutoScalingGroupName'])
+        group = get_auto_scaling_group(BotoClientProxy('autoscaling', region), group['AutoScalingGroupName'])
         for instance in group['Instances']:
             if instance['LifecycleState'] == 'InService':
                 instances_in_service.add(instance['InstanceId'])
@@ -87,7 +87,7 @@ def terminate_instance(asg, region: str, group, instance: str):
 
 def do_respawn_auto_scaling_group(asg_name: str, group: dict, region: str,
                                   instances_to_terminate: set, instances_ok: set, inplace: bool):
-    asg = boto3.client('autoscaling', region)
+    asg = BotoClientProxy('autoscaling', region)
     with Action('Suspending scaling processes for {}..'.format(asg_name)):
         asg.suspend_processes(AutoScalingGroupName=asg_name, ScalingProcesses=SCALING_PROCESSES_TO_SUSPEND)
     extra_capacity = 0 if inplace else 1
@@ -114,7 +114,7 @@ def do_respawn_auto_scaling_group(asg_name: str, group: dict, region: str,
 
 def respawn_auto_scaling_group(asg_name: str, region: str, inplace: bool=False, force: bool=False):
     '''Respawn all EC2 instances in the Auto Scaling Group whose launch configuration is not up-to-date'''
-    asg = boto3.client('autoscaling', region)
+    asg = BotoClientProxy('autoscaling', region)
     group = get_auto_scaling_group(asg, asg_name)
     desired_launch_config = group['LaunchConfigurationName']
     instances_to_terminate, instances_ok = get_instances_to_terminate(group, desired_launch_config, force)

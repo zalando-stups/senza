@@ -4,9 +4,9 @@ from datetime import datetime
 from enum import Enum
 from typing import Dict, Iterator, List, Optional
 
-import boto3
 from botocore.exceptions import ClientError
 
+from .boto_proxy import BotoClientProxy
 from .exceptions import StackNotFound, StackNotUpdated
 from .route53 import Route53
 
@@ -98,7 +98,7 @@ class CloudFormationStack:
         See:
         http://boto3.readthedocs.io/en/latest/reference/services/cloudformation.html#CloudFormation.Client.describe_stacks
         """
-        client = boto3.client('cloudformation', region)
+        client = BotoClientProxy('cloudformation', region)
 
         try:
             stacks = client.describe_stacks(StackName=name)
@@ -118,7 +118,7 @@ class CloudFormationStack:
 
     @property
     def resources(self) -> Iterator:
-        client = boto3.client('cloudformation', self.region)
+        client = BotoClientProxy('cloudformation', self.region)
         response = client.list_stack_resources(StackName=self.stack_id)
         resources = response['StackResourceSummaries']  # type: List[Dict]
         for resource in resources:
@@ -142,7 +142,7 @@ class CloudFormationStack:
     @property
     def template(self) -> Dict:
         if self.__template is None:
-            client = boto3.client('cloudformation', self.region)
+            client = BotoClientProxy('cloudformation', self.region)
             response = client.get_template(StackName=self.name)
             self.__template = response['TemplateBody']
         return self.__template
@@ -154,7 +154,7 @@ class CloudFormationStack:
         """
         Sends the current template to CloudFormation to update the stack
         """
-        client = boto3.client('cloudformation', self.region)
+        client = BotoClientProxy('cloudformation', self.region)
         parameters = [{'ParameterKey': key, 'ParameterValue': value}
                       for key, value in self.parameters.items()]
         try:
@@ -172,7 +172,7 @@ class CloudFormationStack:
                 raise
 
     def delete(self):
-        client = boto3.client('cloudformation', self.region)
+        client = BotoClientProxy('cloudformation', self.region)
         client.delete_stack(StackName=self.stack_id)
 
 
@@ -182,7 +182,7 @@ class CloudFormation:
         self.region = region
 
     def get_stacks(self, all: bool=False):
-        client = boto3.client('cloudformation', self.region)
+        client = BotoClientProxy('cloudformation', self.region)
         if all:
             status_filter = []
         else:

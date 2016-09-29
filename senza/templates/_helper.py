@@ -9,6 +9,8 @@ from click import confirm
 from clickclick import Action
 from senza.aws import get_account_alias, get_account_id, get_security_group
 
+from ..manaus.boto_proxy import BotoClientProxy
+
 
 def prompt(variables: dict, var_name, *args, **kwargs):
     if var_name not in variables:
@@ -69,7 +71,7 @@ def check_security_group(sg_name, rules, region, allow_from_self=False):
         create_sg = click.confirm('Security group {} does not exist. Do you want Senza to create it now?'.format(
             sg_name), default=True)
         if create_sg:
-            ec2c = boto3.client('ec2', region)
+            ec2c = BotoClientProxy('ec2', region)
             # FIXME which vpc?
             vpc = ec2c.describe_vpcs()['Vpcs'][0]
             sg = ec2c.create_security_group(GroupName=sg_name,
@@ -131,7 +133,7 @@ def get_iam_role_policy(application_id: str, bucket_name: str, region: str):
 def check_iam_role(application_id: str, bucket_name: str, region: str):
     role_name = 'app-{}'.format(application_id)
     with Action('Checking IAM role {}..'.format(role_name)):
-        iam = boto3.client('iam')
+        iam = BotoClientProxy('iam')
         try:
             iam.get_role(RoleName=role_name)
             exists = True

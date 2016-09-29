@@ -4,9 +4,9 @@ from copy import deepcopy
 from enum import Enum
 from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, Union
 
-import boto3
 from click import confirm
 
+from .boto_proxy import BotoClientProxy
 from .exceptions import (ELBNotFound, HostedZoneNotFound, InvalidState,
                          RecordNotFound)
 
@@ -102,7 +102,7 @@ class Route53HostedZone:
         http://boto3.readthedocs.io/en/latest/reference/services/route53.html#Route53.Client.change_resource_record_sets
         """
 
-        client = boto3.client('route53')
+        client = BotoClientProxy('route53')
 
         change_batch = {'Changes': []}
         if comment is not None:
@@ -310,7 +310,7 @@ class Route53Record:
 class Route53:
 
     def __init__(self):
-        self.client = boto3.client('route53')
+        self.client = BotoClientProxy('route53')
 
     @staticmethod
     def get_hosted_zones(domain_name: Optional[str]=None,
@@ -323,7 +323,7 @@ class Route53:
         if domain_name is not None:
             domain_name = '{}.'.format(domain_name.rstrip('.'))
 
-        client = boto3.client('route53')
+        client = BotoClientProxy('route53')
         result = client.list_hosted_zones()
         hosted_zones = result["HostedZones"]
         while result.get('IsTruncated', False):
@@ -345,7 +345,7 @@ class Route53:
     @classmethod
     def get_records(cls, *,
                     name: Optional[str]=None) -> Iterator[Route53Record]:
-        client = boto3.client('route53')
+        client = BotoClientProxy('route53')
         if name is not None and not name.endswith('.'):
             name += '.'
         for zone in cls.get_hosted_zones():

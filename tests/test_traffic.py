@@ -1,7 +1,10 @@
 from unittest.mock import MagicMock
+
+import botocore.exceptions
 from senza.aws import SenzaStackSummary
-from senza.traffic import get_stack_versions, StackVersion, get_weights, resolve_to_ip_addresses
 from senza.manaus.route53 import RecordType
+from senza.traffic import (StackVersion, get_stack_versions, get_weights,
+                           resolve_to_ip_addresses)
 
 
 def test_get_stack_versions(monkeypatch):
@@ -38,7 +41,20 @@ def test_get_stack_versions(monkeypatch):
         return_value=[SenzaStackSummary(stack), SenzaStackSummary({'StackStatus': 'ROLLBACK_COMPLETE',
                                                                    'StackName': 'my-stack-1'})]))
     stack_version = list(get_stack_versions('my-stack', 'my-region'))
-    assert stack_version == [StackVersion('my-stack', '1', ['myapp.example.org'], ['elb-dns-name'], ['some-arn'])]
+    assert stack_version == [StackVersion('my-stack', '1',
+                                          ['myapp.example.org'],
+                                          ['elb-dns-name'],
+                                          ['some-arn'])]
+
+    elb.describe_load_balancers.side_effect = botocore.exceptions.ClientError(
+        {'Error': {'Code': 'LoadBalancerNotFound'}},
+        'foobar'
+    )
+    stack_version = list(get_stack_versions('my-stack', 'my-region'))
+    assert stack_version == [StackVersion('my-stack', '1',
+                                          ['myapp.example.org'],
+                                          [],
+                                          ['some-arn'])]
 
 
 def test_get_weights(monkeypatch):

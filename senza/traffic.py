@@ -8,10 +8,11 @@ import dns.resolver
 from clickclick import Action, action, ok, print_table, warning
 
 from .aws import StackReference, get_stacks, get_tag
+from .manaus.boto_proxy import BotoClientProxy
 from .manaus.cloudformation import CloudFormationStack, ResourceType
-from .manaus.exceptions import StackNotFound, StackNotUpdated, ELBNotFound
+from .manaus.exceptions import ELBNotFound, StackNotFound, StackNotUpdated
 from .manaus.route53 import (RecordType, Route53, Route53HostedZone,
-                             convert_domain_records_to_alias)
+                             convert_cname_records_to_alias)
 
 PERCENT_RESOLUTION = 2
 FULL_PERCENTAGE = PERCENT_RESOLUTION * 100
@@ -124,7 +125,7 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str,
     for idx, dns_name in enumerate(dns_names):
         domain = dns_name.split('.', 1)[1]
         hosted_zone = Route53HostedZone.get_by_domain_name(domain)
-        convert_domain_records_to_alias(dns_name)
+        convert_cname_records_to_alias(dns_name)
 
         changed = False
         for stack_name, percentage in new_record_weights.items():
@@ -252,7 +253,7 @@ def get_stack_versions(stack_name: str, region: str) -> Iterator[StackVersion]:
         notification_arns = details.notification_arns
         for res in details.resource_summaries.all():
             if res.resource_type == 'AWS::ElasticLoadBalancing::LoadBalancer':
-                elb = boto3.client('elb', region)
+                elb = BotoClientProxy('elb', region)
                 lbs = elb.describe_load_balancers(LoadBalancerNames=[res.physical_resource_id])
                 lb_dns_name.append(lbs['LoadBalancerDescriptions'][0]['DNSName'])
             elif res.resource_type == 'AWS::Route53::RecordSet':
@@ -272,7 +273,7 @@ def get_records(domain: str):
     domain = '{}.'.format(domain.rstrip('.'))
     if DNS_RR_CACHE.get(domain) is None:
         hosted_zone = Route53HostedZone.get_by_domain_name(domain)
-        route53 = boto3.client('route53')
+        route53 = BotoClientProxy('route53')
         result = route53.list_resource_record_sets(HostedZoneId=hosted_zone.id)
         records = result['ResourceRecordSets']
         while result['IsTruncated']:
@@ -386,7 +387,7 @@ def change_version_traffic(stack_ref: StackReference, percentage: float,
 def inform_sns(arns: list, message: str, region):
     jsonizer = JSONEncoder()
     sns_topics = set(arns)
-    sns = boto3.client('sns', region_name=region)
+    sns = BotoClientProxy('sns', region_name=region)
     for sns_topic in sns_topics:
         sns.publish(TopicArn=sns_topic, Subject="SenzaTrafficRedirect", Message=jsonizer.encode((message)))
 

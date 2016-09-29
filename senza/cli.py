@@ -33,8 +33,9 @@ from .aws import (StackReference, get_account_alias, get_account_id,
                   parse_time, resolve_topic_arn)
 from .components import evaluate_template, get_component
 from .components.stups_auto_configuration import find_taupage_image
-from .exceptions import InvalidDefinition
 from .error_handling import HandleExceptions
+from .exceptions import InvalidDefinition
+from .manaus.boto_proxy import BotoClientProxy
 from .manaus.cloudformation import CloudFormation
 from .manaus.ec2 import EC2
 from .manaus.exceptions import VPCError
@@ -417,17 +418,14 @@ def get_region(region):
             pass
 
     if not region:
-        raise click.UsageError('Please specify the AWS region on the command line (--region) or in ~/.aws/config')
+        raise click.UsageError('Please specify the AWS region on the '
+                               'command line (--region) or in ~/.aws/config')
 
-    # FIXME bool(boto3.client('cloudformation', 'moon-1')) == True
-    cf = boto3.client('cloudformation', region)
-    if not cf:
-        raise click.UsageError('Invalid region "{}"'.format(region))
     return region
 
 
 def check_credentials(region):
-    iam = boto3.client('iam')
+    iam = BotoClientProxy('iam')
     return iam.list_account_aliases()
 
 
@@ -605,7 +603,7 @@ def health(region, stack_ref, all, output, w, watch):
     region = get_region(region)
     check_credentials(region)
 
-    cloudwatch = boto3.client('cloudwatch', region)
+    cloudwatch = BotoClientProxy('cloudwatch', region)
 
     stack_refs = get_stack_refs(stack_ref)
 
@@ -670,7 +668,7 @@ def create(definition, region, version, parameter, disable_rollback, dry_run,
             fatal_error('Invalid tag {}. Tags should be in the form of key=value'.format(tag_kv))
         data['Tags'].append({'Key': key, 'Value': value})
 
-    cf = boto3.client('cloudformation', region)
+    cf = BotoClientProxy('cloudformation', region)
 
     with Action('Creating Cloud Formation stack {}..'.format(data['StackName'])) as act:
         try:
@@ -702,7 +700,7 @@ def update(definition, region, version, parameter, disable_rollback, dry_run,
 
     region = get_region(region)
     data = create_cf_template(definition, region, version, parameter, force, parameter_file)
-    cf = boto3.client('cloudformation', region)
+    cf = BotoClientProxy('cloudformation', region)
 
     with Action('Updating Cloud Formation stack {}..'.format(data['StackName'])) as act:
         try:
@@ -867,7 +865,7 @@ def resources(stack_ref, region, w, watch, output):
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
     check_credentials(region)
-    cf = boto3.client('cloudformation', region)
+    cf = BotoClientProxy('cloudformation', region)
 
     for _ in watching(w, watch):
         rows = []
@@ -902,7 +900,7 @@ def events(stack_ref, region, w, watch, output):
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
     check_credentials(region)
-    cf = boto3.client('cloudformation', region)
+    cf = BotoClientProxy('cloudformation', region)
 
     for _ in watching(w, watch):
         rows = []
@@ -964,7 +962,7 @@ def get_instance_health(stack_name: str, region: str) -> dict:
     if stack_name is None:
         return {}
     instance_health = {}
-    elb = boto3.client('elb', region)
+    elb = BotoClientProxy('elb', region)
     try:
         instance_states = elb.describe_instance_health(LoadBalancerName=stack_name)['InstanceStates']
         for istate in instance_states:
@@ -972,7 +970,7 @@ def get_instance_health(stack_name: str, region: str) -> dict:
     except ClientError as e:
         # retry with ELBv2
         if e.response['Error']['Code'] == 'LoadBalancerNotFound':
-            elbv2 = boto3.client('elbv2', region)
+            elbv2 = BotoClientProxy('elbv2', region)
             try:
                 response = elbv2.describe_target_groups(Names=[stack_name])
                 for tg in response['TargetGroups']:
@@ -1414,7 +1412,7 @@ def dump(stack_ref, region, output):
     region = get_region(region)
     check_credentials(region)
 
-    cf = boto3.client('cloudformation', region)
+    cf = BotoClientProxy('cloudformation', region)
 
     for stack in get_stacks(stack_refs, region):
         data = cf.get_template(StackName=stack.StackName)['TemplateBody']
@@ -1423,7 +1421,7 @@ def dump(stack_ref, region, output):
 
 
 def get_auto_scaling_groups(stack_refs, region):
-    cf = boto3.client('cloudformation', region)
+    cf = BotoClientProxy('cloudformation', region)
     for stack in get_stacks(stack_refs, region):
         resources = cf.describe_stack_resources(StackName=stack.StackName)['StackResources']
 
@@ -1466,7 +1464,7 @@ def patch(stack_ref, region, image, instance_type, user_data):
     if not properties:
         raise click.UsageError('Nothing to patch. Please specify at least one patch option (e.g. "--image").')
 
-    asg = boto3.client('autoscaling', region)
+    asg = BotoClientProxy('autoscaling', region)
 
     for asg_name in get_auto_scaling_groups(stack_refs, region):
         with Action('Patching Auto Scaling Group {}..'.format(asg_name)) as act:
@@ -1511,7 +1509,7 @@ def scale(stack_ref, region, desired_capacity):
     region = get_region(region)
     check_credentials(region)
 
-    asg = boto3.client('autoscaling', region)
+    asg = BotoClientProxy('autoscaling', region)
 
     for asg_name in get_auto_scaling_groups(stack_refs, region):
         group = get_auto_scaling_group(asg, asg_name)
@@ -1559,7 +1557,7 @@ def wait(stack_ref, region, deletion, timeout, interval):
 
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
-    cf = boto3.client('cloudformation', region)
+    cf = BotoClientProxy('cloudformation', region)
 
     target_status = (['DELETE_COMPLETE'] if deletion
                      else ['CREATE_COMPLETE', 'UPDATE_COMPLETE'])

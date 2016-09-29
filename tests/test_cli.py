@@ -18,8 +18,9 @@ from senza.manaus.route53 import RecordType, Route53Record
 from senza.subcommands.root import cli
 from senza.traffic import PERCENT_RESOLUTION, StackVersion
 
-from fixtures import (HOSTED_ZONE_EXAMPLE_NET, HOSTED_ZONE_EXAMPLE_ORG,  # noqa: F401
-                      boto_client, boto_resource, disable_version_check)
+from fixtures import (HOSTED_ZONE_EXAMPLE_NET,  # noqa: F401
+                      HOSTED_ZONE_EXAMPLE_ORG, boto_client, boto_resource,
+                      disable_version_check, valid_regions)
 
 
 def test_invalid_definition():
@@ -184,7 +185,7 @@ def test_region_validation(monkeypatch):
                                catch_exceptions=False)
 
     assert ('Error: Invalid value for "--region": \'invalid-region\'. '
-            'Region must be a valid AWS region.' in result.output)
+            'Region must be one of the following AWS regions:' in result.output)
 
 
 def test_print_replace_mustache(monkeypatch):

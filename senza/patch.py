@@ -1,8 +1,10 @@
 
-import boto3
 import codecs
 import datetime
+
 import yaml
+
+from .manaus.boto_proxy import BotoClientProxy
 
 LAUNCH_CONFIGURATION_PROPERTIES = set([
     'AssociatePublicIpAddress',
@@ -36,7 +38,7 @@ def patch_user_data(old: str, new: dict):
 
 
 def patch_auto_scaling_group(group: dict, region: str, properties: dict):
-    asg = boto3.client('autoscaling', region)
+    asg = BotoClientProxy('autoscaling', region)
     result = asg.describe_launch_configurations(LaunchConfigurationNames=[group['LaunchConfigurationName']])
     lcs = result['LaunchConfigurations']
     changed = False

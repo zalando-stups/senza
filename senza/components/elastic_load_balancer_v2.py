@@ -3,7 +3,7 @@ from senza.aws import resolve_security_groups
 from senza.components.elastic_load_balancer import ALLOWED_LOADBALANCER_SCHEMES, get_load_balancer_name, get_ssl_cert
 
 from ..cli import AccountArguments, TemplateArguments
-from ..manaus.route53 import convert_domain_records_to_alias
+from ..manaus.route53 import convert_cname_records_to_alias
 
 SENZA_PROPERTIES = frozenset(['Domains', 'HealthCheckPath', 'HealthCheckPort', 'HealthCheckProtocol',
                               'HTTPPort', 'Name', 'SecurityGroups', 'SSLCertificateId', 'Type'])
@@ -40,7 +40,7 @@ def component_elastic_load_balancer_v2(definition,
 
         domain_name = "{0}.{1}".format(domain["Subdomain"], domain["Zone"])
 
-        convert_domain_records_to_alias(domain_name)
+        convert_cname_records_to_alias(domain_name)
 
         properties = {"Type": "A",
                       "Name": domain_name,

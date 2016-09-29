@@ -40,6 +40,7 @@ from .manaus.cloudformation import CloudFormation
 from .manaus.ec2 import EC2
 from .manaus.exceptions import VPCError
 from .manaus.route53 import Route53, Route53Record
+from .manaus.utils import extract_client_error_code
 from .patch import patch_auto_scaling_group
 from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
 from .stups.piu import Piu
@@ -678,7 +679,7 @@ def create(definition, region, version, parameter, disable_rollback, dry_run,
             else:
                 cf.create_stack(DisableRollback=disable_rollback, **data)
         except ClientError as e:
-            if e.response['Error']['Code'] == 'AlreadyExistsException':
+            if extract_client_error_code(e) == 'AlreadyExistsException':
                 act.fatal_error('Stack {} already exists. Please choose another version.'.format(data['StackName']))
             else:
                 raise
@@ -969,7 +970,8 @@ def get_instance_health(stack_name: str, region: str) -> dict:
             instance_health[istate['InstanceId']] = camel_case_to_underscore(istate['State']).upper()
     except ClientError as e:
         # retry with ELBv2
-        if e.response['Error']['Code'] == 'LoadBalancerNotFound':
+        error_code = extract_client_error_code(e)
+        if error_code == 'LoadBalancerNotFound':
             elbv2 = BotoClientProxy('elbv2', region)
             try:
                 response = elbv2.describe_target_groups(Names=[stack_name])
@@ -979,11 +981,12 @@ def get_instance_health(stack_name: str, region: str) -> dict:
                         instance_health[target_health['Target']['Id']] = \
                             camel_case_to_underscore(target_health['TargetHealth']['State']).upper()
             except ClientError as e:
-                if e.response['Error']['Code'] not in ('TargetGroupNotFound', 'ValidationError', 'Throttling'):
+                inner_error_code = extract_client_error_code(e)
+                if inner_error_code not in ('TargetGroupNotFound', 'ValidationError', 'Throttling'):
                     raise
         # ignore ValidationError "LoadBalancer name cannot be longer than 32 characters"
         # ignore rate limit exceeded errors
-        elif e.response['Error']['Code'] not in ('ValidationError', 'Throttling'):
+        elif error_code not in ('ValidationError', 'Throttling'):
             raise
     return instance_health
 

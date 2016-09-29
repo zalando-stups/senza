@@ -11,6 +11,7 @@ from botocore.exceptions import ClientError
 from click import FileError
 
 from .manaus.boto_proxy import BotoClientProxy
+from .manaus.utils import extract_client_error_code
 from .stack_references import check_file_exceptions
 
 
@@ -62,9 +63,10 @@ def get_security_group(region: str, sg_name: str):
         # FIXME: What if we have 2 VPC, with a SG with the same name?!
         return sec_groups[0]
     except ClientError as e:
-        if e.response['Error']['Code'] == 'InvalidGroup.NotFound':
+        error_code = extract_client_error_code(e)
+        if error_code == 'InvalidGroup.NotFound':
             return None
-        elif e.response['Error']['Code'] == 'VPCIdNotSpecified':
+        elif error_code == 'VPCIdNotSpecified':
             # no Default VPC, we must use the lng way...
             for sg in ec2.security_groups.all():
                 # FIXME: What if we have 2 VPC, with a SG with the same name?!

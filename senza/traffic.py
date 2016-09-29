@@ -8,11 +8,13 @@ import dns.resolver
 from clickclick import Action, action, ok, print_table, warning
 
 from .aws import StackReference, get_stacks, get_tag
+from .manaus import ClientError
 from .manaus.boto_proxy import BotoClientProxy
 from .manaus.cloudformation import CloudFormationStack, ResourceType
 from .manaus.exceptions import ELBNotFound, StackNotFound, StackNotUpdated
 from .manaus.route53 import (RecordType, Route53, Route53HostedZone,
                              convert_cname_records_to_alias)
+from .manaus.utils import extract_client_error_code
 
 PERCENT_RESOLUTION = 2
 FULL_PERCENTAGE = PERCENT_RESOLUTION * 100
@@ -254,7 +256,12 @@ def get_stack_versions(stack_name: str, region: str) -> Iterator[StackVersion]:
         for res in details.resource_summaries.all():
             if res.resource_type == 'AWS::ElasticLoadBalancing::LoadBalancer':
                 elb = BotoClientProxy('elb', region)
-                lbs = elb.describe_load_balancers(LoadBalancerNames=[res.physical_resource_id])
+                try:
+                    lbs = elb.describe_load_balancers(LoadBalancerNames=[res.physical_resource_id])
+                except ClientError as e:
+                    error_code = extract_client_error_code(e)
+                    if error_code == 'LoadBalancerNotFound':
+                        continue
                 lb_dns_name.append(lbs['LoadBalancerDescriptions'][0]['DNSName'])
             elif res.resource_type == 'AWS::Route53::RecordSet':
                 if 'version' not in res.logical_id.lower():

@@ -51,6 +51,8 @@ def test_check_senza_version(monkeypatch,
 
     with TemporaryDirectory() as temp_dir_3:
         mock_get_app_dir.return_value = temp_dir_3
+        monkeypatch.setattr("senza.subcommands.root.__file__",
+                            '/home/someuser/pymodules/root.py')
         check_senza_version("0.40")
         mock_warning.assert_called_once_with(
             "Your senza version (0.40) is outdated. "

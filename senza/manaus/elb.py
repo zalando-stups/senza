@@ -206,9 +206,13 @@ class ELB:
         _, region, _ = dns_name.split('.', maxsplit=2)
         client = BotoClientProxy('elb', region)
 
-        # TODO pagination
         response = client.describe_load_balancers()
-        load_balancers = response['LoadBalancerDescriptions']
+        next_marker = response.get('NextMarker')
+        load_balancers = response['LoadBalancerDescriptions']  # type: List
+        while next_marker:
+            response = client.describe_load_balancers(Marker=next_marker)
+            next_marker = response.get('NextMarker')
+            load_balancers.extend(response['LoadBalancerDescriptions'])
 
         for load_balancer in load_balancers:
             if load_balancer['DNSName'] == dns_name:

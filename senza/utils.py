@@ -19,7 +19,7 @@ def ensure_keys(dict_obj, *keys):
     """
     Ensure ``dict_obj`` has the hierarchy ``{keys[0]: {keys[1]: {...}}}``
 
-    The inner most key will have ``{}`` has value if didn't exist already.
+    The innermost key will have ``{}`` has value if didn't exist already.
     """
     if len(keys) == 0:
         return dict_obj

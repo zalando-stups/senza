@@ -34,8 +34,23 @@ def mock_warning(monkeypatch):
     return mock
 
 
+@fixture()
+def mock_tty(monkeypatch):
+    # check_senza_version only prints if we have a TTY
+    monkeypatch.setattr('sys.stdout.isatty', lambda: True)
+
+
+def test_check_senza_version_notty(monkeypatch, mock_get_app_dir, mock_get, mock_warning):
+    with TemporaryDirectory() as temp_dir:
+        mock_get_app_dir.return_value = temp_dir
+        monkeypatch.setattr("senza.subcommands.root.__file__",
+                            '/home/someuser/pymodules/root.py')
+        check_senza_version("0.40")
+        mock_warning.assert_not_called()
+
+
 def test_check_senza_version(monkeypatch,
-                             mock_get_app_dir, mock_get, mock_warning):
+                             mock_get_app_dir, mock_get, mock_warning, mock_tty):
 
     with TemporaryDirectory() as temp_dir_1:
         mock_get_app_dir.return_value = temp_dir_1
@@ -72,7 +87,7 @@ def test_check_senza_version(monkeypatch,
         )
 
 
-def test_check_senza_version_timeout(mock_get_app_dir, mock_get, mock_warning):
+def test_check_senza_version_timeout(mock_get_app_dir, mock_get, mock_warning, mock_tty):
     with TemporaryDirectory() as temp_dir:
         mock_get_app_dir.return_value = temp_dir
         mock_get.side_effect = Timeout
@@ -83,7 +98,8 @@ def test_check_senza_version_timeout(mock_get_app_dir, mock_get, mock_warning):
 def test_check_senza_version_outdated_cache(monkeypatch,  # noqa: F811
                                             mock_get_app_dir,
                                             mock_get,
-                                            mock_warning):
+                                            mock_warning,
+                                            mock_tty):
     monkeypatch.setattr("senza.subcommands.root.__file__",
                         '/usr/pymodules/root.py')
     with TemporaryDirectory() as temp_dir:
@@ -106,7 +122,8 @@ def test_check_senza_version_outdated_cache(monkeypatch,  # noqa: F811
 def test_check_senza_version_exception(monkeypatch,
                                        mock_get_app_dir,
                                        mock_get,
-                                       mock_warning):
+                                       mock_warning,
+                                       mock_tty):
     mock_sentry = MagicMock()
     monkeypatch.setattr("senza.subcommands.root.sentry", mock_sentry)
     with TemporaryDirectory() as temp_dir:

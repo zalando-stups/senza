@@ -6,6 +6,7 @@ from typing import Optional
 import click
 import requests
 import senza
+import sys
 from clickclick import AliasedGroup, warning
 
 from ..arguments import GLOBAL_OPTIONS, region_option
@@ -81,6 +82,8 @@ def check_senza_version(current_version: str):
     Checks if senza is updated and prints a warning with instructions to update
     if it's not.
     """
+    if not sys.stdout.isatty():
+        return
     current_version = LooseVersion(current_version)
     try:
         latest_version = get_latest_version()

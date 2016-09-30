@@ -14,6 +14,21 @@ def test_get_security_group(monkeypatch):
     assert results == get_security_group('myregion', 'group_inexistant')
 
 
+def test_get_security_group_by_tag_name(monkeypatch):
+
+    def mock_filter(Filters):
+        if Filters[0]['Name'] == 'tag:Name' and Filters[0]['Values'] == ['my-sg']:
+            sg = MagicMock()
+            sg.id = 'sg-123'
+            return [sg]
+
+    ec2 = MagicMock()
+    ec2.security_groups.filter = mock_filter
+    monkeypatch.setattr('boto3.resource', MagicMock(return_value=ec2))
+
+    assert get_security_group('myregion', 'my-sg').id == 'sg-123'
+
+
 def test_resolve_security_groups(monkeypatch):
     ec2 = MagicMock()
     ec2.security_groups.filter = MagicMock(side_effect=[

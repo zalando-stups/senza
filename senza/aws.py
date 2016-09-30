@@ -55,13 +55,12 @@ def is_status_complete(status: str):
 def get_security_group(region: str, sg_name: str):
     ec2 = boto3.resource('ec2', region)
     try:
-        sec_groups = list(ec2.security_groups.filter(
-            Filters=[{'Name': 'group-name', 'Values': [sg_name]}]
-        ))
-        if not sec_groups:
-            return None
-        # FIXME: What if we have 2 VPC, with a SG with the same name?!
-        return sec_groups[0]
+        # first try by tag name then by group-name (cannot be changed)
+        for _filter in [{'Name': 'tag:Name', 'Values': [sg_name]}, {'Name': 'group-name', 'Values': [sg_name]}]:
+            sec_groups = list(ec2.security_groups.filter(Filters=[_filter]))
+            if sec_groups:
+                # FIXME: What if we have 2 VPC, with a SG with the same name?!
+                return sec_groups[0]
     except ClientError as e:
         error_code = extract_client_error_code(e)
         if error_code == 'InvalidGroup.NotFound':

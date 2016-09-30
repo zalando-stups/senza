@@ -1,3 +1,8 @@
+"""
+Senza's root command with tasks and flags common to all sub-commands
+"""
+
+import sys
 import time
 from distutils.version import LooseVersion
 from pathlib import Path
@@ -6,7 +11,6 @@ from typing import Optional
 import click
 import requests
 import senza
-import sys
 from clickclick import AliasedGroup, warning
 
 from ..arguments import GLOBAL_OPTIONS, region_option
@@ -28,8 +32,8 @@ def get_latest_version_from_disk() -> Optional[LooseVersion]:
     latest_version = None
     if (version_cache.exists() and
             now - version_cache.stat().st_mtime < ONE_DAY):
-        with version_cache.open() as fd:
-            str_version = fd.read()
+        with version_cache.open() as version_cache_file:
+            str_version = version_cache_file.read()
             if str_version:
                 latest_version = LooseVersion(str_version)
     return latest_version
@@ -72,8 +76,8 @@ def get_latest_version() -> Optional[LooseVersion]:
             # we drop python3.4 support
             pass
 
-        with version_cache.open('w') as fd:
-            fd.write(str(latest_version))
+        with version_cache.open('w') as version_cache_file:
+            version_cache_file.write(str(latest_version))
     return latest_version
 
 
@@ -104,6 +108,10 @@ def check_senza_version(current_version: str):
 
 
 def print_version(ctx, param, value):
+    """
+    Prints current senza version and checks if it's the latest one.
+    """
+    assert param.name == "version"
     if not value or ctx.resilient_parsing:
         return
 
@@ -114,9 +122,20 @@ def print_version(ctx, param, value):
 
 
 @click.group(cls=AliasedGroup, context_settings=CONTEXT_SETTINGS)
-@click.option('-V', '--version', is_flag=True, callback=print_version, expose_value=False, is_eager=True,
+@click.option('-V', '--version',
+              is_flag=True, callback=print_version, expose_value=False,
+              is_eager=True,
               help='Print the current version number and exit.')
 @region_option
 def cli(region):
+    """
+    Senza's root command.
+
+    It checks the version and sets the region global option before executing
+    the sub-commands.
+
+    Sub command can be added by using `cli.add_command(SUB_COMMAND_FUNCTION)`
+    or using the `@cli.command()` decorator
+    """
     check_senza_version(senza.__version__)
     GLOBAL_OPTIONS['region'] = region

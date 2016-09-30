@@ -1,3 +1,13 @@
+"""
+ELB_ related classes and functions.
+
+For more information see the `ELB documentation`_ and the `boto3 documentation`_
+
+.. _ELB: https://aws.amazon.com/elasticloadbalancing/
+.. _ELB documentation: https://aws.amazon.com/documentation/elastic-load-balancing/
+.. _boto3 documentation: http://boto3.readthedocs.io/en/latest/reference/services/elb.html
+"""
+
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -25,6 +35,13 @@ class ELBScheme(str, Enum):
 
 class ELBHealthCheck:
 
+    """
+    Represents the HealthCheck section of an ELB.
+
+    See `HealthCheck` key in:
+    http://boto3.readthedocs.io/en/latest/reference/services/elb.html#ElasticLoadBalancing.Client.describe_load_balancers
+    """
+
     def __init__(self,
                  target: str,
                  interval: int,
@@ -39,6 +56,10 @@ class ELBHealthCheck:
 
     @classmethod
     def from_boto_dict(cls, health_check: Dict[str, Any]) -> "ELBHealthCheck":
+        """
+        Instantiates a `ELBHealthCheck` object from the dictionary returned
+        by boto3.
+        """
         target = health_check['Target']
         interval = health_check['Interval']
         timeout = health_check['Timeout']
@@ -49,6 +70,13 @@ class ELBHealthCheck:
 
 
 class ELBListener:
+
+    """
+    Represents the ELBListener section of an ELB.
+
+    See `ELBListener` key in:
+    http://boto3.readthedocs.io/en/latest/reference/services/elb.html#ElasticLoadBalancing.Client.describe_load_balancers
+    """
 
     def __init__(self,
                  protocol: str,
@@ -64,6 +92,11 @@ class ELBListener:
 
     @classmethod
     def from_boto_dict(cls, listener) -> "ELBListener":
+        """
+        Instantiates a `ELBListener` object from the dictionary returned
+        by boto3.
+        """
+
         protocol = listener['Protocol']
         load_balancer_port = listener['LoadBalancerPort']
         instance_protocol = listener['InstanceProtocol']
@@ -116,6 +149,7 @@ class ELB:
         self.source_security_group = source_security_group
         self.security_groups = security_groups
         self.created_time = created_time
+        self.scheme = scheme
 
         self.hosted_zone = Route53HostedZone(name=hosted_zone_name,
                                              id=hosted_zone_id)
@@ -131,7 +165,11 @@ class ELB:
         self.region = region
 
     @classmethod
-    def from_boto_dict(cls, load_balancer):
+    def from_boto_dict(cls, load_balancer) -> "ELB":
+        """
+        Instantiates a `ELB` object from the dictionary returned
+        by `boto3.client('elb').describe_load_balancers`.
+        """
 
         name = load_balancer['LoadBalancerName']
         dns_name = load_balancer['DNSName']
@@ -159,15 +197,25 @@ class ELB:
 
     @classmethod
     def get_by_dns_name(cls, dns_name: str) -> "ELB":
+        """
+        Gets a `ELB` by its DNS name and raises and `ELBNotFound` exception
+        if such an ELB doesn't exist.
+
+        :raises: ELBNotFound
+        """
         _, region, _ = dns_name.split('.', maxsplit=2)
         client = BotoClientProxy('elb', region)
 
-        # TODO pagination
         response = client.describe_load_balancers()
-        load_balancers = response['LoadBalancerDescriptions']
+        next_marker = response.get('NextMarker')
+        load_balancers = response['LoadBalancerDescriptions']  # type: List
+        while next_marker:
+            response = client.describe_load_balancers(Marker=next_marker)
+            next_marker = response.get('NextMarker')
+            load_balancers.extend(response['LoadBalancerDescriptions'])
 
         for load_balancer in load_balancers:
             if load_balancer['DNSName'] == dns_name:
                 return cls.from_boto_dict(load_balancer)
-        else:
-            raise ELBNotFound(dns_name)
+
+        raise ELBNotFound(dns_name)

@@ -75,10 +75,18 @@ def test_get_hosted_zone(monkeypatch):
                     'Subnets': ['subnet-0000', 'subnet-0000'],
                     'VPCId': 'vpc-0000'}
 
-    m_client.describe_load_balancers.return_value = {'ResponseMetadata': {'HTTPStatusCode': 200,
-                                                                          'RequestId': 'FakeId'},
-                                                     'LoadBalancerDescriptions': [description1,
-                                                                                  description2]}
+    m_client.describe_load_balancers.side_effect = [
+        {'ResponseMetadata': {'HTTPStatusCode': 200,
+                              'RequestId': 'FakeId'},
+         'LoadBalancerDescriptions': [description1],
+         'NextMarker': 'something'},
+        {'ResponseMetadata': {'HTTPStatusCode': 200,
+                              'RequestId': 'FakeId'},
+         'LoadBalancerDescriptions': [description2]},
+        {'ResponseMetadata': {'HTTPStatusCode': 200,
+                              'RequestId': 'FakeId'},
+         'LoadBalancerDescriptions': [description1]},
+    ]
     monkeypatch.setattr('boto3.client', m_client)
 
     elb = ELB.get_by_dns_name('example.eu-central-1.elb.amazonaws.com')

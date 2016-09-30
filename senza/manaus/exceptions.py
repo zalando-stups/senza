@@ -10,6 +10,9 @@ class InvalidState(ManausException):
     to an invalid state
     """
 
+    def __init__(self, reason: str):
+        super().__init__('Invalid State: {}'.format(reason))
+
 
 class ELBNotFound(ManausException):
     """

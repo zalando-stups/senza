@@ -1,3 +1,8 @@
+"""
+Functions to handle exceptions that bubble to the top, including Sentry
+integration
+"""
+
 import sys
 from tempfile import NamedTemporaryFile
 from traceback import format_exception
@@ -40,17 +45,25 @@ def is_credentials_expired_error(client_error: ClientError) -> bool:
                                                        'RequestExpired']
 
 
-def is_access_denied_error(e: ClientError) -> bool:
-    return extract_client_error_code(e) in ['AccessDenied']
+def is_access_denied_error(client_error: ClientError) -> bool:
+    """
+    Checks the ``ClientError`` details to find out if it is an
+    Access Denied Error
+    """
+    return extract_client_error_code(client_error) in ['AccessDenied']
 
 
-def is_validation_error(e: ClientError) -> bool:
-    return extract_client_error_code(e) == 'ValidationError'
+def is_validation_error(client_error: ClientError) -> bool:
+    """
+    Checks the ``ClientError`` details to find out if it is an
+    Validation Error
+    """
+    return extract_client_error_code(client_error) == 'ValidationError'
 
 
-def die_fatal_error(mesg):
+def die_fatal_error(message):
     """Sent error message to stderr, in red, and exit"""
-    fatal_error(mesg, err=True)
+    fatal_error(message, err=True)
 
 
 class HandleExceptions:
@@ -63,21 +76,28 @@ class HandleExceptions:
     def __init__(self, function):
         self.function = function
 
-    def die_unknown_error(self, e: Exception):
+    def die_unknown_error(self, unknown_exception: Exception):
+        """
+        Handles unknown exceptions, shipping them to sentry if it's configured.
+
+        If stacktrace_visible the stacktrace will be printed otherwise the
+        stacktrace will be stored in a temporary file or sent to sentry.
+        """
         if sentry:
             # The exception should always be sent to sentry if sentry is
             # configured
             sentry.captureException()
         if self.stacktrace_visible:
-            raise e
+            raise unknown_exception
         elif sentry:
             die_fatal_error("Unknown Error: {e}.\n"
-                            "This error will be pushed to sentry ".format(e=e))
+                            "This error will be pushed to sentry ".format(e=unknown_exception))
         elif not sentry:
-            file_name = store_exception(e)
+            file_name = store_exception(unknown_exception)
             die_fatal_error('Unknown Error: {e}.\n'
                             'Please create an issue with the '
-                            'content of {fn}'.format(e=e, fn=file_name))
+                            'content of {fn}'.format(e=unknown_exception,
+                                                     fn=file_name))
 
     def __call__(self, *args, **kwargs):
         try:
@@ -88,39 +108,37 @@ class HandleExceptions:
                 'to get a temporary access key\n'
                 'or manually configure either ~/.aws/credentials '
                 'or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY.')
-        except ClientError as e:
+        except ClientError as client_error:
             sys.stdout.flush()
-            if is_credentials_expired_error(e):
+            if is_credentials_expired_error(client_error):
                 die_fatal_error('AWS credentials have expired.\n'
                                 'Use the "mai" command line tool to get a new '
                                 'temporary access key.')
-            elif is_access_denied_error(e):
+            elif is_access_denied_error(client_error):
                 die_fatal_error(
                     "AWS missing access rights.\n{}".format(
-                        e.response['Error']['Message']))
-            elif is_validation_error(e):
+                        client_error.response['Error']['Message']))
+            elif is_validation_error(client_error):
                 die_fatal_error(
                     "Validation Error: {}".format(
-                        e.response['Error']['Message']))
+                        client_error.response['Error']['Message']))
             else:
-                self.die_unknown_error(e)
-        except yaml.constructor.ConstructorError as e:
-            err_mesg = "Error parsing definition file:\n{}".format(e)
-            if e.problem == "found unhashable key":
+                self.die_unknown_error(client_error)
+        except yaml.constructor.ConstructorError as yaml_error:
+            err_mesg = "Error parsing definition file:\n{}".format(yaml_error)
+            if yaml_error.problem == "found unhashable key":
                 err_mesg += "Please quote all variable values"
             die_fatal_error(err_mesg)
-        except PiuNotFound as e:
+        except PiuNotFound as error:
             die_fatal_error(
                 "{}\nYou can install piu with the following command:"
-                "\nsudo pip3 install --upgrade stups-piu".format(e))
-        except InvalidState as e:
-            die_fatal_error('Invalid State: {}'.format(e))
+                "\nsudo pip3 install --upgrade stups-piu".format(error))
         except (ELBNotFound, HostedZoneNotFound, RecordNotFound,
-                InvalidDefinition) as e:
-            die_fatal_error(e)
-        except Exception as e:
+                InvalidDefinition, InvalidState) as error:
+            die_fatal_error(error)
+        except Exception as unknown_exception:
             # Catch All
-            self.die_unknown_error(e)
+            self.die_unknown_error(unknown_exception)
 
 
 def setup_sentry(sentry_endpoint: Optional[str]):
@@ -129,11 +147,11 @@ def setup_sentry(sentry_endpoint: Optional[str]):
     easier to test
     """
     if sentry_endpoint is not None:
-        sentry = Client(sentry_endpoint,
-                        release=senza.__version__)
+        sentry_client = Client(sentry_endpoint,
+                               release=senza.__version__)
     else:
-        sentry = None
+        sentry_client = None
 
-    return sentry
+    return sentry_client
 
 sentry = setup_sentry(configuration.get('sentry.endpoint'))

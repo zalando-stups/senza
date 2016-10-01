@@ -1,3 +1,6 @@
+"""
+Functions to scale and respawn Auto Scale Groups
+"""
 import time
 
 from clickclick import Action, info
@@ -48,7 +51,8 @@ def get_instances_in_service(group, region: str):
                     instances_in_service.add(instance['InstanceId'])
     else:
         # just use ASG LifecycleState
-        group = get_auto_scaling_group(BotoClientProxy('autoscaling', region), group['AutoScalingGroupName'])
+        group = get_auto_scaling_group(BotoClientProxy('autoscaling', region),
+                                       group['AutoScalingGroupName'])
         for instance in group['Instances']:
             if instance['LifecycleState'] == 'InService':
                 instances_in_service.add(instance['InstanceId'])
@@ -56,8 +60,10 @@ def get_instances_in_service(group, region: str):
 
 
 def scale_out(asg, asg_name, region: str, new_min_size, new_max_size, new_desired_capacity: int):
-    '''Scale out the given Auto Scaling Group to the given capacity
-    and wait for all instances to become "InService" in ELB'''
+    """
+    Scale out the given Auto Scaling Group to the given capacity
+    and wait for all instances to become "InService" in ELB
+    """
     with Action('Scaling to {} instances..'.format(new_desired_capacity)) as act:
         asg.update_auto_scaling_group(AutoScalingGroupName=asg_name,
                                       MinSize=new_min_size,
@@ -74,10 +80,14 @@ def scale_out(asg, asg_name, region: str, new_min_size, new_max_size, new_desire
 
 
 def terminate_instance(asg, region: str, group, instance: str):
-    '''Terminate a single EC2 instance in given Auto Scaling Group and wait for it to become "OutOfService"'''
+    """
+    Terminate a single EC2 instance in given Auto Scaling Group and wait for
+    it to become "OutOfService"
+    """
 
     with Action('Terminating old instance {}..'.format(instance)) as act:
-        asg.terminate_instance_in_auto_scaling_group(InstanceId=instance, ShouldDecrementDesiredCapacity=False)
+        asg.terminate_instance_in_auto_scaling_group(InstanceId=instance,
+                                                     ShouldDecrementDesiredCapacity=False)
         instances_in_service = get_instances_in_service(group, region)
         while instance in instances_in_service:
             time.sleep(2)
@@ -86,23 +96,28 @@ def terminate_instance(asg, region: str, group, instance: str):
 
 
 def do_respawn_auto_scaling_group(asg_name: str, group: dict, region: str,
-                                  instances_to_terminate: set, instances_ok: set, inplace: bool):
+                                  instances_to_terminate: set, inplace: bool):
+    """
+    Respawn ASG.
+    """
     asg = BotoClientProxy('autoscaling', region)
     with Action('Suspending scaling processes for {}..'.format(asg_name)):
-        asg.suspend_processes(AutoScalingGroupName=asg_name, ScalingProcesses=SCALING_PROCESSES_TO_SUSPEND)
+        asg.suspend_processes(AutoScalingGroupName=asg_name,
+                              ScalingProcesses=SCALING_PROCESSES_TO_SUSPEND)
     extra_capacity = 0 if inplace else 1
     new_min_size = group['MinSize'] + extra_capacity
     new_max_size = group['MaxSize'] + extra_capacity
     new_desired_capacity = group['DesiredCapacity'] + extra_capacity
     # TODO: error handling (rollback in case of exception?)
     while instances_to_terminate:
-        current_group = scale_out(asg, asg_name, region, new_min_size, new_max_size, new_desired_capacity)
+        current_group = scale_out(asg, asg_name, region, new_min_size,
+                                  new_max_size, new_desired_capacity)
         instance = sorted(instances_to_terminate)[0]
         terminate_instance(asg, region, current_group, instance)
         instances_to_terminate.remove(instance)
 
-    with Action('Resetting Auto Scaling Group to original capacity ({}-{}-{})..'.format(
-                group['MinSize'], group['DesiredCapacity'], group['MaxSize'])):
+    with Action('Resetting Auto Scaling Group to original capacity '
+                '({MinSize}-{DesiredCapacity}-{MaxSize})..'.format_map(group)):
         asg.update_auto_scaling_group(AutoScalingGroupName=asg_name,
                                       MinSize=group['MinSize'],
                                       MaxSize=group['MaxSize'],
@@ -113,14 +128,26 @@ def do_respawn_auto_scaling_group(asg_name: str, group: dict, region: str,
 
 
 def respawn_auto_scaling_group(asg_name: str, region: str, inplace: bool=False, force: bool=False):
-    '''Respawn all EC2 instances in the Auto Scaling Group whose launch configuration is not up-to-date'''
+    """
+    Respawn all EC2 instances in the Auto Scaling Group whose launch
+    configuration is not up-to-date
+    """
     asg = BotoClientProxy('autoscaling', region)
     group = get_auto_scaling_group(asg, asg_name)
     desired_launch_config = group['LaunchConfigurationName']
-    instances_to_terminate, instances_ok = get_instances_to_terminate(group, desired_launch_config, force)
-    info('{}/{} instances need to be updated in {}'.format(len(instances_to_terminate),
-         len(instances_to_terminate) + len(instances_ok), asg_name))
+    instances_to_terminate, instances_ok = get_instances_to_terminate(group,
+                                                                      desired_launch_config,
+                                                                      force)
+    info('{}/{} instances need to be updated in {}'.format(
+        len(instances_to_terminate),
+        len(instances_to_terminate) + len(instances_ok),
+        asg_name
+    ))
     if instances_to_terminate:
-        do_respawn_auto_scaling_group(asg_name, group, region, instances_to_terminate, instances_ok, inplace)
+        do_respawn_auto_scaling_group(asg_name,
+                                      group,
+                                      region,
+                                      instances_to_terminate,
+                                      inplace)
     else:
         info('Nothing to do')

@@ -175,14 +175,17 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         asg_properties["MinSize"] = as_conf["Minimum"]
         asg_properties["DesiredCapacity"] = max(int(as_conf["Minimum"]), int(as_conf.get('DesiredCapacity', 1)))
 
-        scaling_adjustment = int(as_conf.get("ScalingAdjustment", 1))
+        default_scaling_adjustment = as_conf.get("ScalingAdjustment", 1)
+        default_cooldown = as_conf.get("Cooldown", "60")
+
         # ScaleUp policy
+        scaling_up_adjustment = int(as_conf.get("ScalingUpAdjustment", default_scaling_adjustment))
         definition["Resources"][asg_name + "ScaleUp"] = {
             "Type": "AWS::AutoScaling::ScalingPolicy",
             "Properties": {
                 "AdjustmentType": "ChangeInCapacity",
-                "ScalingAdjustment": str(scaling_adjustment),
-                "Cooldown": str(as_conf.get("Cooldown", "60")),
+                "ScalingAdjustment": str(scaling_up_adjustment),
+                "Cooldown": str(as_conf.get("ScaleUpCooldown", default_cooldown)),
                 "AutoScalingGroupName": {
                     "Ref": asg_name
                 }
@@ -190,12 +193,13 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         }
 
         # ScaleDown policy
+        scaling_down_adjustment = int(as_conf.get("ScalingDownAdjustment", default_scaling_adjustment))
         definition["Resources"][asg_name + "ScaleDown"] = {
             "Type": "AWS::AutoScaling::ScalingPolicy",
             "Properties": {
                 "AdjustmentType": "ChangeInCapacity",
-                "ScalingAdjustment": str((-1) * scaling_adjustment),
-                "Cooldown": str(as_conf.get("Cooldown", "60")),
+                "ScalingAdjustment": str((-1) * scaling_down_adjustment),
+                "Cooldown": str(as_conf.get("ScaleDownCooldown", default_cooldown)),
                 "AutoScalingGroupName": {
                     "Ref": asg_name
                 }

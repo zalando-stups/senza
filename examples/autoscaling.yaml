@@ -32,11 +32,20 @@ SenzaComponents:
         # default instance count is 1
         # default timeout is 15 minutes
         SuccessRequires: "2 within 5m"
-        # scale two instances up/down at a time
+        # scale two instances up/down at a time (if not overwritten by scale up/down specififc value)
         ScalingAdjustment: 2
+        # scale three instances up at a time (if set, it overwrites the ScalingAdjustment value for scaling up)
+        ScalingUpAdjustment: 3
+        # scale one instance down at a time (if set, it overwrites the ScalingAdjustment value for scaling down)
+        ScalingUpAdjustment: 1
         # after scaling, suspend further scaling activities
         # for 30 minutes (1800 seconds)
+        # Can be overwritten by scale up/down specific values
         Cooldown: 1800
+        # If set it overwrites the Cooldown value for scaling up
+        ScaleUpCooldown: 300
+        # If set it overwrites the Cooldown value for scaling down
+        ScaleDownCooldown: 3600
         # time over which the threshold is measured in seconds
         Period: 300
         # how many periods the threshold must be hit before scaling

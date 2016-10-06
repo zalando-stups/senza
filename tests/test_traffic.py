@@ -119,5 +119,5 @@ def test_dns_import(monkeypatch):
     monkeypatch.setattr('clickclick.fatal_error', m_fatal_error)
     importlib.reload(senza.traffic)
     m_fatal_error.assert_called_once_with("Failed to import dns.resolver.\n"
-                                          "Make sure you have dnspython "
-                                          "installed and updated.")
+                                          "Run 'pip3 install -U "
+                                          "--force-reinstall dnspython'.")

@@ -19,7 +19,7 @@ try:
     import dns.resolver
 except ImportError:
     fatal_error("Failed to import dns.resolver.\n"
-                "Make sure you have dnspython installed and updated.")
+                "Run 'pip3 install -U --force-reinstall dnspython'.")
 
 PERCENT_RESOLUTION = 2
 FULL_PERCENTAGE = PERCENT_RESOLUTION * 100

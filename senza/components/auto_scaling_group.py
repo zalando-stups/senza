@@ -179,7 +179,7 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         default_cooldown = as_conf.get("Cooldown", "60")
 
         # ScaleUp policy
-        scaling_up_adjustment = int(as_conf.get("ScalingUpAdjustment", default_scaling_adjustment))
+        scaling_up_adjustment = int(as_conf.get("ScaleUpAdjustment", default_scaling_adjustment))
         definition["Resources"][asg_name + "ScaleUp"] = {
             "Type": "AWS::AutoScaling::ScalingPolicy",
             "Properties": {
@@ -193,7 +193,7 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         }
 
         # ScaleDown policy
-        scaling_down_adjustment = int(as_conf.get("ScalingDownAdjustment", default_scaling_adjustment))
+        scaling_down_adjustment = int(as_conf.get("ScaleDownAdjustment", default_scaling_adjustment))
         definition["Resources"][asg_name + "ScaleDown"] = {
             "Type": "AWS::AutoScaling::ScalingPolicy",
             "Properties": {

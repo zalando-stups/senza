@@ -525,7 +525,7 @@ def test_component_auto_scaling_group_configurable_properties():
             'ScaleDownThreshold': 20,
             'EvaluationPeriods': 1,
             'ScalingAdjustment': 1,
-            'ScalingUpAdjustment': 3,
+            'ScaleUpAdjustment': 3,
             'Cooldown': 30,
             'ScaleDownCooldown': 360,
             'Statistic': 'Maximum'

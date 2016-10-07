@@ -35,9 +35,9 @@ SenzaComponents:
         # scale two instances up/down at a time (if not overwritten by scale up/down specififc value)
         ScalingAdjustment: 2
         # scale three instances up at a time (if set, it overwrites the ScalingAdjustment value for scaling up)
-        ScalingUpAdjustment: 3
+        ScaleUpAdjustment: 3
         # scale one instance down at a time (if set, it overwrites the ScalingAdjustment value for scaling down)
-        ScalingUpAdjustment: 1
+        ScaleUpAdjustment: 1
         # after scaling, suspend further scaling activities
         # for 30 minutes (1800 seconds)
         # Can be overwritten by scale up/down specific values

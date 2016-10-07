@@ -93,7 +93,7 @@ class Route53HostedZone:
 
     def change(self,
                changes: Iterable[Tuple[str, "Route53Record"]],
-               comment: Optional[str] = None) -> Dict[str, Any]:
+               comment: Optional[str]=None) -> Dict[str, Any]:
         """
         Submits changes to Route53. Returns the dict sent to
         AWS.
@@ -120,7 +120,7 @@ class Route53HostedZone:
 
     def create(self,
                changed_records: Iterable["Route53Record"],
-               comment: Optional[str] = None) -> Dict[str, Any]:
+               comment: Optional[str]=None) -> Dict[str, Any]:
         """
         Submits changes to be created in Route53. Returns the dict sent to
         AWS.
@@ -135,7 +135,7 @@ class Route53HostedZone:
 
     def delete(self,
                changed_records: Iterable["Route53Record"],
-               comment: Optional[str] = None) -> Dict[str, Any]:
+               comment: Optional[str]=None) -> Dict[str, Any]:
         """
         Submits changes to be deleted in Route53. Returns the dict sent to
         AWS.
@@ -195,7 +195,8 @@ class Route53Record:
         self.geo_location = geo_location  # Geo location resource record sets only
         self.health_check_id = health_check_id  # Health Check resource record sets only
         self.region = region  # Latency-based resource record sets only
-        self.set_identifier = set_identifier  # Weighted, Latency, Geo, and Failover resource record sets only
+        # Weighted, Latency, Geo, and Failover resource record sets only
+        self.set_identifier = set_identifier
         self.traffic_policy_instance_id = traffic_policy_instance_id
         self.weight = weight  # Weighted resource record sets only
 
@@ -243,7 +244,7 @@ class Route53Record:
     @classmethod
     def from_boto_dict(cls,
                        record_dict: Dict[str, Any],
-                       hosted_zone: Optional["Route53HostedZone"] = None) -> 'Route53Record':
+                       hosted_zone: Optional["Route53HostedZone"]=None) -> 'Route53Record':
         """
         Returns a Route53Record based on the dict returned by boto3
         """

@@ -1,3 +1,15 @@
+"""
+IAM related classes and functions.
+
+For more information see the `IAM documentation`_ and the
+`boto3 documentation`_
+
+.. _IAM: http://docs.aws.amazon.com/IAM/latest/UserGuide/introduction.html
+.. _IAM documentation: https://aws.amazon.com/documentation/iam/
+.. _boto3 documentation:
+    http://boto3.readthedocs.io/en/latest/reference/services/iam.html
+"""
+
 from datetime import datetime, timezone
 from typing import Any, Dict, Iterator, Optional, Union
 
@@ -44,6 +56,10 @@ class IAMServerCertificate:
     @classmethod
     def from_boto_dict(cls,
                        server_certificate: Dict[str, Any]) -> "IAMServerCertificate":
+        """
+        Converts the dict returned by ``boto3.client.get_server_certificate``
+        to a ``IAMServerCertificate`` instance.
+        """
 
         metadata = server_certificate['ServerCertificateMetadata']
         certificate_body = server_certificate['CertificateBody']
@@ -87,7 +103,7 @@ class IAMServerCertificate:
         return certificate
 
     @staticmethod
-    def arn_is_server_certificate(arn: Optional[str] = None):
+    def arn_is_server_certificate(arn: Optional[str]=None):
         """
         Checks if the Amazon Resource Name (ARN) refers to an iam
         server certificate.
@@ -112,13 +128,25 @@ class IAMServerCertificate:
 
 class IAM:
 
+    """
+    Represents the IAM service.
+
+    See:
+    http://boto3.readthedocs.io/en/latest/reference/services/iam.html
+    """
+
     def __init__(self, region: str):
         self.region = region
 
     def get_certificates(self,
                          *,
                          valid_only: bool=True,
-                         name: Optional[str] = None) -> Iterator[IAMServerCertificate]:
+                         name: Optional[str]=None) -> Iterator[IAMServerCertificate]:
+        """
+        Gets certificates from IAM.
+        By default it will fetch all valid certificates, but it's also possible
+        to return also invalid certificates and filtering by name.
+        """
         resource = boto3.resource('iam', self.region)
 
         for server_certificate in resource.server_certificates.all():

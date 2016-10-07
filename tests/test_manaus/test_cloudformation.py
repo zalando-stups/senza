@@ -79,7 +79,7 @@ def test_get_stacks(monkeypatch):
         StackStatusFilter=status_filter)
 
     m_client.list_stacks.reset_mock()
-    list(cf.get_stacks(all=True))
+    list(cf.get_stacks(all_stacks=True))
     m_client.list_stacks.assert_called_once_with(
         StackStatusFilter=[])
 

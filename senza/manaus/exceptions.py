@@ -2,6 +2,7 @@
 Exceptions to be raised by Manaus components
 """
 
+
 class ManausException(Exception):
     """
     Base class for Manaus exceptions

@@ -728,11 +728,11 @@ def print_cfjson(definition, region, version, parameter, output, force,
     '''Print the generated Cloud Formation template'''
 
     region = get_region(region)
-    data = create_cf_template(definition, region, version, parameter, force, parameter_file)
+    data = create_cf_template(definition, region, version, parameter, force, parameter_file, pretty=True)
     print_json(data['TemplateBody'], output)
 
 
-def create_cf_template(definition, region, version, parameter, force, parameter_file):
+def create_cf_template(definition, region, version, parameter, force, parameter_file, pretty=False):
     region = get_region(region)
     if parameter_file:
         parameter_from_file = read_parameter_file(parameter_file)
@@ -788,7 +788,10 @@ def create_cf_template(definition, region, version, parameter, force, parameter_
         topics = []
 
     capabilities = get_required_capabilities(data)
-    cfjson = json.dumps(data, sort_keys=True, indent=4)
+    if pretty:
+        cfjson = json.dumps(data, sort_keys=True, indent=4)
+    else:
+        cfjson = json.dumps(data, separators=(',', ':'))
     return {'StackName': stack_name, 'TemplateBody': cfjson, 'Parameters': parameters, 'Tags': tags_list,
             'NotificationARNs': topics, 'Capabilities': capabilities}
 

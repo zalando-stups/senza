@@ -524,7 +524,10 @@ def test_component_auto_scaling_group_configurable_properties():
             'ScaleUpThreshold': 50,
             'ScaleDownThreshold': 20,
             'EvaluationPeriods': 1,
+            'ScalingAdjustment': 1,
+            'ScaleUpAdjustment': 3,
             'Cooldown': 30,
+            'ScaleDownCooldown': 360,
             'Statistic': 'Maximum'
         }
     }
@@ -541,12 +544,12 @@ def test_component_auto_scaling_group_configurable_properties():
 
     assert result["Resources"]["FooScaleUp"] is not None
     assert result["Resources"]["FooScaleUp"]["Properties"] is not None
-    assert result["Resources"]["FooScaleUp"]["Properties"]["ScalingAdjustment"] == "1"
+    assert result["Resources"]["FooScaleUp"]["Properties"]["ScalingAdjustment"] == "3"
     assert result["Resources"]["FooScaleUp"]["Properties"]["Cooldown"] == "30"
 
     assert result["Resources"]["FooScaleDown"] is not None
     assert result["Resources"]["FooScaleDown"]["Properties"] is not None
-    assert result["Resources"]["FooScaleDown"]["Properties"]["Cooldown"] == "30"
+    assert result["Resources"]["FooScaleDown"]["Properties"]["Cooldown"] == "360"
     assert result["Resources"]["FooScaleDown"]["Properties"]["ScalingAdjustment"] == "-1"
 
     assert result["Resources"]["Foo"] is not None

@@ -15,6 +15,10 @@ ADDITIONAL_PROPERTIES = {
 }
 
 
+def check_autoscaling_policy(asg_name, definition):
+    return definition["Properties"]["AutoScalingGroupName"]["Ref"] == asg_name
+
+
 def component_auto_scaling_group(definition, configuration, args, info, force, account_info):
     definition = ensure_keys(definition, "Resources")
 
@@ -60,7 +64,8 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
             }
             instance_profile_roles = [{'Ref': logical_role_id}]
         elif isinstance(roles[0], dict):
-            instance_profile_roles = [resolve_referenced_resource(roles[0], args.region)]
+            instance_profile_roles = [
+                resolve_referenced_resource(roles[0], args.region)]
         else:
             instance_profile_roles = roles
         definition['Resources'][logical_id] = {
@@ -70,11 +75,13 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
                 'Roles': instance_profile_roles
             }
         }
-        definition["Resources"][config_name]["Properties"]["IamInstanceProfile"] = {'Ref': logical_id}
+        definition["Resources"][config_name]["Properties"][
+            "IamInstanceProfile"] = {'Ref': logical_id}
 
     if "SecurityGroups" in configuration:
         definition["Resources"][config_name]["Properties"]["SecurityGroups"] = \
-            resolve_security_groups(configuration["SecurityGroups"], args.region)
+            resolve_security_groups(
+                configuration["SecurityGroups"], args.region)
 
     if "UserData" in configuration:
         definition["Resources"][config_name]["Properties"]["UserData"] = {
@@ -86,7 +93,8 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
     asg_success = ["1", "PT15M"]
     if "AutoScaling" in configuration:
         if "SuccessRequires" in configuration["AutoScaling"]:
-            asg_success = normalize_asg_success(configuration["AutoScaling"]["SuccessRequires"])
+            asg_success = normalize_asg_success(
+                configuration["AutoScaling"]["SuccessRequires"])
 
     tags = [
         # Tag "Name"
@@ -119,7 +127,8 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
 
     definition["Resources"][asg_name] = {
         "Type": "AWS::AutoScaling::AutoScalingGroup",
-        # wait to get a signal from an amount of servers to signal that it booted
+        # wait to get a signal from an amount of servers to signal that it
+        # booted
         "CreationPolicy": {
             "ResourceSignal": {
                 "Count": asg_success[0],
@@ -151,14 +160,17 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
 
     if "ElasticLoadBalancer" in configuration:
         if isinstance(configuration["ElasticLoadBalancer"], str):
-            asg_properties["LoadBalancerNames"] = [{"Ref": configuration["ElasticLoadBalancer"]}]
+            asg_properties["LoadBalancerNames"] = [
+                {"Ref": configuration["ElasticLoadBalancer"]}]
         elif isinstance(configuration["ElasticLoadBalancer"], list):
-            asg_properties["LoadBalancerNames"] = [{'Ref': ref} for ref in configuration["ElasticLoadBalancer"]]
+            asg_properties["LoadBalancerNames"] = [
+                {'Ref': ref} for ref in configuration["ElasticLoadBalancer"]]
         # use ELB health check by default
         default_health_check_type = 'ELB'
     elif "ElasticLoadBalancerV2" in configuration:
         if isinstance(configuration["ElasticLoadBalancerV2"], str):
-            asg_properties["TargetGroupARNs"] = [{"Ref": configuration["ElasticLoadBalancerV2"] + 'TargetGroup'}]
+            asg_properties["TargetGroupARNs"] = [
+                {"Ref": configuration["ElasticLoadBalancerV2"] + 'TargetGroup'}]
         elif isinstance(configuration["ElasticLoadBalancerV2"], list):
             asg_properties["TargetGroupARNs"] = [
                 {'Ref': ref} for ref in configuration["ElasticLoadBalancerV2"] + 'TargetGroup'
@@ -166,45 +178,62 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         # use ELB health check by default
         default_health_check_type = 'ELB'
 
-    asg_properties['HealthCheckType'] = configuration.get('HealthCheckType', default_health_check_type)
-    asg_properties['HealthCheckGracePeriod'] = configuration.get('HealthCheckGracePeriod', 300)
+    asg_properties['HealthCheckType'] = configuration.get(
+        'HealthCheckType', default_health_check_type)
+    asg_properties['HealthCheckGracePeriod'] = configuration.get(
+        'HealthCheckGracePeriod', 300)
 
     if "AutoScaling" in configuration:
         as_conf = configuration["AutoScaling"]
         asg_properties["MaxSize"] = as_conf["Maximum"]
         asg_properties["MinSize"] = as_conf["Minimum"]
-        asg_properties["DesiredCapacity"] = max(int(as_conf["Minimum"]), int(as_conf.get('DesiredCapacity', 1)))
+        asg_properties["DesiredCapacity"] = max(
+            int(as_conf["Minimum"]), int(as_conf.get('DesiredCapacity', 1)))
 
         default_scaling_adjustment = as_conf.get("ScalingAdjustment", 1)
         default_cooldown = as_conf.get("Cooldown", "60")
 
         # ScaleUp policy
-        scaling_up_adjustment = int(as_conf.get("ScaleUpAdjustment", default_scaling_adjustment))
-        definition["Resources"][asg_name + "ScaleUp"] = {
-            "Type": "AWS::AutoScaling::ScalingPolicy",
-            "Properties": {
-                "AdjustmentType": "ChangeInCapacity",
-                "ScalingAdjustment": str(scaling_up_adjustment),
-                "Cooldown": str(as_conf.get("ScaleUpCooldown", default_cooldown)),
-                "AutoScalingGroupName": {
-                    "Ref": asg_name
+        asg_scale_up_name = asg_name + "ScaleUp"
+        if asg_scale_up_name not in definition["Resources"]:
+            scaling_up_adjustment = int(
+                as_conf.get("ScaleUpAdjustment", default_scaling_adjustment))
+            definition["Resources"][asg_scale_up_name] = {
+                "Type": "AWS::AutoScaling::ScalingPolicy",
+                "Properties": {
+                    "AdjustmentType": "ChangeInCapacity",
+                    "ScalingAdjustment": str(scaling_up_adjustment),
+                    "Cooldown": str(as_conf.get("ScaleUpCooldown", default_cooldown)),
+                    "AutoScalingGroupName": {
+                        "Ref": asg_name
+                    }
                 }
             }
-        }
+        else:
+            if not check_autoscaling_policy(asg_name, definition["Resources"][asg_scale_up_name]):
+                raise click.UsageError('Specified ScalingPolicy {} does not reference the '
+                                       'autoscaling group {}'.format(asg_scale_up_name, asg_name))
 
         # ScaleDown policy
-        scaling_down_adjustment = int(as_conf.get("ScaleDownAdjustment", default_scaling_adjustment))
-        definition["Resources"][asg_name + "ScaleDown"] = {
-            "Type": "AWS::AutoScaling::ScalingPolicy",
-            "Properties": {
-                "AdjustmentType": "ChangeInCapacity",
-                "ScalingAdjustment": str((-1) * scaling_down_adjustment),
-                "Cooldown": str(as_conf.get("ScaleDownCooldown", default_cooldown)),
-                "AutoScalingGroupName": {
-                    "Ref": asg_name
+        asg_scale_down_name = asg_name + "ScaleDown"
+        if asg_scale_down_name not in definition["Resources"]:
+            scaling_down_adjustment = int(
+                as_conf.get("ScaleDownAdjustment", default_scaling_adjustment))
+            definition["Resources"][asg_scale_down_name] = {
+                "Type": "AWS::AutoScaling::ScalingPolicy",
+                "Properties": {
+                    "AdjustmentType": "ChangeInCapacity",
+                    "ScalingAdjustment": str((-1) * scaling_down_adjustment),
+                    "Cooldown": str(as_conf.get("ScaleDownCooldown", default_cooldown)),
+                    "AutoScalingGroupName": {
+                        "Ref": asg_name
+                    }
                 }
             }
-        }
+        else:
+            if not check_autoscaling_policy(asg_name, definition["Resources"][asg_scale_down_name]):
+                raise click.UsageError('Specified ScalingPolicy {} does not reference the '
+                                       'autoscaling group {}'.format(asg_scale_down_name, asg_name))
 
         if "MetricType" in as_conf:
             metric_type = as_conf["MetricType"]
@@ -215,17 +244,21 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
             }
             # lowercase cpu is an acceptable metric, be compatible
             if metric_type.lower() not in map(lambda t: t.lower(), metricfns.keys()):
-                raise click.UsageError('Auto scaling MetricType "{}" not supported.'.format(metric_type))
+                raise click.UsageError(
+                    'Auto scaling MetricType "{}" not supported.'.format(metric_type))
             metricfn = metricfns[metric_type]
-            definition = metricfn(asg_name, definition, as_conf, args, info, force)
+            definition = metricfn(
+                asg_name, definition, as_conf, args, info, force)
     else:
         asg_properties["MaxSize"] = 1
         asg_properties["MinSize"] = 1
 
     for res in (config_name, asg_name):
         props = definition['Resources'][res]['Properties']
-        additional_cf_properties = ADDITIONAL_PROPERTIES.get(definition['Resources'][res]['Type'])
-        properties_allowed_to_overwrite = (set(props.keys()) - SENZA_PROPERTIES) | additional_cf_properties
+        additional_cf_properties = ADDITIONAL_PROPERTIES.get(
+            definition['Resources'][res]['Type'])
+        properties_allowed_to_overwrite = (
+            set(props.keys()) - SENZA_PROPERTIES) | additional_cf_properties
         for key in properties_allowed_to_overwrite:
             if key in configuration:
                 props[key] = configuration[key]
@@ -238,10 +271,12 @@ duration_split_regex = r'(\d+[hHmMsS])'
 
 def to_iso8601_duration(duration):
     if duration and re.match(duration_regex, duration):
-        durations = [d.upper() for d in re.split(duration_split_regex, duration)]
+        durations = [d.upper()
+                     for d in re.split(duration_split_regex, duration)]
         return "PT" + "".join(durations)
     else:
-        raise click.UsageError("Unknown duration {}. Use something like 15m.".format(duration))
+        raise click.UsageError(
+            "Unknown duration {}. Use something like 15m.".format(duration))
 
 
 def normalize_asg_success(success):
@@ -298,9 +333,11 @@ def normalize_network_threshold(threshold):
                 unit = shortcuts[unit]
             allowed_units = shortcuts.values()
             if unit not in allowed_units:
-                raise click.UsageError("Network threshold unit must be one of {}".format(list(allowed_units)))
+                raise click.UsageError(
+                    "Network threshold unit must be one of {}".format(list(allowed_units)))
         else:
-            raise click.UsageError('Unknown network threshold "{}". Use something like "20 GB".'.format(threshold))
+            raise click.UsageError(
+                'Unknown network threshold "{}". Use something like "20 GB".'.format(threshold))
     return [amount, unit]
 
 
@@ -308,8 +345,10 @@ def metric_network(asg_name, definition, configuration, args, info, force):
     period = int(configuration.get("Period", 300))
     evaluation_periods = int(configuration.get("EvaluationPeriods", 2))
     statistic = configuration.get("Statistic", "Average")
-    scale_up_threshold = normalize_network_threshold(configuration["ScaleUpThreshold"])
-    scale_down_threshold = normalize_network_threshold(configuration["ScaleDownThreshold"])
+    scale_up_threshold = normalize_network_threshold(
+        configuration["ScaleUpThreshold"])
+    scale_down_threshold = normalize_network_threshold(
+        configuration["ScaleDownThreshold"])
 
     if "ScaleUpThreshold" in configuration:
         definition["Resources"][asg_name + "NetworkAlarmHigh"] = {

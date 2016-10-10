@@ -1,4 +1,6 @@
 import copy
+import click
+import pytest
 
 from unittest.mock import MagicMock
 
@@ -13,6 +15,61 @@ def test_resource_overrides_autoscaling_policy():
                     "AdjustmentType": "ChangeInCapacity",
                     "AutoScalingGroupName": {
                         "Ref": "Foo"
+                    },
+                    "Cooldown": "180",
+                    "ScalingAdjustment": "2"
+                },
+                "Type": "AWS::AutoScaling::ScalingPolicy"
+            },
+            "FooScaleDown": {
+                "Properties": {
+                    "AdjustmentType": "ChangeInCapacity",
+                    "AutoScalingGroupName": {
+                        "Ref": "Foo"
+                    },
+                    "Cooldown": "90",
+                    "ScalingAdjustment": "-3"
+                },
+                "Type": "AWS::AutoScaling::ScalingPolicy"
+            },
+        }
+    }
+
+    expected = copy.copy(definition["Resources"])
+
+    configuration = {
+        'Name': 'Foo',
+        'InstanceType': 't2.micro',
+        'Image': 'foo',
+        'AutoScaling': {
+            'Minimum': 2,
+            'Maximum': 10,
+        }
+    }
+
+    args = MagicMock()
+    args.region = "foo"
+
+    info = {
+        'StackName': 'FooStack',
+        'StackVersion': 'FooVersion'
+    }
+
+    result = component_auto_scaling_group(
+        definition, configuration, args, info, False, MagicMock())
+
+    assert result["Resources"]["FooScaleUp"] == expected["FooScaleUp"]
+    assert result["Resources"]["FooScaleDown"] == expected["FooScaleDown"]
+
+
+def test_resource_overrides_autoscaling_policy_with_incorrect_ref():
+    definition = {
+        "Resources": {
+            "FooScaleUp": {
+                "Properties": {
+                    "AdjustmentType": "ChangeInCapacity",
+                    "AutoScalingGroupName": {
+                        "Ref": "NotFoo"
                     },
                     "Cooldown": "180",
                     "ScalingAdjustment": "2"
@@ -42,11 +99,9 @@ def test_resource_overrides_autoscaling_policy():
         'StackVersion': 'FooVersion'
     }
 
-    result = component_auto_scaling_group(
-        definition, configuration, args, info, False, MagicMock())
-
-    assert "FooScaleUp" in result["Resources"]
-    assert result["Resources"]["FooScaleUp"] == expected
+    with pytest.raises(click.exceptions.UsageError):
+        result = component_auto_scaling_group(
+            definition, configuration, args, info, False, MagicMock())
 
 
 def test_resource_overrides_cpu_alarm():

@@ -10,7 +10,7 @@ import senza.traffic
 import yaml
 from click.testing import CliRunner
 from senza.cli import (AccountArguments, KeyValParamType, StackReference,
-                       all_with_version, failure_event, get_console_line_style,
+                       all_with_version, create_cf_template, failure_event, get_console_line_style,
                        get_stack_refs, is_ip_address)
 from senza.exceptions import InvalidDefinition
 from senza.manaus.exceptions import ELBNotFound, StackNotFound, StackNotUpdated
@@ -1816,3 +1816,11 @@ def test_traffic_fallback_route53api(monkeypatch, boto_client, boto_resource):  
         # IMPORTANT: DNS record of v1 must have been updated!
         assert records['myapp-v1'].weight == 0
         # we won't check v2 as it was not manipulated (only via CF)
+
+
+def test_create_cf_template_compact_json(monkeypatch):
+    monkeypatch.setattr('boto3.client', MagicMock())
+    definition = {'SenzaInfo': {'StackName': 'foo-compact-json'}}
+    cf_template = create_cf_template(definition, 'aa-fakeregion-1', '1', [], False, None)
+    # verify that we are using the "compressed" JSON format (no indentation, no extra whitespace)
+    assert '"Senza":{"Info":' in cf_template['TemplateBody']

@@ -1818,8 +1818,9 @@ def test_traffic_fallback_route53api(monkeypatch, boto_client, boto_resource):  
         # we won't check v2 as it was not manipulated (only via CF)
 
 
-def test_create_cf_template(monkeypatch):
-    definition = {'SenzaInfo':  {'StackName': 'foo'}}
+def test_create_cf_template_compact_json(monkeypatch):
+    monkeypatch.setattr('boto3.client', MagicMock())
+    definition = {'SenzaInfo': {'StackName': 'foo-compact-json'}}
     cf_template = create_cf_template(definition, 'aa-fakeregion-1', '1', [], False, None)
     # verify that we are using the "compressed" JSON format (no indentation, no extra whitespace)
     assert '"Senza":{"Info":' in cf_template['TemplateBody']

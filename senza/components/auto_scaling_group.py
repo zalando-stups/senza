@@ -93,8 +93,7 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
                 'Roles': instance_profile_roles
             }
         }
-        definition["Resources"][config_name]["Properties"][
-            "IamInstanceProfile"] = {'Ref': logical_id}
+        definition["Resources"][config_name]["Properties"]["IamInstanceProfile"] = {'Ref': logical_id}
 
     if "SecurityGroups" in configuration:
         definition["Resources"][config_name]["Properties"]["SecurityGroups"] = \

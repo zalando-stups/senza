@@ -15,6 +15,28 @@ ADDITIONAL_PROPERTIES = {
 }
 
 
+def create_autoscaling_policy(asg_name, asg_scale_name, asg_scale_adjustment, asg_scale_cooldown, definition):
+    if asg_scale_name not in definition["Resources"]:
+        scaling_policy_def = {
+            "Type": "AWS::AutoScaling::ScalingPolicy",
+            "Properties": {
+                "AdjustmentType": "ChangeInCapacity",
+                "ScalingAdjustment": str(asg_scale_adjustment),
+                "Cooldown": str(asg_scale_cooldown),
+                "AutoScalingGroupName": {
+                    "Ref": asg_name
+                }
+            }
+        }
+    else:
+        scaling_policy_def = definition["Resources"][asg_scale_name]
+        if not scaling_policy_def["Properties"]["AutoScalingGroupName"]["Ref"] == asg_name:
+            raise click.UsageError('Specified ScalingPolicy {} does not reference the '
+                                   'autoscaling group {}'.format(asg_scale_name, asg_name))
+
+    return scaling_policy_def
+
+
 def component_auto_scaling_group(definition, configuration, args, info, force, account_info):
     definition = ensure_keys(definition, "Resources")
 
@@ -179,32 +201,24 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         default_cooldown = as_conf.get("Cooldown", "60")
 
         # ScaleUp policy
-        scaling_up_adjustment = int(as_conf.get("ScaleUpAdjustment", default_scaling_adjustment))
-        definition["Resources"][asg_name + "ScaleUp"] = {
-            "Type": "AWS::AutoScaling::ScalingPolicy",
-            "Properties": {
-                "AdjustmentType": "ChangeInCapacity",
-                "ScalingAdjustment": str(scaling_up_adjustment),
-                "Cooldown": str(as_conf.get("ScaleUpCooldown", default_cooldown)),
-                "AutoScalingGroupName": {
-                    "Ref": asg_name
-                }
-            }
-        }
+        scale_up_name = asg_name + "ScaleUp"
+        scale_up_adjustment = int(
+            as_conf.get("ScaleUpAdjustment", default_scaling_adjustment))
+        scale_up_cooldown = as_conf.get(
+            "ScaleUpCooldown", default_cooldown)
+
+        definition["Resources"][scale_up_name] = create_autoscaling_policy(
+            asg_name, scale_up_name, scale_up_adjustment, scale_up_cooldown, definition)
 
         # ScaleDown policy
-        scaling_down_adjustment = int(as_conf.get("ScaleDownAdjustment", default_scaling_adjustment))
-        definition["Resources"][asg_name + "ScaleDown"] = {
-            "Type": "AWS::AutoScaling::ScalingPolicy",
-            "Properties": {
-                "AdjustmentType": "ChangeInCapacity",
-                "ScalingAdjustment": str((-1) * scaling_down_adjustment),
-                "Cooldown": str(as_conf.get("ScaleDownCooldown", default_cooldown)),
-                "AutoScalingGroupName": {
-                    "Ref": asg_name
-                }
-            }
-        }
+        scale_down_name = asg_name + "ScaleDown"
+        scale_down_adjustment = (-1) * int(
+            as_conf.get("ScaleDownAdjustment", default_scaling_adjustment))
+        scale_down_cooldown = as_conf.get(
+            "ScaleDownCooldown", default_cooldown)
+
+        definition["Resources"][scale_down_name] = create_autoscaling_policy(
+            asg_name, scale_down_name, scale_down_adjustment, scale_down_cooldown, definition)
 
         if "MetricType" in as_conf:
             metric_type = as_conf["MetricType"]

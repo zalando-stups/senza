@@ -76,18 +76,26 @@ def get_ssl_cert(subdomain, main_zone, configuration, account_info: AccountArgum
     return ssl_cert
 
 
-def get_listeners(subdomain, main_zone, configuration,
-                  account_info: AccountArguments):
-    ssl_cert = get_ssl_cert(subdomain, main_zone, configuration, account_info)
+def get_listeners(configuration):
     return [
         {
             "PolicyNames": [],
-            "SSLCertificateId": ssl_cert,
+            "SSLCertificateId": configuration.get('SSLCertificateId'),
             "Protocol": "HTTPS",
             "InstancePort": configuration["HTTPPort"],
             "LoadBalancerPort": 443
         }
     ]
+
+
+def resolve_ssl_certificates(listeners, subdomain, main_zone, account_info):
+    new_listeners = []
+    for listener in listeners:
+        if listener.get('Protocol') in ('HTTPS', 'SSL'):
+            ssl_cert = get_ssl_cert(subdomain, main_zone, listener, account_info)
+            listener['SSLCertificateId'] = ssl_cert
+        new_listeners.append(listener)
+    return new_listeners
 
 
 def component_elastic_load_balancer(definition,
@@ -123,7 +131,8 @@ def component_elastic_load_balancer(definition,
             subdomain = domain['Subdomain']
             main_zone = domain['Zone']  # type: str
 
-    listeners = configuration.get('Listeners') or get_listeners(subdomain, main_zone, configuration, account_info)
+    listeners = configuration.get('Listeners') or get_listeners(configuration)
+    listeners = resolve_ssl_certificates(listeners, subdomain, main_zone, account_info)
 
     health_check_protocol = configuration.get('HealthCheckProtocol') or 'HTTP'
 

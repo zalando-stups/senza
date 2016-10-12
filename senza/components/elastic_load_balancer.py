@@ -1,8 +1,9 @@
 import click
 from clickclick import fatal_error
 from senza.aws import resolve_security_groups
+from senza.definitions import AccountArguments
 
-from ..cli import AccountArguments, TemplateArguments
+from ..cli import TemplateArguments
 from ..manaus import ClientError
 from ..manaus.acm import ACM, ACMCertificate
 from ..manaus.iam import IAM, IAMServerCertificate

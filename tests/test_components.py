@@ -4,7 +4,7 @@ import click
 import pierone.api
 import pytest
 import senza.traffic
-from senza.cli import AccountArguments
+from senza.definitions import AccountArguments
 from senza.components import get_component
 from senza.components.configuration import component_configuration
 from senza.components.auto_scaling_group import (component_auto_scaling_group,

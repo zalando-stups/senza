@@ -23,21 +23,20 @@ from botocore.exceptions import ClientError
 from clickclick import (Action, FloatRange, OutputFormat, choice, error,
                         fatal_error, info, ok)
 from clickclick.console import print_table
+from senza.definitions import AccountArguments
 
 from .arguments import (GLOBAL_OPTIONS, json_output_option, output_option,
                         parameter_file_option, region_option,
                         stacktrace_visible_option, watch_option,
                         watchrefresh_option)
-from .aws import (StackReference, get_account_alias, get_account_id,
-                  get_required_capabilities, get_stacks, get_tag, matches_any,
-                  parse_time, resolve_topic_arn)
+from .aws import (StackReference, get_required_capabilities, get_stacks,
+                  get_tag, matches_any, parse_time, resolve_topic_arn)
 from .components import evaluate_template, get_component
 from .components.stups_auto_configuration import find_taupage_image
 from .error_handling import HandleExceptions
 from .exceptions import InvalidDefinition
 from .manaus.boto_proxy import BotoClientProxy
 from .manaus.cloudformation import CloudFormation
-from .manaus.ec2 import EC2
 from .manaus.exceptions import VPCError
 from .manaus.route53 import Route53, Route53Record
 from .manaus.utils import extract_client_error_code
@@ -47,7 +46,6 @@ from .stups.piu import Piu
 from .subcommands.config import cmd_config
 from .subcommands.root import cli
 from .templates import get_template_description, get_templates
-from .templates._helper import get_mint_bucket_name
 from .traffic import (change_version_traffic, get_records,
                       print_version_traffic, resolve_to_ip_addresses)
 from .utils import (camel_case_to_underscore, ensure_keys, named_value,
@@ -251,91 +249,6 @@ class TemplateArguments:
     def __init__(self, **kwargs):
         for key, val in kwargs.items():
             setattr(self, key, val)
-
-
-class AccountArguments:
-    """
-    Account arguments to use in the definitions
-    """
-    def __init__(self, region):
-        self.Region = region
-        self.__AccountAlias = None
-        self.__AccountID = None
-        self.__Domain = None
-        self.__MintBucket = None
-        self.__TeamID = None
-        self.__VpcID = None
-
-    @property
-    def AccountID(self):
-        if self.__AccountID is None:
-            self.__AccountID = get_account_id()
-        return self.__AccountID
-
-    @property
-    def AccountAlias(self):
-        if self.__AccountAlias is None:
-            self.__AccountAlias = get_account_alias()
-        return self.__AccountAlias
-
-    @property
-    def Domain(self) -> str:
-        if self.__Domain is None:
-            self.__setDomain()
-        return self.__Domain.rstrip('.')
-
-    def __setDomain(self, domain_name=None):
-        domain_list = list(Route53.get_hosted_zones(domain_name))
-        if len(domain_list) == 0:
-            raise AttributeError('No Domain configured')
-        elif len(domain_list) > 1:
-            domain = choice('Please select the domain',
-                            sorted(domain.domain_name
-                                   for domain in domain_list))
-        else:
-            domain = domain_list[0].domain_name
-        self.__Domain = domain
-        return domain
-
-    def split_domain(self, domain_name):
-        self.__setDomain(domain_name)
-        if domain_name.endswith('.{}'.format(self.Domain)):
-            return domain_name[:-len('.{}'.format(self.Domain))], self.Domain
-        else:
-            # default behaviour for unknown domains
-            return domain_name.split('.', 1)
-
-    @property
-    def TeamID(self):
-        if self.__TeamID is None:
-            self.__TeamID = self.AccountAlias.split('-', maxsplit=1)[-1]
-        return self.__TeamID
-
-    @property
-    def VpcID(self):
-        if self.__VpcID is None:
-            ec2 = EC2(self.Region)
-            try:
-                vpc = ec2.get_default_vpc()
-            except VPCError as error:
-                if sys.stdin.isatty() and error.number_of_vpcs:
-                    # if running in interactive terminal and there are VPCs
-                    # to choose from
-                    vpcs = ec2.get_all_vpcs()
-                    options = [(vpc.vpc_id, str(vpc)) for vpc in vpcs]
-                    print("Can't find a default VPC")
-                    vpc = choice("Select VPC to use",
-                                 options=options)
-                else:  # if not running in interactive terminal (e.g Jenkins)
-                    raise
-            self.__VpcID = vpc.vpc_id
-        return self.__VpcID
-
-    @property
-    def MintBucket(self):
-        if self.__MintBucket is None:
-            self.__MintBucket = get_mint_bucket_name(self.Region)
-        return self.__MintBucket
 
 
 def parse_args(input, region, version, parameter, account_info):

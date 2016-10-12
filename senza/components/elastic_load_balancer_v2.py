@@ -1,8 +1,11 @@
 import click
 from senza.aws import resolve_security_groups
-from senza.components.elastic_load_balancer import ALLOWED_LOADBALANCER_SCHEMES, get_load_balancer_name, get_ssl_cert
+from senza.components.elastic_load_balancer import (ALLOWED_LOADBALANCER_SCHEMES,
+                                                    get_load_balancer_name,
+                                                    get_ssl_cert)
+from senza.definitions import AccountArguments
 
-from ..cli import AccountArguments, TemplateArguments
+from ..cli import TemplateArguments
 from ..manaus.route53 import convert_cname_records_to_alias
 
 SENZA_PROPERTIES = frozenset(['Domains', 'HealthCheckPath', 'HealthCheckPort', 'HealthCheckProtocol',

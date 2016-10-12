@@ -9,9 +9,10 @@ import pytest
 import senza.traffic
 import yaml
 from click.testing import CliRunner
-from senza.cli import (AccountArguments, KeyValParamType, StackReference,
-                       all_with_version, create_cf_template, failure_event, get_console_line_style,
-                       get_stack_refs, is_ip_address)
+from senza.cli import (KeyValParamType, StackReference,
+                       all_with_version, create_cf_template, failure_event,
+                       get_console_line_style, get_stack_refs, is_ip_address)
+from senza.definitions import AccountArguments
 from senza.exceptions import InvalidDefinition
 from senza.manaus.exceptions import ELBNotFound, StackNotFound, StackNotUpdated
 from senza.manaus.route53 import RecordType, Route53Record
@@ -1398,8 +1399,8 @@ def test_AccountArguments(monkeypatch):
     boto3 = MagicMock()
     boto3.list_hosted_zones.return_value = {'HostedZones': [HOSTED_ZONE_EXAMPLE_NET]}
     monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
-    monkeypatch.setattr('senza.cli.get_account_alias', MagicMock(return_value='test-cli'))
-    monkeypatch.setattr('senza.cli.get_account_id', MagicMock(return_value='98741256325'))
+    monkeypatch.setattr('senza.definitions.get_account_alias', MagicMock(return_value='test-cli'))
+    monkeypatch.setattr('senza.definitions.get_account_id', MagicMock(return_value='98741256325'))
 
     test = AccountArguments('test-region')
 

@@ -198,6 +198,31 @@ def test_component_load_balancer_http_only(monkeypatch):
     assert 'Bar' == result["Resources"]["test_lb"]["Properties"]["Listeners"][0]["Foo"]
 
 
+def test_component_load_balancer_listeners_ssl(monkeypatch):
+    configuration = {
+        "Name": "test_lb",
+        "SecurityGroups": "",
+        "HTTPPort": "9999",
+        "Listeners": [{"Protocol": "SSL"}]
+    }
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    definition = {"Resources": {}}
+
+    args = MagicMock()
+    args.region = "foo"
+
+    mock_string_result = MagicMock()
+    mock_string_result.return_value = "foo"
+    monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    get_ssl_cert = MagicMock()
+    get_ssl_cert.return_value = 'my-ssl-arn'
+    monkeypatch.setattr('senza.components.elastic_load_balancer.get_ssl_cert', get_ssl_cert)
+
+    result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
+    assert 'my-ssl-arn' == result["Resources"]["test_lb"]["Properties"]["Listeners"][0]["SSLCertificateId"]
+
+
 def test_component_load_balancer_namelength(monkeypatch):
     configuration = {
         "Name": "test_lb",

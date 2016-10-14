@@ -71,7 +71,7 @@ def test_check_senza_version(monkeypatch,
         check_senza_version("0.40")
         mock_warning.assert_called_once_with(
             "Your senza version (0.40) is outdated. "
-            "Please install the new one using 'pip install --upgrade stups-senza'"
+            "Please install the new one using 'pip3 install --upgrade stups-senza'"
         )
 
     with TemporaryDirectory() as temp_dir_4:
@@ -83,7 +83,7 @@ def test_check_senza_version(monkeypatch,
         mock_warning.assert_called_once_with(
             "Your senza version (0.40) is outdated. "
             "Please install the new one using "
-            "'sudo pip install --upgrade stups-senza'"
+            "'sudo pip3 install --upgrade stups-senza'"
         )
 
 
@@ -115,7 +115,7 @@ def test_check_senza_version_outdated_cache(monkeypatch,  # noqa: F811
         mock_warning.assert_called_once_with(
             "Your senza version (0.40) is outdated. "
             "Please install the new one using "
-            "'sudo pip install --upgrade stups-senza'"
+            "'sudo pip3 install --upgrade stups-senza'"
         )
 
 

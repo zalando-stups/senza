@@ -99,9 +99,9 @@ def check_senza_version(current_version: str):
     if latest_version is not None and current_version < latest_version:
         if __file__.startswith('/home'):
             # if it's installed in the user folder
-            cmd = "pip install --upgrade stups-senza"
+            cmd = "pip3 install --upgrade stups-senza"
         else:
-            cmd = "sudo pip install --upgrade stups-senza"
+            cmd = "sudo pip3 install --upgrade stups-senza"
         warning("Your senza version ({current}) is outdated. "
                 "Please install the new one using '{cmd}'".format(current=current_version,
                                                                   cmd=cmd))

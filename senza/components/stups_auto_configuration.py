@@ -1,8 +1,7 @@
 import boto3
 
-from senza.components.configuration import component_configuration
+from senza.components.subnet_auto_configuration import component_subnet_auto_configuration
 from senza.utils import ensure_keys
-from senza.aws import get_tag
 
 
 def find_taupage_image(region: str):
@@ -26,44 +25,10 @@ def find_taupage_image(region: str):
 
 
 def component_stups_auto_configuration(definition, configuration, args, info, force, account_info):
-    ec2 = boto3.resource('ec2', args.region)
-
-    vpc_id = configuration.get('VpcId', account_info.VpcID)
-    availability_zones = configuration.get('AvailabilityZones')
-
-    server_subnets = []
-    lb_subnets = []
-    lb_internal_subnets = []
-    for subnet in ec2.subnets.filter(Filters=[{'Name': 'vpc-id', 'Values': [vpc_id]}]):
-        name = get_tag(subnet.tags, 'Name', '')
-        if availability_zones and subnet.availability_zone not in availability_zones:
-            # skip subnet as it's not in one of the given AZs
-            continue
-        if 'dmz' in name:
-            lb_subnets.append(subnet.id)
-        elif 'internal' in name:
-            lb_internal_subnets.append(subnet.id)
-            server_subnets.append(subnet.id)
-        else:
-            server_subnets.append(subnet.id)
-
-    if not lb_subnets:
-        # no DMZ subnets were found, just use the same set for both LB and instances
-        lb_subnets = server_subnets
-
-    configuration = ensure_keys(configuration, "ServerSubnets", args.region)
-    configuration["ServerSubnets"][args.region] = server_subnets
-
-    configuration = ensure_keys(configuration, "LoadBalancerSubnets", args.region)
-    configuration["LoadBalancerSubnets"][args.region] = lb_subnets
-
-    configuration = ensure_keys(configuration, "LoadBalancerInternalSubnets", args.region)
-    configuration["LoadBalancerInternalSubnets"][args.region] = lb_internal_subnets
-
     most_recent_image = find_taupage_image(args.region)
     configuration = ensure_keys(configuration, "Images", 'LatestTaupageImage', args.region)
     configuration["Images"]['LatestTaupageImage'][args.region] = most_recent_image.id
 
-    component_configuration(definition, configuration, args, info, force, account_info)
+    component_subnet_auto_configuration(definition, configuration, args, info, force, account_info)
 
     return definition

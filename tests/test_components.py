@@ -19,6 +19,7 @@ from senza.components.redis_cluster import component_redis_cluster
 from senza.components.redis_node import component_redis_node
 from senza.components.stups_auto_configuration import \
     component_stups_auto_configuration
+from senza.components.subnet_auto_configuration import component_subnet_auto_configuration
 from senza.components.taupage_auto_scaling_group import (check_application_id,
                                                          check_application_version,
                                                          check_docker_image_exists,
@@ -1031,3 +1032,27 @@ def test_component_load_balancer_v2_default_internal_scheme(monkeypatch):
 
     result = component_elastic_load_balancer_v2(definition, configuration, args, info, False, MagicMock())
     assert 'internal' == result["Resources"]["test_lb"]["Properties"]["Scheme"]
+
+
+def test_component_subnet_auto_configuration(monkeypatch):
+    configuration = {
+        'PublicOnly': True,
+        'VpcId': 'vpc-123'
+    }
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    definition = {"Resources": {}}
+
+    args = MagicMock()
+    args.region = "foo"
+
+    subnet1 = MagicMock()
+    subnet1.id = 'subnet-1'
+    subnet2 = MagicMock()
+    subnet2.id = 'subnet-2'
+
+    ec2 = MagicMock()
+    ec2.subnets.filter.return_value = [subnet1, subnet2]
+    monkeypatch.setattr('boto3.resource', lambda *args: ec2)
+
+    result = component_subnet_auto_configuration(definition, configuration, args, info, False, MagicMock())
+    assert ['subnet-1', 'subnet-2'] == result['Mappings']['ServerSubnets']['foo']['Subnets']

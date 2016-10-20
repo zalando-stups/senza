@@ -14,7 +14,7 @@ def get_default_description(info, args):
 def component_configuration(definition, configuration, args, info, force, account_info):
     # define parameters
     # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/parameters-section-structure.html
-    if "Parameters" in info:
+    if "Parameters" in info and configuration.get('DefineParameters', True):
         definition = ensure_keys(definition, "Parameters")
         default_parameter = {
             "Type": "String"

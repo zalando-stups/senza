@@ -994,6 +994,16 @@ def test_max_description_length():
     assert 0 < len(definition['Description']) <= 1024
 
 
+def test_template_parameters():
+    definition = {}
+    configuration = {'DefineParameters': False}
+    args = MagicMock()
+    args.__dict__ = {'Param1': 'my param value', 'SecondParam': ('1234567890' * 100)}
+    info = {'StackName': 'My-Stack', 'Parameters': []}
+    component_configuration(definition, configuration, args, info, False, AccountArguments('dummyregion'))
+    assert definition.get('Parameters') == None
+
+
 def test_component_load_balancer_default_internal_scheme(monkeypatch):
     configuration = {
         "Name": "test_lb",

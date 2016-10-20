@@ -1056,3 +1056,10 @@ def test_component_subnet_auto_configuration(monkeypatch):
 
     result = component_subnet_auto_configuration(definition, configuration, args, info, False, MagicMock())
     assert ['subnet-1', 'subnet-2'] == result['Mappings']['ServerSubnets']['foo']['Subnets']
+
+    configuration = {
+        'PublicOnly': False,
+        'VpcId': 'vpc-123'
+    }
+    result = component_subnet_auto_configuration(definition, configuration, args, info, False, MagicMock())
+    assert ['subnet-1', 'subnet-2'] == result['Mappings']['ServerSubnets']['foo']['Subnets']

@@ -4,6 +4,7 @@ Functions and classes related to Senza Definition files
 
 # pylint: disable=invalid-name
 
+from typing import Tuple
 import sys
 
 from clickclick import choice
@@ -72,7 +73,7 @@ class AccountArguments:
         self.__Domain = domain
         return domain
 
-    def split_domain(self, domain_name):
+    def split_domain(self, domain_name) -> Tuple[str, str]:
         """
         Splits domain_name in sub_domain and main_domain based on the account
         domain.

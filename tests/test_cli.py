@@ -9,6 +9,7 @@ import pytest
 import senza.traffic
 import yaml
 from click.testing import CliRunner
+from senza.aws import SenzaStackSummary
 from senza.cli import (KeyValParamType, StackReference,
                        all_with_version, create_cf_template, failure_event,
                        get_console_line_style, get_stack_refs, is_ip_address)
@@ -1219,6 +1220,12 @@ def test_traffic(monkeypatch, boto_client, boto_resource):  # noqa: F811
     monkeypatch.setattr('senza.traffic.get_stack_versions',
                         MagicMock(return_value=stacks))
 
+    referenced_stacks = [
+        SenzaStackSummary({'StackName': s.name, 'StackStatus': 'UPDATE_COMPLETE'})
+        for s in stacks
+    ]
+    monkeypatch.setattr('senza.cli.get_stacks', MagicMock(name="fake_get_stacks", return_value=referenced_stacks))
+
     # start creating mocking of the route53 record sets and Application Versions
     # this is a lot of dirty and nasty code. Please, somebody help this code.
 
@@ -1389,6 +1396,60 @@ def test_traffic(monkeypatch, boto_client, boto_resource):  # noqa: F811
     with runner.isolated_filesystem():
         with pytest.raises(ELBNotFound):
             run(['v4', '100'])
+
+
+def test_traffic_change_stack_in_progress(monkeypatch, boto_client):
+    runner = CliRunner()
+
+    def _run_with_stacks(mock):
+        monkeypatch.setattr('senza.cli.get_stacks', mock)
+        with runner.isolated_filesystem():
+            result = runner.invoke(cli, ['traffic', '--region=aa-fakeregion-1', 'myapp', 'v1', '100'], catch_exceptions=False)
+            return result
+
+    mocked_change_version_traffic = MagicMock(name='mocked_change_version_traffic')
+    monkeypatch.setattr('senza.cli.change_version_traffic', mocked_change_version_traffic)
+
+    mocked_time_sleep = MagicMock(name='mocked_time_sleep')
+    monkeypatch.setattr('senza.cli.time.sleep', mocked_time_sleep)
+
+    # test stack not found
+    result = _run_with_stacks(MagicMock(name="fake_get_stacks", return_value=[]))
+    assert 'Stack not found!' in result.output
+    mocked_change_version_traffic.assert_not_called()
+    mocked_time_sleep.assert_not_called()
+
+    mocked_change_version_traffic.reset_mock()
+    mocked_time_sleep.reset_mock()
+
+    # test stack in progress
+    called_once = [False]
+
+    def _fake_progress_of_stack_changes(*args, **kwargs):
+        if called_once:
+            called_once.pop()
+            return [
+                SenzaStackSummary({'StackName': 'myapp', 'StackStatus': 'UPDATE_IN_PROGRESS'})
+            ]
+        else:
+            return [
+                SenzaStackSummary({'StackName': 'myapp', 'StackStatus': 'UPDATE_COMPLETE'})
+            ]
+
+    _run_with_stacks(_fake_progress_of_stack_changes)
+    mocked_time_sleep.assert_called_once_with(5)
+    mocked_change_version_traffic.assert_called_once_with(get_stack_refs(['myapp', 'v1'])[0], 100.0, 'aa-fakeregion-1')
+
+    mocked_change_version_traffic.reset_mock()
+    mocked_time_sleep.reset_mock()
+
+    # test stack ready to change
+    _run_with_stacks(MagicMock(name="fake_get_stacks", return_value=[
+        SenzaStackSummary({'StackName': 'myapp', 'StackStatus': 'UPDATE_COMPLETE'})
+    ]))
+
+    mocked_change_version_traffic.assert_called_once_with(get_stack_refs(['myapp', 'v1'])[0], 100.0, 'aa-fakeregion-1')
+    mocked_time_sleep.assert_not_called()
 
 
 def test_AccountArguments(monkeypatch):
@@ -1743,7 +1804,13 @@ def test_traffic_fallback_route53api(monkeypatch, boto_client, boto_resource):  
     monkeypatch.setattr('senza.traffic.get_stack_versions',
                         MagicMock(return_value=stacks))
 
-    def record(dns_identifier, weight):
+    referenced_stacks = [
+        SenzaStackSummary({'StackName': s.name, 'StackStatus': 'UPDATE_COMPLETE'})
+        for s in stacks
+    ]
+    monkeypatch.setattr('senza.cli.get_stacks', MagicMock(name="fake_get_stacks", return_value=referenced_stacks))
+
+    def _record(dns_identifier, weight):
         return Route53Record(name='myapp.zo.ne.',
                              type=RecordType.A,
                              weight=weight,
@@ -1756,38 +1823,35 @@ def test_traffic_fallback_route53api(monkeypatch, boto_client, boto_resource):  
     for ver, percentage in [('v1', 100),
                             ('v2', 0)]:
         dns_identifier = 'myapp-{}'.format(ver)
-        records[dns_identifier] = record(dns_identifier,
-                                         percentage * PERCENT_RESOLUTION)
+        records[dns_identifier] = _record(dns_identifier,
+                                          percentage * PERCENT_RESOLUTION)
 
     rr.__iter__ = lambda x: iter(records.values())
     monkeypatch.setattr('senza.traffic.Route53.get_records',
                         MagicMock(return_value=rr))
 
-    def change_rr_set(HostedZoneId, ChangeBatch):
+    def _change_rr_set(HostedZoneId, ChangeBatch):
         for change in ChangeBatch['Changes']:
             action = change['Action']
             rrset = change['ResourceRecordSet']
             assert action == 'UPSERT'
             records[rrset['SetIdentifier']] = Route53Record.from_boto_dict(rrset)
 
-    boto_client['route53'].change_resource_record_sets = change_rr_set
+    boto_client['route53'].change_resource_record_sets = _change_rr_set
 
     runner = CliRunner()
 
     common_opts = ['traffic', '--region=aa-fakeregion-1', 'myapp']
 
-    def run(opts):
+    def _run(opts):
         result = runner.invoke(cli, common_opts + opts, catch_exceptions=False)
         assert 'Setting weights for myapp.zo.ne..' in result.output
         return result
 
-    def weights():
-        return [r.weight for r in records.values()]
-
     m_cfs = MagicMock()
     m_stacks = collections.defaultdict(MagicMock)
 
-    def get_stack(name, region):
+    def _get_stack(name, region):
         if name not in m_stacks:
             stack = m_stacks[name]
             stack.template = {'Resources': {
@@ -1802,18 +1866,18 @@ def test_traffic_fallback_route53api(monkeypatch, boto_client, boto_resource):  
                 stack.update.side_effect = StackNotUpdated('app-v1 record was manipulated through Route53 API')
         return m_stacks[name]
 
-    m_cfs.get_by_stack_name = get_stack
+    m_cfs.get_by_stack_name = _get_stack
 
-    def get_weight(stack):
+    def _get_weight(stack):
         return stack.template['Resources']['MyMainDomain']['Properties']['Weight']
 
     monkeypatch.setattr('senza.traffic.CloudFormationStack', m_cfs)
 
     with runner.isolated_filesystem():
-        run(['v2', '100'])
+        _run(['v2', '100'])
         # check that template resource weights were updated..
-        assert get_weight(m_stacks['myapp-v1']) == 0
-        assert get_weight(m_stacks['myapp-v2']) == 200
+        assert _get_weight(m_stacks['myapp-v1']) == 0
+        assert _get_weight(m_stacks['myapp-v2']) == 200
         # IMPORTANT: DNS record of v1 must have been updated!
         assert records['myapp-v1'].weight == 0
         # we won't check v2 as it was not manipulated (only via CF)

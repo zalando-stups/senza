@@ -149,7 +149,10 @@ def get_required_capabilities(data: dict):
     capabilities = []
     for logical_id, config in data.get('Resources', {}).items():
         if config.get('Type').startswith('AWS::IAM'):
-            capabilities.append('CAPABILITY_IAM')
+            if config.get('Properties', {}).get('RoleName'):
+                capabilities.append('CAPABILITY_NAMED_IAM')
+            else:
+                capabilities.append('CAPABILITY_IAM')
     return capabilities
 
 

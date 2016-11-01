@@ -1423,11 +1423,11 @@ def test_traffic_change_stack_in_progress(monkeypatch, boto_client):
     mocked_time_sleep.reset_mock()
 
     # test stack in progress
-    called_once = [False]
+    mock_call_stack_state = ['not_called']
 
     def _fake_progress_of_stack_changes(*args, **kwargs):
-        if called_once:
-            called_once.pop()
+        if mock_call_stack_state:
+            mock_call_stack_state.pop()
             return [
                 SenzaStackSummary({'StackName': 'myapp', 'StackStatus': 'UPDATE_IN_PROGRESS'})
             ]
@@ -1436,9 +1436,35 @@ def test_traffic_change_stack_in_progress(monkeypatch, boto_client):
                 SenzaStackSummary({'StackName': 'myapp', 'StackStatus': 'UPDATE_COMPLETE'})
             ]
 
-    _run_with_stacks(_fake_progress_of_stack_changes)
+    result = _run_with_stacks(_fake_progress_of_stack_changes)
+    # check results
+    assert 'Stack currently in state UPDATE_IN_PROGRESS, waiting to perform traffic change...' in result.output
     mocked_time_sleep.assert_called_once_with(5)
     mocked_change_version_traffic.assert_called_once_with(get_stack_refs(['myapp', 'v1'])[0], 100.0, 'aa-fakeregion-1')
+
+    mocked_change_version_traffic.reset_mock()
+    mocked_time_sleep.reset_mock()
+
+    # the creation of the stack failed
+    mock_call_stack_state = ['not_called']
+
+    def _fake_progress_of_stack_changes(*args, **kwargs):
+        if mock_call_stack_state:
+            mock_call_stack_state.pop()
+            return [
+                SenzaStackSummary({'StackName': 'myapp', 'StackStatus': 'CREATE_IN_PROGRESS'})
+            ]
+        else:
+            return [
+                SenzaStackSummary({'StackName': 'myapp', 'StackStatus': 'CREATE_FAILED'})
+            ]
+
+    result = _run_with_stacks(_fake_progress_of_stack_changes)
+    # check results
+    assert 'Stack currently in state CREATE_IN_PROGRESS, waiting to perform traffic change...' in result.output
+    assert 'The traffic change cannot be performed in a stack in the CREATE_FAILED state.' in result.output
+    mocked_time_sleep.assert_called_once_with(5)
+    mocked_change_version_traffic.assert_not_called()
 
     mocked_change_version_traffic.reset_mock()
     mocked_time_sleep.reset_mock()

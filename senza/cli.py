@@ -1164,10 +1164,12 @@ def traffic(stack_name, stack_version, percentage, region, output):
                             break
                         elif current_stack_status.endswith('_IN_PROGRESS'):
                             # some operation in progress, let's wait some time to try again
+                            click.echo("Stack currently in state {}, waiting to perform traffic change...".format(
+                                current_stack_status))
                             time.sleep(5)
                         else:
-                            error("Stack is not in a valid state (%s), traffic change cannot be performed.",
-                                  current_stack_status)
+                            error("The traffic change cannot be performed in a stack in the {} state.".format(
+                                current_stack_status))
                             exit(1)
                     else:
                         error("Stack not found!")

@@ -1462,7 +1462,7 @@ def test_traffic_change_stack_in_progress(monkeypatch, boto_client):
     result = _run_with_stacks(_fake_progress_of_stack_changes)
     # check results
     assert 'Stack currently in state CREATE_IN_PROGRESS, waiting to perform traffic change...' in result.output
-    assert 'The traffic change cannot be performed in a stack in the CREATE_FAILED state.' in result.output
+    assert 'The traffic change cannot be performed on a stack in the CREATE_FAILED state.' in result.output
     mocked_time_sleep.assert_called_once_with(5)
     mocked_change_version_traffic.assert_not_called()
 

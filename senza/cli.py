@@ -1168,7 +1168,7 @@ def traffic(stack_name, stack_version, percentage, region, output):
                                 current_stack_status))
                             time.sleep(5)
                         else:
-                            error("The traffic change cannot be performed in a stack in the {} state.".format(
+                            error("The traffic change cannot be performed on a stack in the {} state.".format(
                                 current_stack_status))
                             exit(1)
                     else:

@@ -2,6 +2,10 @@ import collections
 import datetime
 import json
 import os
+from contextlib import contextmanager
+
+from typing import List
+from typing import Optional
 from unittest.mock import MagicMock, mock_open
 
 import botocore.exceptions
@@ -1401,11 +1405,21 @@ def test_traffic(monkeypatch, boto_client, boto_resource):  # noqa: F811
 def test_traffic_change_stack_in_progress(monkeypatch, boto_client):
     runner = CliRunner()
 
-    def _run_with_stacks(mock):
-        monkeypatch.setattr('senza.cli.get_stacks', mock)
+    def _run_for_stacks_states_changes(stack_state_progress: List):
+        stack_state_progress_queue = collections.deque(stack_state_progress)
+
+        def _fake_progress_of_stack_changes(*args, **kwargs) -> List:
+            if stack_state_progress_queue:
+                return [
+                    SenzaStackSummary({'StackName': 'myapp', 'StackStatus': stack_state_progress_queue.popleft()})
+                ]
+            return []
+
+        monkeypatch.setattr('senza.cli.get_stacks', _fake_progress_of_stack_changes)
+
         with runner.isolated_filesystem():
-            result = runner.invoke(cli, ['traffic', '--region=aa-fakeregion-1', 'myapp', 'v1', '100'], catch_exceptions=False)
-            return result
+            sub_command = ['traffic', '--region=aa-fakeregion-1', 'myapp', 'v1', '100']
+            return runner.invoke(cli, sub_command, catch_exceptions=False)
 
     mocked_change_version_traffic = MagicMock(name='mocked_change_version_traffic')
     monkeypatch.setattr('senza.cli.change_version_traffic', mocked_change_version_traffic)
@@ -1413,69 +1427,43 @@ def test_traffic_change_stack_in_progress(monkeypatch, boto_client):
     mocked_time_sleep = MagicMock(name='mocked_time_sleep')
     monkeypatch.setattr('senza.cli.time.sleep', mocked_time_sleep)
 
-    # test stack not found
-    result = _run_with_stacks(MagicMock(name="fake_get_stacks", return_value=[]))
-    assert 'Stack not found!' in result.output
-    mocked_change_version_traffic.assert_not_called()
-    mocked_time_sleep.assert_not_called()
+    @contextmanager
+    def _reset_mocks_ctx():
+        yield
+        mocked_change_version_traffic.reset_mock()
+        mocked_time_sleep.reset_mock()
 
-    mocked_change_version_traffic.reset_mock()
-    mocked_time_sleep.reset_mock()
+    # test stack not found
+    with _reset_mocks_ctx():
+        result = _run_for_stacks_states_changes([])
+
+        assert 'Stack not found!' in result.output
+        mocked_change_version_traffic.assert_not_called()
+        mocked_time_sleep.assert_not_called()
 
     # test stack in progress
-    mock_call_stack_state = ['not_called']
+    with _reset_mocks_ctx():
+        result = _run_for_stacks_states_changes(['UPDATE_IN_PROGRESS', 'UPDATE_COMPLETE'])
 
-    def _fake_progress_of_stack_changes(*args, **kwargs):
-        if mock_call_stack_state:
-            mock_call_stack_state.pop()
-            return [
-                SenzaStackSummary({'StackName': 'myapp', 'StackStatus': 'UPDATE_IN_PROGRESS'})
-            ]
-        else:
-            return [
-                SenzaStackSummary({'StackName': 'myapp', 'StackStatus': 'UPDATE_COMPLETE'})
-            ]
-
-    result = _run_with_stacks(_fake_progress_of_stack_changes)
-    # check results
-    assert 'Stack currently in state UPDATE_IN_PROGRESS, waiting to perform traffic change...' in result.output
-    mocked_time_sleep.assert_called_once_with(5)
-    mocked_change_version_traffic.assert_called_once_with(get_stack_refs(['myapp', 'v1'])[0], 100.0, 'aa-fakeregion-1')
-
-    mocked_change_version_traffic.reset_mock()
-    mocked_time_sleep.reset_mock()
+        assert 'Stack currently in state UPDATE_IN_PROGRESS, waiting to perform traffic change...' in result.output
+        mocked_time_sleep.assert_called_once_with(5)
+        mocked_change_version_traffic.assert_called_once_with(get_stack_refs(['myapp', 'v1'])[0], 100.0, 'aa-fakeregion-1')
 
     # the creation of the stack failed
-    mock_call_stack_state = ['not_called']
+    with _reset_mocks_ctx():
+        result = _run_for_stacks_states_changes(['CREATE_IN_PROGRESS', 'CREATE_FAILED'])
 
-    def _fake_progress_of_stack_changes(*args, **kwargs):
-        if mock_call_stack_state:
-            mock_call_stack_state.pop()
-            return [
-                SenzaStackSummary({'StackName': 'myapp', 'StackStatus': 'CREATE_IN_PROGRESS'})
-            ]
-        else:
-            return [
-                SenzaStackSummary({'StackName': 'myapp', 'StackStatus': 'CREATE_FAILED'})
-            ]
-
-    result = _run_with_stacks(_fake_progress_of_stack_changes)
-    # check results
-    assert 'Stack currently in state CREATE_IN_PROGRESS, waiting to perform traffic change...' in result.output
-    assert 'The traffic change cannot be performed on a stack in the CREATE_FAILED state.' in result.output
-    mocked_time_sleep.assert_called_once_with(5)
-    mocked_change_version_traffic.assert_not_called()
-
-    mocked_change_version_traffic.reset_mock()
-    mocked_time_sleep.reset_mock()
+        assert 'Stack currently in state CREATE_IN_PROGRESS, waiting to perform traffic change...' in result.output
+        assert 'The traffic change cannot be performed on a stack in the CREATE_FAILED state.' in result.output
+        mocked_time_sleep.assert_called_once_with(5)
+        mocked_change_version_traffic.assert_not_called()
 
     # test stack ready to change
-    _run_with_stacks(MagicMock(name="fake_get_stacks", return_value=[
-        SenzaStackSummary({'StackName': 'myapp', 'StackStatus': 'UPDATE_COMPLETE'})
-    ]))
+    with _reset_mocks_ctx():
+        _run_for_stacks_states_changes(['UPDATE_COMPLETE'])
 
-    mocked_change_version_traffic.assert_called_once_with(get_stack_refs(['myapp', 'v1'])[0], 100.0, 'aa-fakeregion-1')
-    mocked_time_sleep.assert_not_called()
+        mocked_change_version_traffic.assert_called_once_with(get_stack_refs(['myapp', 'v1'])[0], 100.0, 'aa-fakeregion-1')
+        mocked_time_sleep.assert_not_called()
 
 
 def test_AccountArguments(monkeypatch):

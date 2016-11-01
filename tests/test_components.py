@@ -1044,6 +1044,27 @@ def test_component_load_balancer_v2_default_internal_scheme(monkeypatch):
     assert 'internal' == result["Resources"]["test_lb"]["Properties"]["Scheme"]
 
 
+def test_component_load_balancer_v2_target_group_vpc_id(monkeypatch):
+    configuration = {
+        "Name": "test_lb",
+        "SecurityGroups": "",
+        "HTTPPort": "9999",
+        "VpcId": "0a-12345"
+    }
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    definition = {"Resources": {}}
+
+    args = MagicMock()
+    args.region = "foo"
+
+    mock_string_result = MagicMock()
+    mock_string_result.return_value = "foo"
+    monkeypatch.setattr('senza.components.elastic_load_balancer_v2.resolve_security_groups', mock_string_result)
+
+    result = component_elastic_load_balancer_v2(definition, configuration, args, info, False, MagicMock())
+    assert '0a-12345' == result["Resources"]["test_lbTargetGroup"]["Properties"]["VpcId"]
+
+
 def test_component_subnet_auto_configuration(monkeypatch):
     configuration = {
         'PublicOnly': True,

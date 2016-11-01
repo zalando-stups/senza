@@ -96,6 +96,8 @@ def component_elastic_load_balancer_v2(definition,
     else:
         loadbalancer_subnet_map = "LoadBalancerSubnets"
 
+    vpc_id = configuration.get("VpcId") or account_info.VpcID
+
     tags = [
         # Tag "Name"
         {
@@ -138,7 +140,7 @@ def component_elastic_load_balancer_v2(definition,
             'Port': configuration['HTTPPort'],
             'Protocol': 'HTTP',
             'UnhealthyThresholdCount': '2',
-            'VpcId': account_info.VpcID,  # TODO: support multiple VPCs
+            'VpcId': vpc_id,
             'Tags': tags,
             'TargetGroupAttributes': [{'Key': 'deregistration_delay.timeout_seconds', 'Value': '60'}]
         }

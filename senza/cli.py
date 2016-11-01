@@ -1152,7 +1152,28 @@ def traffic(stack_name, stack_version, percentage, region, output):
             if percentage is None:
                 print_version_traffic(ref, region)
             else:
-                change_version_traffic(ref, percentage, region)
+                while True:
+                    referenced_stacks = list(get_stacks(stack_refs, region))
+
+                    if len(referenced_stacks) > 0:
+                        stack_to_change = referenced_stacks[0]
+                        current_stack_status = stack_to_change.StackStatus
+
+                        if current_stack_status.endswith('_COMPLETE'):
+                            change_version_traffic(ref, percentage, region)
+                            break
+                        elif current_stack_status.endswith('_IN_PROGRESS'):
+                            # some operation in progress, let's wait some time to try again
+                            click.echo("Stack currently in state {}, waiting to perform traffic change...".format(
+                                current_stack_status))
+                            time.sleep(5)
+                        else:
+                            error("The traffic change cannot be performed on a stack in the {} state.".format(
+                                current_stack_status))
+                            exit(1)
+                    else:
+                        error("Stack not found!")
+                        exit(1)
 
 
 @cli.command()

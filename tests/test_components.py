@@ -11,6 +11,7 @@ from senza.components.auto_scaling_group import (component_auto_scaling_group,
                                                  normalize_asg_success,
                                                  normalize_network_threshold,
                                                  to_iso8601_duration)
+from senza.components.coreos_auto_configuration import component_coreos_auto_configuration
 from senza.components.elastic_load_balancer import (component_elastic_load_balancer,
                                                     get_load_balancer_name)
 from senza.components.elastic_load_balancer_v2 import component_elastic_load_balancer_v2
@@ -1094,3 +1095,29 @@ def test_component_subnet_auto_configuration(monkeypatch):
     }
     result = component_subnet_auto_configuration(definition, configuration, args, info, False, MagicMock())
     assert ['subnet-1', 'subnet-2'] == result['Mappings']['ServerSubnets']['foo']['Subnets']
+
+
+def test_component_coreos_auto_configuration(monkeypatch):
+    configuration = {
+        'ReleaseChannel': 'gamma'
+    }
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    definition = {"Resources": {}}
+
+    args = MagicMock()
+    args.region = "foo"
+
+    subnet1 = MagicMock()
+    subnet1.id = 'subnet-1'
+
+    ec2 = MagicMock()
+    ec2.subnets.filter.return_value = [subnet1]
+
+    get = MagicMock()
+    get.return_value.json.return_value = {'foo': {'hvm': 'ami-007'}}
+
+    monkeypatch.setattr('boto3.resource', lambda *args: ec2)
+    monkeypatch.setattr('requests.get', get)
+    result = component_coreos_auto_configuration(definition, configuration, args, info, False, MagicMock())
+    assert 'ami-007' == result['Mappings']['Images']['foo']['LatestCoreOSImage']
+

@@ -154,4 +154,5 @@ def setup_sentry(sentry_endpoint: Optional[str]):
 
     return sentry_client
 
+
 sentry = setup_sentry(configuration.get('sentry.endpoint'))

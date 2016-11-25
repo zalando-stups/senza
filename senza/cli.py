@@ -1141,9 +1141,10 @@ def domains(stack_ref, region, output, w, watch):
 @output_option
 @stacktrace_visible_option
 def traffic(stack_name, stack_version, percentage, region, output):
-    '''Route traffic to a specific stack (weighted DNS record)'''
+    """Route traffic to a specific stack (weighted DNS record)"""
 
     stack_refs = get_stack_refs([stack_name, stack_version])
+    related_stack_refs = get_stack_refs([stack_name])
     region = get_region(region)
     check_credentials(region)
 
@@ -1152,28 +1153,31 @@ def traffic(stack_name, stack_version, percentage, region, output):
             if percentage is None:
                 print_version_traffic(ref, region)
             else:
-                while True:
-                    referenced_stacks = list(get_stacks(stack_refs, region))
+                all_stacks_in_final_state = False
+                while not all_stacks_in_final_state:
+                    # assume all stacks are ready
+                    all_stacks_in_final_state = True
+                    related_stacks = list(get_stacks(related_stack_refs, region))
 
-                    if len(referenced_stacks) > 0:
-                        stack_to_change = referenced_stacks[0]
-                        current_stack_status = stack_to_change.StackStatus
+                    if len(related_stacks) > 0:
+                        for related_stack in related_stacks:
+                            current_stack_status = related_stack.StackStatus
 
-                        if current_stack_status.endswith('_COMPLETE'):
-                            change_version_traffic(ref, percentage, region)
-                            break
-                        elif current_stack_status.endswith('_IN_PROGRESS'):
-                            # some operation in progress, let's wait some time to try again
-                            click.echo("Stack currently in state {}, waiting to perform traffic change...".format(
-                                current_stack_status))
-                            time.sleep(5)
-                        else:
-                            error("The traffic change cannot be performed on a stack in the {} state.".format(
-                                current_stack_status))
-                            exit(1)
+                            if current_stack_status.endswith('_COMPLETE') or current_stack_status.endswith('_FAILED'):
+                                continue
+                            elif current_stack_status.endswith('_IN_PROGRESS'):
+                                # some operation in progress, let's wait some time to try again
+                                all_stacks_in_final_state = False
+                                info(
+                                    "Waiting stack {} ({}) to perform traffic change...".format(
+                                        related_stack.StackName, current_stack_status))
+                                time.sleep(5)
                     else:
                         error("Stack not found!")
                         exit(1)
+
+                # change traffic after all related stacks are in a final state
+                change_version_traffic(ref, percentage, region)
 
 
 @cli.command()
@@ -1553,6 +1557,7 @@ def wait(stack_ref, region, deletion, timeout, interval):
                                                          actions))
             return
     raise click.Abort()
+
 
 cli.add_command(cmd_config)
 

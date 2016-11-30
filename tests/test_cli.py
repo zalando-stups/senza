@@ -4,7 +4,7 @@ import json
 import os
 from contextlib import contextmanager
 
-from typing import List
+from typing import List, Dict
 from typing import Optional
 from unittest.mock import MagicMock, mock_open
 
@@ -459,11 +459,11 @@ def test_print_taupage_config_with_ref(monkeypatch, disable_version_check):  # n
                                                                  'source': 'foo/bar',
                                                                  'ports': {80: 80},
                                                                  'mint_bucket': {'Fn::Join':
-                                                                                 ['-',
-                                                                                  [{'Ref': 'bucket1'},
-                                                                                   '{{ Arguments.ApplicationId}}'
-                                                                                   ]
-                                                                                  ]},
+                                                                                     ['-',
+                                                                                      [{'Ref': 'bucket1'},
+                                                                                       '{{ Arguments.ApplicationId}}'
+                                                                                       ]
+                                                                                      ]},
                                                                  'environment': {'ENV1': {'Ref': 'resource1'},
                                                                                  'ENV2': 'v2'}},
                                                'Type': 'Senza::TaupageAutoScalingGroup'}}]
@@ -1210,7 +1210,6 @@ def test_update(monkeypatch):
 
 
 def test_traffic(monkeypatch, boto_client, boto_resource):  # noqa: F811
-
     stacks = [
         StackVersion('myapp', 'v1', ['myapp.zo.ne'],
                      ['some-lb.eu-central-1.elb.amazonaws.com'], ['some-arn']),
@@ -1226,8 +1225,7 @@ def test_traffic(monkeypatch, boto_client, boto_resource):  # noqa: F811
 
     referenced_stacks = [
         SenzaStackSummary({'StackName': s.name, 'StackStatus': 'UPDATE_COMPLETE'})
-        for s in stacks
-    ]
+        for s in stacks]
     monkeypatch.setattr('senza.cli.get_stacks', MagicMock(name="fake_get_stacks", return_value=referenced_stacks))
 
     # start creating mocking of the route53 record sets and Application Versions
@@ -1402,23 +1400,26 @@ def test_traffic(monkeypatch, boto_client, boto_resource):  # noqa: F811
             run(['v4', '100'])
 
 
-def test_traffic_change_stack_in_progress(monkeypatch, boto_client):
+def test_traffic_change_stack_in_progress(monkeypatch, boto_client):  # noqa: F811
     runner = CliRunner()
+    target_stack_version = 'v1'
 
-    def _run_for_stacks_states_changes(stack_state_progress: List):
-        stack_state_progress_queue = collections.deque(stack_state_progress)
+    def _run_for_stacks_states_changes(state_progress: List):
+        stacks_state_progress_queue = collections.deque(state_progress)
 
-        def _fake_progress_of_stack_changes(*args, **kwargs) -> List:
-            if stack_state_progress_queue:
+        def _fake_progress_of_stack_changes(stack_refs, *args, **kwargs) -> List:
+            if stacks_state_progress_queue:
                 return [
-                    SenzaStackSummary({'StackName': 'myapp', 'StackStatus': stack_state_progress_queue.popleft()})
-                ]
-            return []
+                    SenzaStackSummary({'StackName': 'myapp',
+                                       'StackStatus': stacks_state_progress_queue.popleft()})
+                    for ref in stack_refs]
+            else:
+                return []
 
         monkeypatch.setattr('senza.cli.get_stacks', _fake_progress_of_stack_changes)
 
         with runner.isolated_filesystem():
-            sub_command = ['traffic', '--region=aa-fakeregion-1', 'myapp', 'v1', '100']
+            sub_command = ['traffic', '--region=aa-fakeregion-1', 'myapp', target_stack_version, '100']
             return runner.invoke(cli, sub_command, catch_exceptions=False)
 
     mocked_change_version_traffic = MagicMock(name='mocked_change_version_traffic')
@@ -1445,25 +1446,33 @@ def test_traffic_change_stack_in_progress(monkeypatch, boto_client):
     with _reset_mocks_ctx():
         result = _run_for_stacks_states_changes(['UPDATE_IN_PROGRESS', 'UPDATE_COMPLETE'])
 
-        assert 'Stack currently in state UPDATE_IN_PROGRESS, waiting to perform traffic change...' in result.output
+        assert 'Waiting for stack myapp (UPDATE_IN_PROGRESS) to perform traffic change..' in result.output
         mocked_time_sleep.assert_called_once_with(5)
-        mocked_change_version_traffic.assert_called_once_with(get_stack_refs(['myapp', 'v1'])[0], 100.0, 'aa-fakeregion-1')
+        mocked_change_version_traffic.assert_called_once_with(get_stack_refs(['myapp', 'v1'])[0], 100.0,
+                                                              'aa-fakeregion-1')
 
     # the creation of the stack failed
     with _reset_mocks_ctx():
         result = _run_for_stacks_states_changes(['CREATE_IN_PROGRESS', 'CREATE_FAILED'])
 
-        assert 'Stack currently in state CREATE_IN_PROGRESS, waiting to perform traffic change...' in result.output
-        assert 'The traffic change cannot be performed on a stack in the CREATE_FAILED state.' in result.output
+        assert 'Waiting for stack myapp (CREATE_IN_PROGRESS) to perform traffic change..' in result.output
         mocked_time_sleep.assert_called_once_with(5)
-        mocked_change_version_traffic.assert_not_called()
 
     # test stack ready to change
     with _reset_mocks_ctx():
         _run_for_stacks_states_changes(['UPDATE_COMPLETE'])
 
-        mocked_change_version_traffic.assert_called_once_with(get_stack_refs(['myapp', 'v1'])[0], 100.0, 'aa-fakeregion-1')
+        mocked_change_version_traffic.assert_called_once_with(get_stack_refs(['myapp', 'v1'])[0], 100.0,
+                                                              'aa-fakeregion-1')
         mocked_time_sleep.assert_not_called()
+
+    # test target stack is ready, but related ones are not, should wait
+    with _reset_mocks_ctx():
+        _run_for_stacks_states_changes(['CREATE_IN_PROGRESS', 'CREATE_COMPLETE'])
+
+        mocked_change_version_traffic.assert_called_once_with(get_stack_refs(['myapp', 'v1'])[0], 100.0,
+                                                              'aa-fakeregion-1')
+        mocked_time_sleep.assert_called_once_with(5)
 
 
 def test_AccountArguments(monkeypatch):
@@ -1491,8 +1500,8 @@ def test_patch(monkeypatch):
     boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',
                                                           'CreationTime': '2016-06-14'}]}
     boto3.describe_stack_resources.return_value = {'StackResources':
-                                                   [{'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
-                                                     'PhysicalResourceId': 'myasg'}]}
+                                                       [{'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
+                                                         'PhysicalResourceId': 'myasg'}]}
     group = {'AutoScalingGroupName': 'myasg'}
     boto3.describe_auto_scaling_groups.return_value = {'AutoScalingGroups': [group]}
     image = MagicMock()
@@ -1529,8 +1538,8 @@ def test_scale(monkeypatch):
     boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',
                                                           'CreationTime': '2016-06-14'}]}
     boto3.describe_stack_resources.return_value = {'StackResources':
-                                                   [{'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
-                                                     'PhysicalResourceId': 'myasg'}]}
+                                                       [{'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
+                                                         'PhysicalResourceId': 'myasg'}]}
     # NOTE: we are using invalid MinSize (< capacity) here to get one more line covered ;-)
     group = {'AutoScalingGroupName': 'myasg', 'DesiredCapacity': 1, 'MinSize': 3, 'MaxSize': 1}
     boto3.describe_auto_scaling_groups.return_value = {'AutoScalingGroups': [group]}
@@ -1542,7 +1551,6 @@ def test_scale(monkeypatch):
 
 
 def test_wait(monkeypatch):
-
     cf = MagicMock()
     stack1 = {'StackName': 'test-1',
               'CreationTime': datetime.datetime.utcnow(),
@@ -1631,10 +1639,10 @@ def test_wait_failure(monkeypatch):
 
     cf.list_stacks.return_value = {'StackSummaries': [stack1]}
     cf.describe_stack_events.return_value = {'StackEvents':
-                                             [{'Timestamp': 0,
-                                               'ResourceStatus': 'FAIL',
-                                               'ResourceStatusReason': 'myreason',
-                                               'LogicalResourceId': 'foo'}]}
+                                                 [{'Timestamp': 0,
+                                                   'ResourceStatus': 'FAIL',
+                                                   'ResourceStatusReason': 'myreason',
+                                                   'LogicalResourceId': 'foo'}]}
     monkeypatch.setattr('boto3.client', MagicMock(return_value=cf))
 
     def my_resource(rtype, *args):
@@ -1664,7 +1672,6 @@ def test_account_arguments():
 
 
 def test_get_stack_reference(monkeypatch):
-
     fb_none = StackReference(name='foobar-stack', version=None)
     fb_v1 = StackReference(name='foobar-stack', version='v1')
     fb_v2 = StackReference(name='foobar-stack', version='v2')
@@ -1821,7 +1828,7 @@ def test_traffic_fallback_route53api(monkeypatch, boto_client, boto_resource):  
     referenced_stacks = [
         SenzaStackSummary({'StackName': s.name, 'StackStatus': 'UPDATE_COMPLETE'})
         for s in stacks
-    ]
+        ]
     monkeypatch.setattr('senza.cli.get_stacks', MagicMock(name="fake_get_stacks", return_value=referenced_stacks))
 
     def _record(dns_identifier, weight):

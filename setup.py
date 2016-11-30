@@ -22,6 +22,7 @@ def read_version(package):
             if line.startswith('__version__ = '):
                 return line.split()[-1].strip().strip("'")
 
+
 NAME = 'stups-senza'
 MAIN_PACKAGE = 'senza'
 VERSION = read_version(MAIN_PACKAGE)

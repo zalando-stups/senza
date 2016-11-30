@@ -78,4 +78,5 @@ class Configuration(MutableMapping):
             cfg = {}
         return cfg
 
+
 configuration = Configuration(Path(get_app_dir('senza')) / "config.yaml")

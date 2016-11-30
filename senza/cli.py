@@ -1172,7 +1172,7 @@ def traffic(stack_name, stack_version, percentage, region, output, interval):
                                 # some operation in progress, let's wait some time to try again
                                 all_stacks_in_final_state = False
                                 info(
-                                    "Waiting stack {} ({}) to perform traffic change...".format(
+                                    "Waiting for stack {} ({}) to perform traffic change..".format(
                                         related_stack.StackName, current_stack_status))
                                 time.sleep(interval)
                     else:

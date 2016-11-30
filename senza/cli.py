@@ -1137,10 +1137,13 @@ def domains(stack_ref, region, output, w, watch):
 @click.argument('stack_name')
 @click.argument('stack_version', required=False)
 @click.argument('percentage', type=FloatRange(0, 100, clamp=True), required=False)
+@click.option('-i', '--interval', default=5,
+              type=click.IntRange(1, 600, clamp=True),
+              help='Time between checks (default: 5s)')
 @region_option
 @output_option
 @stacktrace_visible_option
-def traffic(stack_name, stack_version, percentage, region, output):
+def traffic(stack_name, stack_version, percentage, region, output, interval):
     """Route traffic to a specific stack (weighted DNS record)"""
 
     stack_refs = get_stack_refs([stack_name, stack_version])
@@ -1171,7 +1174,7 @@ def traffic(stack_name, stack_version, percentage, region, output):
                                 info(
                                     "Waiting stack {} ({}) to perform traffic change...".format(
                                         related_stack.StackName, current_stack_status))
-                                time.sleep(5)
+                                time.sleep(interval)
                     else:
                         error("Stack not found!")
                         exit(1)

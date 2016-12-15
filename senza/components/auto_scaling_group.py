@@ -246,6 +246,7 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
 
     return definition
 
+
 duration_regex = r'^(?:\d+[hH])?(?:\d+[mM])?(?:\d+[sS])?$'
 duration_split_regex = r'(\d+[hHmMsS])'
 

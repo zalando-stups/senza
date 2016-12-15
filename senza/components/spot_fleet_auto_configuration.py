@@ -4,7 +4,7 @@ import time
 import json
 from pathlib import Path
 from senza.components.subnet_auto_configuration import component_subnet_auto_configuration
-from senza.aws import resolve_security_groups, resolve_topic_arn, resolve_referenced_resource
+from senza.aws import resolve_security_groups
 from senza.utils import ensure_keys
 
 '''

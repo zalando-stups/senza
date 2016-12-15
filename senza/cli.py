@@ -1556,6 +1556,7 @@ def wait(stack_ref, region, deletion, timeout, interval):
             return
     raise click.Abort()
 
+
 cli.add_command(cmd_config)
 
 

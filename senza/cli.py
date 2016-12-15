@@ -583,7 +583,9 @@ def create(definition, region, version, parameter, disable_rollback, dry_run,
         data['Tags'].append({'Key': key, 'Value': value})
 
     cf = BotoClientProxy('cloudformation', region)
-
+    if len(data['TemplateBody']) > 51200:
+        fatal_error('TemplateBody must have length less than or equal to 51200. Current length: {}'.format(
+            len(data['TemplateBody'])))
     with Action('Creating Cloud Formation stack {}..'.format(data['StackName'])) as act:
         try:
             if dry_run:

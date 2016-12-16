@@ -45,11 +45,13 @@ from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
 from .stups.piu import Piu
 from .subcommands.config import cmd_config
 from .subcommands.root import cli
+from .subcommands.s3 import save_template_in_s3
 from .templates import get_template_description, get_templates
 from .traffic import (change_version_traffic, get_records,
                       print_version_traffic, resolve_to_ip_addresses)
 from .utils import (camel_case_to_underscore, ensure_keys, named_value,
                     pystache_render)
+
 
 STYLES = {
     'RUNNING': {'fg': 'green'},
@@ -584,8 +586,7 @@ def create(definition, region, version, parameter, disable_rollback, dry_run,
 
     cf = BotoClientProxy('cloudformation', region)
     if len(data['TemplateBody']) > 51200:
-        fatal_error('TemplateBody must have length less than or equal to 51200. Current length: {}'.format(
-            len(data['TemplateBody'])))
+        save_template_in_s3(data, region)
     with Action('Creating Cloud Formation stack {}..'.format(data['StackName'])) as act:
         try:
             if dry_run:

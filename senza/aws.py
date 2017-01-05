@@ -1,10 +1,9 @@
 import base64
 import collections
-import datetime
 import functools
 import re
-import time
 
+import arrow
 import boto3
 import yaml
 from botocore.exceptions import ClientError
@@ -132,12 +131,9 @@ def parse_time(s: str) -> float:
     Parses an ISO 8601 string and returns a timestamp
     """
     try:
-        utc = datetime.datetime.strptime(s, '%Y-%m-%dT%H:%M:%S.%fZ')
-        ts = time.time()
-        utc_offset = datetime.datetime.fromtimestamp(ts) - datetime.datetime.utcfromtimestamp(ts)
-        local = utc + utc_offset
-        return local.timestamp()
-    except:
+        dtime = arrow.get(s).datetime
+        return dtime.timestamp()
+    except Exception:
         return None
 
 

@@ -1,3 +1,10 @@
+"""
+Class and instance to read and write senza configuration.
+
+Senza configuration consists of an hierarchical yaml file with
+sections > keys > values, which are represented in the form SECTION.KEY
+"""
+
 from collections.abc import MutableMapping
 from pathlib import Path
 from typing import Dict, Tuple
@@ -7,8 +14,15 @@ from click import get_app_dir
 
 from .exceptions import InvalidConfigKey
 
+CONFIGURATION_PATH = Path(get_app_dir('senza')) / "config.yaml"
+
 
 class Configuration(MutableMapping):
+
+    """
+    Class to read and write senza configuration as map. Keys take the form of
+    SECTION.KEY
+    """
 
     def __init__(self, path: Path):
         self.config_path = path
@@ -25,12 +39,12 @@ class Configuration(MutableMapping):
 
     def __setitem__(self, key: str, value):
         section, sub_key = self.__split_key(key)
-        configuration = self.raw_dict
+        cfg = self.raw_dict
 
-        if section not in configuration:
-            configuration[section] = {}
-        configuration[section][sub_key] = str(value)
-        self.__save(configuration)
+        if section not in self.raw_dict:
+            cfg[section] = {}
+        cfg[section][sub_key] = str(value)
+        self.__save(cfg)
 
     def __delitem__(self, key):
         section, sub_key = self.__split_key(key)
@@ -79,4 +93,4 @@ class Configuration(MutableMapping):
         return cfg
 
 
-configuration = Configuration(Path(get_app_dir('senza')) / "config.yaml")
+configuration = Configuration(CONFIGURATION_PATH)  # pylint: disable=locally-disabled, invalid-name

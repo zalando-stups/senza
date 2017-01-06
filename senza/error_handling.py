@@ -6,7 +6,7 @@ integration
 import sys
 from tempfile import NamedTemporaryFile
 from traceback import format_exception
-from typing import Any, Dict, Optional  # noqa: F401
+from typing import Optional  # noqa: F401
 
 import senza
 import yaml.constructor
@@ -140,7 +140,7 @@ class HandleExceptions:
             message = ("{}\nRun `senza init` to (re-)create "
                        "the security group.").format(error)
             die_fatal_error(message)
-        except Exception as unknown_exception:
+        except Exception as unknown_exception:  # pylint: disable=locally-disabled, broad-except
             # Catch All
             self.die_unknown_error(unknown_exception)
 
@@ -159,4 +159,4 @@ def setup_sentry(sentry_endpoint: Optional[str]):
     return sentry_client
 
 
-sentry = setup_sentry(configuration.get('sentry.endpoint'))
+sentry = setup_sentry(configuration.get('sentry.endpoint'))  # pylint: disable=locally-disabled, invalid-name

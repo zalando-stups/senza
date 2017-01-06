@@ -1,10 +1,16 @@
+"""
+Functions and decorators related to command line arguments
+"""
+
+# invalid-name is disabled to match the style of other click options
+# pylint: disable=locally-disabled, invalid-name
 import boto3.session
 import click
 
 from .error_handling import HandleExceptions
 
 
-def validate_region(ctx, param, value):
+def validate_region(ctx, param, value):  # pylint: disable=locally-disabled, unused-argument
     """Validate Click region param parameter."""
 
     if value is not None:
@@ -19,7 +25,11 @@ def validate_region(ctx, param, value):
     return value
 
 
-def set_stacktrace_visible(ctx, param, value):
+def set_stacktrace_visible(ctx, param, value):  # pylint: disable=locally-disabled, unused-argument
+    """
+    Callback to define whether to display the stacktrace in case of an
+    unhandled error.
+    """
     HandleExceptions.stacktrace_visible = value
 
 

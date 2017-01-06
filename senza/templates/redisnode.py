@@ -1,6 +1,6 @@
-'''
+"""
 Elasticache node running redis, without replication / HA (for caching)
-'''
+"""
 
 from clickclick import warning
 from senza.utils import pystache_render
@@ -28,7 +28,10 @@ SenzaComponents:
 '''
 
 
-def gather_user_variables(variables, region, account_info):
+def gather_user_variables(variables, region, account_info):  # pylint: disable=locally-disabled, unused-argument
+    """
+    Gather all the variables needed to create the redis node
+    """
     # maximal 32 characters because of the loadbalancer-name
     prompt(variables, 'application_id', 'Application ID', default='hello-world',
            value_proc=check_value(18, '^[a-zA-Z][-a-zA-Z0-9]*$'))
@@ -38,12 +41,15 @@ def gather_user_variables(variables, region, account_info):
 
     rules_missing = check_security_group(sg_name, [('tcp', 6379)], region, allow_from_self=True)
     if ('tcp', 6379) in rules_missing:
-        warning('Security group {} does not allow tcp/6379 access, you will not be able to access your redis'.format(
-            sg_name))
+        warning('Security group {} does not allow tcp/6379 access, '
+                'you will not be able to access your redis'.format(sg_name))
 
     return variables
 
 
 def generate_definition(variables):
+    """
+    Generates the redis node definition yaml from template
+    """
     definition_yaml = pystache_render(TEMPLATE, variables)
     return definition_yaml

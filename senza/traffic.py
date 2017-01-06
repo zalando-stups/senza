@@ -1,3 +1,7 @@
+"""
+Functions related to Traffic management
+"""
+
 import collections
 from json import JSONEncoder
 from typing import Dict, Iterator
@@ -63,6 +67,9 @@ def get_weights(dns_names: list, identifier: str, all_identifiers) -> ({str: int
 
 
 def calculate_new_weights(delta, identifier, known_record_weights, percentage):
+    """
+    Calculates the new weights for the all the Route53 records
+    """
     new_record_weights = {}
     deltas = {}
     for i, w in known_record_weights.items():
@@ -88,8 +95,9 @@ def calculate_new_weights(delta, identifier, known_record_weights, percentage):
 def compensate(calculation_error, compensations, identifier, new_record_weights, partial_count,
                percentage, identifier_versions):
     """
-    Compensate for the rounding errors as well as for the fact, that we do not allow to bring down the minimal weights
-    lower then minimal possible value not to disable traffic from the minimally configured versions (1) and
+    Compensate for the rounding errors as well as for the fact, that we do not
+    allow to bring down the minimal weights lower then minimal possible value
+    not to disable traffic from the minimally configured versions (1) and
     we do not allow to add any values to the already disabled versions (0).
     """
     # distribute the error on the versions, other then the current one
@@ -103,11 +111,11 @@ def compensate(calculation_error, compensations, identifier, new_record_weights,
     for i in sorted(new_record_weights.keys(), key=lambda x: identifier_versions[x], reverse=True):
         if i == identifier:
             continue
-        nw = new_record_weights[i] + part
-        if nw <= 0:
+        new_weight = new_record_weights[i] + part
+        if new_weight <= 0:
             # do not remove the traffic from the minimal traffic versions
             continue
-        new_record_weights[i] = nw
+        new_record_weights[i] = new_weight
         calculation_error -= part
         compensations[i] = part
         if calculation_error == 0:
@@ -119,7 +127,7 @@ def compensate(calculation_error, compensations, identifier, new_record_weights,
         warning(
             ("Changing given percentage from {} to {} " +
              "because all other versions are already getting the possible minimum traffic").format(
-                percentage / PERCENT_RESOLUTION, adjusted_percentage / PERCENT_RESOLUTION))
+                 percentage / PERCENT_RESOLUTION, adjusted_percentage / PERCENT_RESOLUTION))
         percentage = adjusted_percentage
         new_record_weights[identifier] = percentage
     assert calculation_error == 0
@@ -200,8 +208,7 @@ def dump_traffic_changes(stack_name: str,
                          known_record_weights: {str: int},
                          new_record_weights: {str: int},
                          compensations: {str: int},
-                         deltas: {str: int}
-                         ):
+                         deltas: {str: int}):
     """
     dump changes to the traffic settings for the given versions
     """
@@ -236,10 +243,12 @@ def dump_traffic_changes(stack_name: str,
 
 
 def print_traffic_changes(message: list):
-    print_table('stack_name version identifier old_weight% delta compensation new_weight% current'.split(), message)
+    print_table(['stack_name', 'version', 'identifier', 'old_weight%',
+                 'delta', 'compensation', 'new_weight%', 'current'], message)
 
 
-class StackVersion(collections.namedtuple('StackVersion', 'name version domain lb_dns_name notification_arns')):
+class StackVersion(collections.namedtuple('StackVersion',
+                                          'name version domain lb_dns_name notification_arns')):
     @property
     def identifier(self):
         return '{}-{}'.format(self.name, self.version)
@@ -271,7 +280,9 @@ def get_stack_versions(stack_name: str, region: str) -> Iterator[StackVersion]:
             elif res.resource_type == 'AWS::Route53::RecordSet':
                 if 'version' not in res.logical_id.lower():
                     domain.append(res.physical_resource_id)
-        yield StackVersion(stack_name, get_tag(details.tags, 'StackVersion'), domain, lb_dns_name, notification_arns)
+        yield StackVersion(stack_name,
+                           get_tag(details.tags, 'StackVersion'),
+                           domain, lb_dns_name, notification_arns)
 
 
 def get_version(versions: list, version: str):
@@ -291,8 +302,7 @@ def get_records(domain: str):
         while result['IsTruncated']:
             recordfilter = {'HostedZoneId': hosted_zone.id,
                             'StartRecordName': result['NextRecordName'],
-                            'StartRecordType': result['NextRecordType']
-                            }
+                            'StartRecordType': result['NextRecordType']}
             if result.get('NextRecordIdentifier'):
                 recordfilter['StartRecordIdentifier'] = result.get('NextRecordIdentifier')
 
@@ -314,10 +324,13 @@ def print_version_traffic(stack_ref: StackReference, region):
         raise click.UsageError('No stack version of "{}" found'.format(stack_ref.name))
 
     if not version.domain:
-        raise click.UsageError('Stack {} version {} has no domain'.format(version.name, version.version))
+        raise click.UsageError('Stack {} version {} has '
+                               'no domain'.format(version.name,
+                                                  version.version))
 
-    known_record_weights, partial_count, partial_sum = get_weights(version.dns_name, version.identifier,
-                                                                   identifier_versions.keys())
+    known_record_weights, _, _ = get_weights(version.dns_name,
+                                             version.identifier,
+                                             identifier_versions.keys())
 
     rows = [
         {
@@ -344,8 +357,8 @@ def change_version_traffic(stack_ref: StackReference, percentage: float,
                            region: str):
     versions = list(get_stack_versions(stack_ref.name, region))
     arns = []
-    for v in versions:
-        arns = arns + v.notification_arns
+    for each_version in versions:
+        arns = arns + each_version.notification_arns
     identifier_versions = collections.OrderedDict(
         (version.identifier, version.version) for version in versions)
     version = get_version(versions, stack_ref.version)
@@ -353,7 +366,9 @@ def change_version_traffic(stack_ref: StackReference, percentage: float,
     identifier = version.identifier
 
     if not version.domain:
-        raise click.UsageError('Stack {} version {} has no domain'.format(version.name, version.version))
+        raise click.UsageError('Stack {} version {} has '
+                               'no domain'.format(version.name,
+                                                  version.version))
 
     percentage = int(percentage * PERCENT_RESOLUTION)
     known_record_weights, partial_count, partial_sum = get_weights(version.dns_name, identifier,
@@ -362,7 +377,8 @@ def change_version_traffic(stack_ref: StackReference, percentage: float,
     if partial_count == 0 and percentage == 0:
         # disable the last remaining version
         new_record_weights = {i: 0 for i in known_record_weights.keys()}
-        message = 'DNS record "{dns_name}" will be removed from that stack'.format(dns_name=version.dns_name)
+        message = ('DNS record "{dns_name}" will be removed from that '
+                   'stack'.format(dns_name=version.dns_name))
         ok(msg=message)
     else:
         with Action('Calculating new weights..'):
@@ -375,7 +391,10 @@ def change_version_traffic(stack_ref: StackReference, percentage: float,
                     # will put the only last version to full traffic percentage
                     compensations[identifier] = FULL_PERCENTAGE - percentage
                     percentage = int(FULL_PERCENTAGE)
-            new_record_weights, deltas = calculate_new_weights(delta, identifier, known_record_weights, percentage)
+            new_record_weights, deltas = calculate_new_weights(delta,
+                                                               identifier,
+                                                               known_record_weights,
+                                                               percentage)
             total_weight = sum(new_record_weights.values())
             calculation_error = FULL_PERCENTAGE - total_weight
             if calculation_error and calculation_error < FULL_PERCENTAGE:
@@ -401,7 +420,9 @@ def inform_sns(arns: list, message: str, region):
     sns_topics = set(arns)
     sns = BotoClientProxy('sns', region_name=region)
     for sns_topic in sns_topics:
-        sns.publish(TopicArn=sns_topic, Subject="SenzaTrafficRedirect", Message=jsonizer.encode((message)))
+        sns.publish(TopicArn=sns_topic,
+                    Subject="SenzaTrafficRedirect",
+                    Message=jsonizer.encode(message))
 
 
 def resolve_to_ip_addresses(dns_name: str) -> set:

@@ -41,3 +41,15 @@ class InvalidDefinition(SenzaException):
     def __str__(self):
         return ("{path} is not a valid senza definition: "
                 "{reason}".format_map(vars(self)))
+
+
+class SecurityGroupNotFound(SenzaException):
+    """
+    Exception raised when a Security Group is not found
+    """
+
+    def __init__(self, security_group: str):
+        self.security_group = security_group
+
+    def __str__(self):
+        return 'Security Group "{}" does not exist.'.format(self.security_group)

@@ -398,7 +398,7 @@ def gather_user_variables(variables, region, account_info):
     prompt(variables, 'instance_type', 'EC2 instance type', default='t2.medium')
 
     variables['hosted_zone'] = account_info.Domain or defaults['hosted_zone']
-    if (variables['hosted_zone'][-1:] != '.'):
+    if variables['hosted_zone'][-1:] != '.':
         variables['hosted_zone'] += '.'
     prompt(variables, 'discovery_domain', 'ETCD Discovery Domain',
            default='postgres.' + variables['hosted_zone'][:-1])
@@ -503,11 +503,14 @@ def get_latest_image(registry_domain='registry.opensource.zalan.do', team='acid'
     Gets the full name of latest image for an artifact
     """
     try:
-        r = requests.get('https://{0}/teams/{1}/artifacts/{2}/tags'.format(registry_domain, team, artifact))
-        if r.ok:
+        url = 'https://{0}/teams/{1}/artifacts/{2}/tags'.format(registry_domain,
+                                                                team,
+                                                                artifact)
+        response = requests.get(url)
+        if response.ok:
             # sort the tags by creation date
             latest = None
-            for entry in sorted(r.json(), key=lambda t: t['created'], reverse=True):
+            for entry in sorted(response.json(), key=lambda t: t['created'], reverse=True):
                 tag = entry['name']
                 # try to avoid snapshots if possible
                 if 'SNAPSHOT' not in tag:

@@ -53,4 +53,3 @@ class SecurityGroupNotFound(SenzaException):
 
     def __str__(self):
         return 'Security Group "{}" does not exist.'.format(self.security_group)
-

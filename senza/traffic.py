@@ -422,7 +422,7 @@ def inform_sns(arns: list, message: str, region):
     for sns_topic in sns_topics:
         sns.publish(TopicArn=sns_topic,
                     Subject="SenzaTrafficRedirect",
-                    Message=jsonizer.encode((message)))
+                    Message=jsonizer.encode(message))
 
 
 def resolve_to_ip_addresses(dns_name: str) -> set:

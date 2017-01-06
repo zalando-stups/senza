@@ -112,7 +112,7 @@ class HandleExceptions:
             sys.stdout.flush()
             if is_credentials_expired_error(client_error):
                 die_fatal_error('AWS credentials have expired.\n'
-                                'Use the "mai" command line tool to get a new '
+                                'Use the "zaws" command line tool to get a new '
                                 'temporary access key.')
             elif is_access_denied_error(client_error):
                 die_fatal_error(

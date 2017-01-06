@@ -15,7 +15,7 @@ from clickclick import fatal_error
 from raven import Client
 
 from .configuration import configuration
-from .exceptions import InvalidDefinition, PiuNotFound
+from .exceptions import InvalidDefinition, PiuNotFound, SecurityGroupNotFound
 from .manaus.exceptions import (ELBNotFound, HostedZoneNotFound, InvalidState,
                                 RecordNotFound)
 from .manaus.utils import extract_client_error_code
@@ -136,6 +136,10 @@ class HandleExceptions:
         except (ELBNotFound, HostedZoneNotFound, RecordNotFound,
                 InvalidDefinition, InvalidState) as error:
             die_fatal_error(error)
+        except SecurityGroupNotFound as error:
+            message = ("{}\nRun `senza init` to (re-)create "
+                       "the security group.").format(error)
+            die_fatal_error(message)
         except Exception as unknown_exception:
             # Catch All
             self.die_unknown_error(unknown_exception)

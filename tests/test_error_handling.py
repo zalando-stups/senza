@@ -7,7 +7,7 @@ import botocore.exceptions
 import senza.error_handling
 import yaml
 from pytest import fixture, raises
-from senza.exceptions import PiuNotFound
+from senza.exceptions import PiuNotFound, SecurityGroupNotFound
 from senza.manaus.exceptions import ELBNotFound, InvalidState
 
 
@@ -223,6 +223,18 @@ def test_yaml_error(capsys):
     assert 'Error parsing definition file:' in err
     assert 'found unhashable key' in err
     assert 'Please quote all variable values' in err
+
+
+def test_sg_not_found(capsys):
+    func = MagicMock(side_effect=SecurityGroupNotFound('my-app'))
+
+    with raises(SystemExit):
+        senza.error_handling.HandleExceptions(func)()
+
+    out, err = capsys.readouterr()
+
+    assert err == ('Security Group "my-app" does not exist.\n'
+                   'Run `senza init` to (re-)create the security group.\n')
 
 
 def test_unknown_error(capsys, mock_tempfile, mock_raven):

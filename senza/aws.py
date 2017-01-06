@@ -9,6 +9,7 @@ import yaml
 from botocore.exceptions import ClientError
 from click import FileError
 
+from .exceptions import SecurityGroupNotFound
 from .manaus.boto_proxy import BotoClientProxy
 from .manaus.utils import extract_client_error_code
 from .stack_references import check_file_exceptions
@@ -108,14 +109,14 @@ def resolve_security_group(security_group, region: str):
     if isinstance(security_group, dict):
         sg = resolve_referenced_resource(security_group, region)
         if not sg:
-            raise ValueError('Referenced Security Group "{}" does not exist'.format(security_group))
+            raise SecurityGroupNotFound(security_group)
         return sg
     elif security_group.startswith('sg-'):
         return security_group
     else:
         sg = get_security_group(region, security_group)
         if not sg:
-            raise ValueError('Security Group "{}" does not exist'.format(security_group))
+            raise SecurityGroupNotFound(security_group)
         return sg.id
 
 

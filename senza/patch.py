@@ -4,6 +4,7 @@ import datetime
 
 import yaml
 
+from .exceptions import InvalidUserDataType
 from .manaus.boto_proxy import BotoClientProxy
 
 LAUNCH_CONFIGURATION_PROPERTIES = set([
@@ -57,8 +58,14 @@ def patch_auto_scaling_group(group: dict, region: str, properties: dict):
             now = datetime.datetime.utcnow().strftime('%Y%m%dT%H%M%S')
             kwargs['LaunchConfigurationName'] = '{}-{}'.format(kwargs['LaunchConfigurationName'][:64], now)
             for key, val in properties.items():
-                if key == 'UserData' and isinstance(val, dict):
-                    kwargs[key] = patch_user_data(kwargs[key], val)
+
+                if key == 'UserData':
+                    current_user_data = yaml.safe_load(kwargs['UserData'])
+                    if isinstance(val, dict):
+                        kwargs[key] = patch_user_data(kwargs[key], val)
+                    elif isinstance(current_user_data, dict):
+                        raise InvalidUserDataType(type(current_user_data),
+                                                  type(val))
                 else:
                     kwargs[key] = val
             asg.create_launch_configuration(**kwargs)

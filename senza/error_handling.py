@@ -15,7 +15,8 @@ from clickclick import fatal_error
 from raven import Client
 
 from .configuration import configuration
-from .exceptions import InvalidDefinition, PiuNotFound, SecurityGroupNotFound
+from .exceptions import (InvalidDefinition, InvalidUserDataType,
+                         PiuNotFound, SecurityGroupNotFound)
 from .manaus.exceptions import (ELBNotFound, HostedZoneNotFound, InvalidState,
                                 RecordNotFound)
 from .manaus.utils import extract_client_error_code
@@ -134,7 +135,7 @@ class HandleExceptions:
                 "{}\nYou can install piu with the following command:"
                 "\nsudo pip3 install --upgrade stups-piu".format(error))
         except (ELBNotFound, HostedZoneNotFound, RecordNotFound,
-                InvalidDefinition, InvalidState) as error:
+                InvalidDefinition, InvalidState, InvalidUserDataType) as error:
             die_fatal_error(error)
         except SecurityGroupNotFound as error:
             message = ("{}\nRun `senza init` to (re-)create "

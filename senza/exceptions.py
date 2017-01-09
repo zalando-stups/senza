@@ -53,3 +53,29 @@ class SecurityGroupNotFound(SenzaException):
 
     def __str__(self):
         return 'Security Group "{}" does not exist.'.format(self.security_group)
+
+
+class InvalidUserDataType(SenzaException):
+    """
+    Exception raised when the type of the new user data is different from the
+    old user data
+    """
+
+    def __init__(self, old_type: type, new_type: type):
+        self.old_type = old_type
+        self.new_type = new_type
+
+    def __str__(self):
+        return ('Current user data is a {} but provided user data '
+                'is a {}.').format(self.__human_readable_type(self.old_type),
+                                   self.__human_readable_type(self.new_type))
+
+    def __human_readable_type(self, t) -> str:
+        if t is str:
+            return "string"
+        elif t is dict:
+            return "map"
+        elif t is int:
+            return 'integer'
+        else:
+            return str(t)

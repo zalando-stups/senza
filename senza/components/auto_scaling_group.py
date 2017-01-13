@@ -1,8 +1,11 @@
-import click
 import re
-from senza.aws import resolve_security_groups, resolve_topic_arn, resolve_referenced_resource
-from senza.utils import ensure_keys
+
+import click
+
+from senza.aws import (resolve_security_groups, resolve_topic_arn,
+                       resolve_referenced_resource)
 from senza.components.iam_role import get_merged_policies
+from senza.utils import ensure_keys
 
 # properties evaluated by Senza
 SENZA_PROPERTIES = frozenset(['SecurityGroups', 'Tags'])

@@ -286,7 +286,6 @@ class Route53Record:
             dns_name = self.resource_records[0]['Value']
             # dns name looks like lb-name-123456.aws-region-1.elb.amazonaws.com
             sub_domain, _ = dns_name.split('.', maxsplit=1)  # type: str
-            lb_name, _ = sub_domain.rsplit('-', maxsplit=1)
 
             if dns_name.endswith(".elb.amazonaws.com"):
                 elb = ELB.get_by_dns_name(dns_name)

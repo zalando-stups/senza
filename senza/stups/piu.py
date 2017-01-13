@@ -2,7 +2,7 @@ from subprocess import call
 from typing import Optional
 
 from ..exceptions import PiuNotFound
-from ..manaus.route53 import Route53, Route53Record  # NOQA
+from ..manaus.route53 import Route53, Route53Record  # NOQA pylint: disable=locally-disabled, unused-import
 
 
 class Piu:

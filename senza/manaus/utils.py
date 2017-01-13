@@ -3,7 +3,7 @@ Generic functions related to AWS/Boto/Manaus but don't belong to any specific
 component
 """
 
-from typing import Dict, Optional  # noqa: F401
+from typing import Dict, Optional  # noqa: F401 pylint: disable=locally-disabled, unused-import
 
 from botocore.exceptions import ClientError
 

@@ -1,3 +1,7 @@
+"""
+Functions to interact with docker
+"""
+
 import requests
 
 
@@ -16,9 +20,9 @@ def docker_image_exists(docker_image: str) -> bool:
             url = '{scheme}://{registry}/v1/repositories/{repo}/tags'.format(scheme=scheme,
                                                                              registry=registry,
                                                                              repo=repo)
-            r = requests.get(url, timeout=5)
-            result = r.json()
+            response = requests.get(url, timeout=5)
+            result = response.json()
             return tag in result
-        except:
+        except requests.RequestException:
             pass
     return False

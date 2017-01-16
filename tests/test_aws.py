@@ -1,3 +1,4 @@
+from botocore.exceptions import ClientError
 from unittest.mock import MagicMock
 from senza.aws import (get_security_group, resolve_security_groups,
                        get_account_id, get_account_alias, list_kms_keys,
@@ -85,10 +86,10 @@ def test_encrypt(monkeypatch):
     boto3.encrypt.return_value = {'CiphertextBlob': b'Hello World'}
     monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
 
-    assert b'Hello World' == encrypt(region=None, KeyId='key_a',
-                                     Plaintext='Hello World', b64encode=False)
-    assert 'SGVsbG8gV29ybGQ=' == encrypt(region=None, KeyId='key_a',
-                                         Plaintext='Hello World',
+    assert b'Hello World' == encrypt(region=None, key_id='key_a',
+                                     plaintext='Hello World', b64encode=False)
+    assert 'SGVsbG8gV29ybGQ=' == encrypt(region=None, key_id='key_a',
+                                         plaintext='Hello World',
                                          b64encode=True)
 
 
@@ -126,7 +127,7 @@ def test_get_account_id(monkeypatch):
     assert '0123456789' == get_account_id()
 
     boto3 = MagicMock()
-    boto3.get_user.side_effect = Exception()
+    boto3.get_user.side_effect = ClientError({'Error': {}}, 'test')
     boto3.list_roles.return_value = {
         'Roles': [{'Arn': 'arn:aws:iam::0123456789:role/role-test'}]}
     monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
@@ -134,7 +135,7 @@ def test_get_account_id(monkeypatch):
     assert '0123456789' == get_account_id()
 
     boto3 = MagicMock()
-    boto3.get_user.side_effect = Exception()
+    boto3.get_user.side_effect = ClientError({'Error': {}}, 'test')
     boto3.list_roles.return_value = {'Roles': []}
     boto3.list_users.return_value = {
         'Users': [{'Arn': 'arn:aws:iam::0123456789:user/user-test'}]}
@@ -143,7 +144,7 @@ def test_get_account_id(monkeypatch):
     assert '0123456789' == get_account_id()
 
     boto3 = MagicMock()
-    boto3.get_user.side_effect = Exception()
+    boto3.get_user.side_effect = ClientError({'Error': {}}, 'test')
     boto3.list_roles.return_value = {'Roles': []}
     boto3.list_users.return_value = {'Users': []}
     boto3.list_saml_providers.return_value = {'SAMLProviderList': [
@@ -153,7 +154,7 @@ def test_get_account_id(monkeypatch):
     assert '0123456789' == get_account_id()
 
     boto3 = MagicMock()
-    boto3.get_user.side_effect = Exception()
+    boto3.get_user.side_effect = ClientError({'Error': {}}, 'test')
     boto3.list_roles.return_value = {'Roles': []}
     boto3.list_users.return_value = {'Users': []}
     boto3.list_saml_providers.return_value = {'SAMLProviderList': []}

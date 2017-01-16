@@ -18,7 +18,7 @@ class BotoClientProxy:
             max_tries = 5
             sleep_time = 10
             last_error = None
-            for i in range(max_tries):
+            for _ in range(max_tries):
                 try:
                     return function(*args, **kwargs)
                 except ClientError as error:

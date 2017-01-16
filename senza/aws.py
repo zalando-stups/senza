@@ -1,3 +1,7 @@
+"""
+Functions to interact with AWS and objects to model resources
+"""
+
 import base64
 import collections
 import functools
@@ -6,7 +10,7 @@ import re
 import arrow
 import boto3
 import yaml
-from botocore.exceptions import ClientError
+from botocore.exceptions import ClientError, BotoCoreError
 from click import FileError
 
 from .exceptions import SecurityGroupNotFound
@@ -17,27 +21,31 @@ from .stack_references import check_file_exceptions
 
 def resolve_referenced_resource(ref: dict, region: str):
     if 'Stack' in ref and 'LogicalId' in ref:
-        cf = BotoClientProxy('cloudformation', region)
-        resource = cf.describe_stack_resource(
+        cloud_formation = BotoClientProxy('cloudformation', region)
+        resource = cloud_formation.describe_stack_resource(
             StackName=ref['Stack'],
             LogicalResourceId=ref['LogicalId'])['StackResourceDetail']
         if not is_status_complete(resource['ResourceStatus']):
-            raise ValueError('Resource "{}" is not ready ("{}")'.format(ref['LogicalId'], resource['ResourceStatus']))
+            raise ValueError('Resource "{}" '
+                             'is not ready ("{}")'.format(ref['LogicalId'],
+                                                          resource['ResourceStatus']))
 
         resource_id = resource['PhysicalResourceId']
 
-        # sg is referenced by its name not its id
+        # security_group is referenced by its name not its id
         if resource['ResourceType'] == 'AWS::EC2::SecurityGroup':
-            sg = get_security_group(region, resource_id)
-            return sg.id if sg is not None else None
+            security_group = get_security_group(region, resource_id)
+            return security_group.id if security_group is not None else None
         else:
             return resource_id
     elif 'Stack' in ref and 'Output' in ref:
-        cf = BotoClientProxy('cloudformation', region)
-        stack = cf.describe_stacks(
-            StackName=ref['Stack'])['Stacks'][0]
+        cloud_formation = BotoClientProxy('cloudformation', region)
+        stack_response = cloud_formation.describe_stacks(StackName=ref['Stack'])
+        stack = stack_response['Stacks'][0]
         if not is_status_complete(stack['StackStatus']):
-            raise ValueError('Stack "{}" is not ready ("{}")'.format(ref['Stack'], stack['StackStatus']))
+            raise ValueError('Stack "{}" '
+                             'is not ready ("{}")'.format(ref['Stack'],
+                                                          stack['StackStatus']))
 
         for output in stack.get('Outputs', []):
             if output['OutputKey'] == ref['Output']:
@@ -48,44 +56,59 @@ def resolve_referenced_resource(ref: dict, region: str):
         return ref
 
 
-def is_status_complete(status: str):
+def is_status_complete(status: str) -> bool:
+    """
+    Check if stack status is running and complete.
+    """
     return status in ('CREATE_COMPLETE', 'UPDATE_COMPLETE')
 
 
 def get_security_group(region: str, sg_name: str):
+    """
+    Get security group by name
+    """
     ec2 = boto3.resource('ec2', region)
     try:
         # first try by tag name then by group-name (cannot be changed)
-        for _filter in [{'Name': 'tag:Name', 'Values': [sg_name]}, {'Name': 'group-name', 'Values': [sg_name]}]:
+        for _filter in [{'Name': 'tag:Name', 'Values': [sg_name]},
+                        {'Name': 'group-name', 'Values': [sg_name]}]:
             sec_groups = list(ec2.security_groups.filter(Filters=[_filter]))
             if sec_groups:
                 # FIXME: What if we have 2 VPC, with a SG with the same name?!
                 return sec_groups[0]
-    except ClientError as e:
-        error_code = extract_client_error_code(e)
+    except ClientError as client_error:
+        error_code = extract_client_error_code(client_error)
         if error_code == 'InvalidGroup.NotFound':
             return None
         elif error_code == 'VPCIdNotSpecified':
             # no Default VPC, we must use the lng way...
-            for sg in ec2.security_groups.all():
+            for security_group in ec2.security_groups.all():
                 # FIXME: What if we have 2 VPC, with a SG with the same name?!
-                if sg.group_name == sg_name:
-                    return sg
+                if security_group.group_name == sg_name:
+                    return security_group
             return None
         else:
             raise
 
 
 def get_vpc_attribute(region: str, vpc_id: str, attribute: str):
+    """
+    Tries to get an attribute from vpc identified by ``vpc_id``.
+
+    Returns ``None`` on failure.
+    """
     ec2 = boto3.resource('ec2', region)
     vpc = ec2.Vpc(vpc_id)
 
     return getattr(vpc, attribute, None)
 
 
-def encrypt(region: str, KeyId: str, Plaintext: str, b64encode=False):
+def encrypt(region: str, key_id: str, plaintext: str, b64encode=False):
+    """
+    Encrypts ``plaintext`` with the Kms key identified by ``key_id``.
+    """
     kms = BotoClientProxy('kms', region)
-    encrypted = kms.encrypt(KeyId=KeyId, Plaintext=Plaintext)['CiphertextBlob']
+    encrypted = kms.encrypt(KeyId=key_id, Plaintext=plaintext)['CiphertextBlob']
     if b64encode:
         return base64.b64encode(encrypted).decode('utf-8')
 
@@ -93,48 +116,62 @@ def encrypt(region: str, KeyId: str, Plaintext: str, b64encode=False):
 
 
 def list_kms_keys(region: str, details=True):
+    """
+    Returns a list of kms keys for a ``region``. If ``details`` is ``True``
+    the returned keys will include the key's metadata
+    """
     kms = BotoClientProxy('kms', region)
     keys = list(kms.list_keys()['Keys'])
     if details:
         aliases = kms.list_aliases()['Aliases']
 
         for key in keys:
-            key['aliases'] = [a['AliasName'] for a in aliases if a.get('TargetKeyId') == key['KeyId']]
+            key['aliases'] = [a['AliasName']
+                              for a in aliases
+                              if a.get('TargetKeyId') == key['KeyId']]
             key.update(kms.describe_key(KeyId=key['KeyId'])['KeyMetadata'])
 
     return keys
 
 
 def resolve_security_group(security_group, region: str):
+    """
+    Resolves a security group. security_group can be a dictionary containing
+    information identifying the security group in a stack or a string with
+    the security group name.
+    """
     if isinstance(security_group, dict):
-        sg = resolve_referenced_resource(security_group, region)
-        if not sg:
+        security_group = resolve_referenced_resource(security_group, region)
+        if not security_group:
             raise SecurityGroupNotFound(security_group)
-        return sg
+        return security_group
     elif security_group.startswith('sg-'):
         return security_group
     else:
-        sg = get_security_group(region, security_group)
-        if not sg:
+        security_group = get_security_group(region, security_group)
+        if not security_group:
             raise SecurityGroupNotFound(security_group)
-        return sg.id
+        return security_group.id
 
 
 def resolve_security_groups(security_groups: list, region: str):
+    """
+    Resolves a list of security groups (see ``resolve_security_group``).
+    """
     result = []
     for security_group in security_groups:
         result.append(resolve_security_group(security_group, region))
     return result
 
 
-def parse_time(s: str) -> float:
+def parse_time(iso8601_string: str) -> float:
     """
     Parses an ISO 8601 string and returns a timestamp
     """
     try:
-        dtime = arrow.get(s).datetime
+        dtime = arrow.get(iso8601_string).datetime
         return dtime.timestamp()
-    except Exception:
+    except Exception:  # pylint: disable=locally-disabled, broad-except
         return None
 
 
@@ -144,7 +181,7 @@ def get_required_capabilities(data: dict):
     "create_stack" call
     """
     capabilities = []
-    for logical_id, config in data.get('Resources', {}).items():
+    for _, config in data.get('Resources', {}).items():
         if config.get('Type').startswith('AWS::IAM'):
             if config.get('Properties', {}).get('RoleName'):
                 capabilities.append('CAPABILITY_NAMED_IAM')
@@ -167,8 +204,11 @@ def resolve_topic_arn(region, topic_name):
     return topic_arn
 
 
-@functools.total_ordering
+@functools.total_ordering  # pylint: disable=locally-disabled, too-few-public-methods
 class SenzaStackSummary:
+    """
+    Reference to a CloudFormation stack following senza conventions
+    """
     def __init__(self, stack):
         self.stack = stack
         parts = stack['StackName'].rsplit('-', 1)
@@ -184,17 +224,40 @@ class SenzaStackSummary:
         return self.stack.get(item)
 
     def __lt__(self, other):
-        def key(v):
-            return (v.name, v.version)
+        """
+        Sorts two SenzaStackSummary by name and version
+        """
+        def key(stack_summary):
+            """
+            Returns a tuple so that SenzaStackSummaries can be sorted
+
+            """
+            return stack_summary.name, stack_summary.version
         return key(self) < key(other)
 
     def __eq__(self, other):
+        """
+        Checks if two SenzaStackSummary are equal by comparing the StackNames
+        """
         return self.stack['StackName'] == other.stack['StackName']
 
 
-def get_stacks(stack_refs: list, region, all=False, unique_only=False):
+def get_stacks(stack_refs: list,
+               region,
+               all=False,  # pylint: disable=locally-disabled, redefined-builtin
+               unique_only=False):
+    """
+    Gets stacks that match a list of `StackReference`.
+
+    By default this function will only return non deleted stacks, unless `all`
+    is set to true.
+
+    Setting unique_only to True will avoid returning stacks with the same name,
+    i.e. deleted stacks with the same name as other deleted or still running
+    stacks.
+    """
     # boto3.resource('cf')-stacks.filter() doesn't support status_filter, only StackName
-    cf = BotoClientProxy('cloudformation', region)
+    cloud_formation = BotoClientProxy('cloudformation', region)
     if all:
         status_filter = []
     else:
@@ -220,7 +283,7 @@ def get_stacks(stack_refs: list, region, all=False, unique_only=False):
     kwargs = {'StackStatusFilter': status_filter}
     stacks = []
     while 'NextToken' not in kwargs or kwargs['NextToken']:
-        results = cf.list_stacks(**kwargs)
+        results = cloud_formation.list_stacks(**kwargs)
         for stack in results['StackSummaries']:
             if not stack_refs or matches_any(stack['StackName'], stack_refs):
                 stacks.append(stack)
@@ -265,10 +328,13 @@ def get_tag(tags: list, key: str, default=None):
 
 
 def get_account_id():
+    """
+    Returns the numerical account id
+    """
     conn = BotoClientProxy('iam')
     try:
         own_user = conn.get_user()['User']
-    except:
+    except (BotoCoreError, ClientError):
         own_user = None
     if not own_user:
         roles = conn.list_roles()['Roles']
@@ -290,13 +356,21 @@ def get_account_id():
     return account_id
 
 
-def get_account_alias():
+def get_account_alias() -> str:
+    """
+    Gets the human readable account alias
+    """
     conn = BotoClientProxy('iam')
     return conn.list_account_aliases()['AccountAliases'][0]
 
 
 class StackReference(collections.namedtuple('StackReference', 'name version')):
-    def __init__(self, *args, **kwargs):
+    """
+    A stack reference is a user provided reference that can match stacks
+    by name and version or, in alternative, filename.
+    """
+
+    def __init__(self, *args, **kwargs):  # pylint: disable=locally-disabled, unused-argument, super-init-not-called
         self.matched = 0
         self.possible_definition_file = (self.name.endswith('.yml') or
                                          self.name.endswith('.yaml'))
@@ -308,8 +382,8 @@ class StackReference(collections.namedtuple('StackReference', 'name version')):
         """
         if not self.matched and self.possible_definition_file:
             try:
-                with open(self.name) as fd:
-                    data = yaml.safe_load(fd)
+                with open(self.name) as potential_definition_file:
+                    data = yaml.safe_load(potential_definition_file)
                 assert data['SenzaInfo']['StackName']
             except (OSError, IOError) as error:
                 raise FileError(self.name, error.strerror)
@@ -317,6 +391,11 @@ class StackReference(collections.namedtuple('StackReference', 'name version')):
                 raise ValueError("SenzaInfo.StackName missing from definition file")
 
     def matches(self, name: str, version: str):
+        """
+        Check if stack matches stack reference by name and version
+        (using regular expressions). If version is not provided it will match
+        all stacks that match the name.
+        """
         matches_name = re.match(self.name + '$', name)
         matches_version = (not self.version or
                            re.match(self.version + '$', version))
@@ -326,6 +405,9 @@ class StackReference(collections.namedtuple('StackReference', 'name version')):
         return matches
 
     def cf_stack_name(self):
+        """
+        Returns the stack name based on application name and version
+        """
         return ('{}-{}'.format(self.name, self.version)
                 if self.version
                 else self.name)

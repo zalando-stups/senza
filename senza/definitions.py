@@ -2,7 +2,7 @@
 Functions and classes related to Senza Definition files
 """
 
-# pylint: disable=invalid-name
+# pylint: disable=locally-disabled, invalid-name
 
 from typing import Tuple
 import sys

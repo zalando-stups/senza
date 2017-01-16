@@ -474,7 +474,7 @@ def gather_user_variables(variables, region, account_info):
 
         for key in [k for k in variables if k.startswith('pgpassword_')]:
             if variables[key]:
-                encrypted = encrypt(region=region, KeyId=kms_keyid, Plaintext=variables[key], b64encode=True)
+                encrypted = encrypt(region=region, key_id=kms_keyid, plaintext=variables[key], b64encode=True)
                 variables[key] = 'aws:kms:{}'.format(encrypted)
 
     set_default_variables(variables)

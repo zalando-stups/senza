@@ -1097,6 +1097,13 @@ def test_create(monkeypatch):
                                catch_exceptions=True)
         assert 'Stack test-1 already exists' in result.output
 
+        result = runner.invoke(cli, ['create', '--update-if-exists', 'myapp.yaml',
+                                     '--region=aa-fakeregion-1', '1',
+                                     'my-param-value',
+                                     'extra-param-value'],
+                               catch_exceptions=True)
+        assert 'Updating Cloud Formation stack test-1' in result.output
+
         result = runner.invoke(cli, ['create', 'myapp.yaml', '--region=aa-fakeregion-1', 'abcde' * 25, 'my-param-value',
                                      'extra-param-value'],
                                catch_exceptions=True)

@@ -6,12 +6,14 @@ import base64
 import collections
 import functools
 import re
+from pprint import pformat
 
 import arrow
 import boto3
 import yaml
 from botocore.exceptions import ClientError, BotoCoreError
 from click import FileError
+from clickclick import Action, info
 
 from .exceptions import SecurityGroupNotFound
 from .manaus.boto_proxy import BotoClientProxy
@@ -411,3 +413,20 @@ class StackReference(collections.namedtuple('StackReference', 'name version')):
         return ('{}-{}'.format(self.name, self.version)
                 if self.version
                 else self.name)
+
+
+def update_stack_from_template(region: str, template: dict, dry_run: bool):
+    """
+    Updates a stack from a generated template
+    """
+    cf = BotoClientProxy('cloudformation', region)
+    del (template['Tags'])
+    with Action('Updating Cloud Formation stack '
+                '{StackName}..'.format_map(template)) as act:
+        try:
+            if dry_run:
+                info('**DRY-RUN** {}'.format(template['NotificationARNs']))
+            else:
+                cf.update_stack(**template)
+        except ClientError as e:
+            act.fatal_error('ClientError: {}'.format(pformat(e.response)))

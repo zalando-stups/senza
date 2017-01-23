@@ -10,7 +10,6 @@ import os
 import re
 import sys
 import time
-from pprint import pformat
 from urllib.error import URLError
 from urllib.parse import quote
 from urllib.request import urlopen
@@ -23,16 +22,17 @@ from botocore.exceptions import ClientError
 from clickclick import (Action, FloatRange, OutputFormat, choice, error,
                         fatal_error, info, ok)
 from clickclick.console import print_table
-from senza.definitions import AccountArguments
 
 from .arguments import (GLOBAL_OPTIONS, json_output_option, output_option,
                         parameter_file_option, region_option,
                         stacktrace_visible_option, watch_option,
                         watchrefresh_option)
 from .aws import (StackReference, get_required_capabilities, get_stacks,
-                  get_tag, matches_any, parse_time, resolve_topic_arn)
+                  get_tag, matches_any, parse_time, resolve_topic_arn,
+                  update_stack_from_template)
 from .components import evaluate_template, get_component
 from .components.stups_auto_configuration import find_taupage_image
+from .definitions import AccountArguments
 from .error_handling import HandleExceptions
 from .exceptions import InvalidDefinition
 from .manaus.boto_proxy import BotoClientProxy
@@ -563,13 +563,18 @@ def health(region, stack_ref, all, output, w, watch):
 @click.argument('parameter', nargs=-1)
 @region_option
 @parameter_file_option
-@click.option('--disable-rollback', is_flag=True, help='Disable Cloud Formation rollback on failure')
-@click.option('--dry-run', is_flag=True, help='No-op mode: show what would be created')
-@click.option('-f', '--force', is_flag=True, help='Ignore failing validation checks')
+@click.option('--disable-rollback', is_flag=True,
+              help='Disable Cloud Formation rollback on failure')
+@click.option('--dry-run', is_flag=True,
+              help='No-op mode: show what would be created')
+@click.option('-f', '--force', is_flag=True,
+              help='Ignore failing validation checks')
+@click.option('--update-if-exists', is_flag=True,
+              help='Updates the the stack if it exists')
 @click.option('-t', '--tag', help='Tags to associate with the stack.', multiple=True)
 @stacktrace_visible_option
 def create(definition, region, version, parameter, disable_rollback, dry_run,
-           force, tag, parameter_file):
+           force, tag, parameter_file, update_if_exists):
     '''Create a new Cloud Formation stack from the given Senza definition file'''
 
     region = get_region(region)
@@ -584,6 +589,8 @@ def create(definition, region, version, parameter, disable_rollback, dry_run,
 
     cf = BotoClientProxy('cloudformation', region)
 
+    update_stack = False
+
     with Action('Creating Cloud Formation stack {}..'.format(data['StackName'])) as act:
         try:
             if dry_run:
@@ -593,9 +600,18 @@ def create(definition, region, version, parameter, disable_rollback, dry_run,
                 cf.create_stack(DisableRollback=disable_rollback, **data)
         except ClientError as e:
             if extract_client_error_code(e) == 'AlreadyExistsException':
-                act.fatal_error('Stack {} already exists. Please choose another version.'.format(data['StackName']))
+                if not update_if_exists:
+                    act.fatal_error('Stack {StackName} already exists. '
+                                    'Please choose another version.'.format_map(data))
+                else:
+                    act.warning('Stack {StackName} already exists. '
+                                'It will be updated'.format_map(data))
+                    update_stack = True
             else:
                 raise
+
+    if update_stack:
+        update_stack_from_template(region, data, dry_run)
 
 
 @cli.command()
@@ -604,27 +620,22 @@ def create(definition, region, version, parameter, disable_rollback, dry_run,
 @click.argument('parameter', nargs=-1)
 @region_option
 @parameter_file_option
-@click.option('--disable-rollback', is_flag=True, help='Disable Cloud Formation rollback on failure')
-@click.option('--dry-run', is_flag=True, help='No-op mode: show what would be created')
-@click.option('-f', '--force', is_flag=True, help='Ignore failing validation checks')
+@click.option('--disable-rollback', is_flag=True,
+              help='Disable Cloud Formation rollback on failure')
+@click.option('--dry-run', is_flag=True,
+              help='No-op mode: show what would be created')
+@click.option('-f', '--force', is_flag=True,
+              help='Ignore failing validation checks')
 @stacktrace_visible_option
 def update(definition, region, version, parameter, disable_rollback, dry_run,
            force, parameter_file):
-    '''Update an existing Cloud Formation stack from the given Senza definition file'''
+    """Update an existing Cloud Formation stack from the given Senza
+    definition file"""
 
     region = get_region(region)
-    data = create_cf_template(definition, region, version, parameter, force, parameter_file)
-    cf = BotoClientProxy('cloudformation', region)
-
-    with Action('Updating Cloud Formation stack {}..'.format(data['StackName'])) as act:
-        try:
-            if dry_run:
-                info('**DRY-RUN** {}'.format(data['NotificationARNs']))
-            else:
-                del(data['Tags'])
-                cf.update_stack(**data)
-        except ClientError as e:
-            act.fatal_error('ClientError: {}'.format(pformat(e.response)))
+    data = create_cf_template(definition, region, version, parameter, force,
+                              parameter_file)
+    update_stack_from_template(region, data, dry_run)
 
 
 @cli.command('print')

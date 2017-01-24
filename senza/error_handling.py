@@ -105,7 +105,7 @@ class HandleExceptions:
             self.function(*args, **kwargs)
         except NoCredentialsError:
             die_fatal_error(
-                'No AWS credentials found. Use the "mai" command-line tool '
+                'No AWS credentials found. Use the "zaws" command-line tool '
                 'to get a temporary access key\n'
                 'or manually configure either ~/.aws/credentials '
                 'or AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY.')

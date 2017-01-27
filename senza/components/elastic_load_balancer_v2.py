@@ -124,7 +124,12 @@ def component_elastic_load_balancer_v2(definition,
             'Scheme': loadbalancer_scheme,
             'SecurityGroups': resolve_security_groups(configuration["SecurityGroups"], args.region),
             'Subnets': {"Fn::FindInMap": [loadbalancer_subnet_map, {"Ref": "AWS::Region"}, "Subnets"]},
-            'LoadBalancerAttributes': {},
+            'LoadBalancerAttributes': [
+                {
+                    "Key": "idle_timeout.timeout_seconds",
+                    "Value": "60"
+                }
+            ],
             "Tags": tags
         }
     }

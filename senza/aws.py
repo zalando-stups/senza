@@ -428,5 +428,11 @@ def update_stack_from_template(region: str, template: dict, dry_run: bool):
                 info('**DRY-RUN** {}'.format(template['NotificationARNs']))
             else:
                 cf.update_stack(**template)
-        except ClientError as e:
-            act.fatal_error('ClientError: {}'.format(pformat(e.response)))
+        except ClientError as err:
+            response = err.response
+            error_info = response['Error']
+            error_message = error_info['Message']
+            if error_message == 'No updates are to be performed.':
+                act.ok('NO UPDATE')
+            else:
+                act.fatal_error('ClientError: {}'.format(pformat(response)))

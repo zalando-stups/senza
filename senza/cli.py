@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import ast
 import base64
 import calendar
 import collections
@@ -1387,6 +1388,45 @@ def get_auto_scaling_groups(stack_refs, region):
             if resource['ResourceType'] == 'AWS::AutoScaling::AutoScalingGroup':
                 asg_name = resource['PhysicalResourceId']
                 yield asg_name
+
+
+@cli.command()
+@click.argument('stack_name')
+@click.argument('stack_version', required=False)
+@region_option
+def maintenance(stack_name, stack_version, region):
+    '''Negates the value of the tag named 'maintenance' across the given stack
+    asg and its instances.'''
+
+    stack_refs = get_stack_refs([stack_name, stack_version])
+    region = get_region(region)
+    check_credentials(region)
+
+    asg = BotoClientProxy('autoscaling', region)
+    ec2 = BotoClientProxy('ec2', region)
+
+    for asg_name in get_auto_scaling_groups(stack_refs, region):
+        with Action('Changing maintenance mode on Auto Scaling Group {}..'.format(asg_name)) as act:
+            result = asg.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
+            groups = result['AutoScalingGroups']
+            for group in groups:
+                result = [tag['Value'] for tag in group['Tags'] if tag['Key'] == 'maintenance']
+                result = 'false' if not result else not ast.literal_eval(result[0])
+                ec2.create_tags(
+                    Resources=[instance['InstanceId'] for instance in group['Instances']],
+                    Tags=[{
+                        'Key': 'maintenance',
+                        'Value': str(result)
+                    }]
+                )
+                asg.create_or_update_tags(Tags=[{
+                    'ResourceId': group['AutoScalingGroupName'],
+                    'ResourceType': 'auto-scaling-group',
+                    'Key': 'maintenance',
+                    'Value': str(result),
+                    'PropagateAtLaunch': True
+                }])
+                act.ok('\nMaintance mode set to {} for {}'.format(result, asg_name))
 
 
 @cli.command()

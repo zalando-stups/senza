@@ -1501,6 +1501,24 @@ def test_AccountArguments(monkeypatch):
     assert test.Domain == 'example.net'
     assert test.TeamID == 'cli'
 
+def test_maintenance(monkeypatch):
+  boto3 = MagicMock()
+  boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',
+                                                          'CreationTime': '2016-06-14'}]}
+  boto3.describe_stack_resources.return_value = {'StackResources':
+                                                     [{'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
+                                                       'PhysicalResourceId': 'myasg'}]}
+  instance = {'InstanceId': 'MyInstance'}
+  group = {'AutoScalingGroupName': 'myasg', 'Instances': [instance], 'Tags': []}
+  boto3.describe_auto_scaling_groups.return_value = {'AutoScalingGroups': [group]}
+
+  monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+
+  runner = CliRunner()
+  result = runner.invoke(cli, ['maintenance', 'myapp', '1', '--region=aa-fakeregion-1'],
+                         catch_exceptions=False)
+
+  assert 'Changing maintenance mode on Auto Scaling Group' in result.output
 
 def test_patch(monkeypatch):
     boto3 = MagicMock()

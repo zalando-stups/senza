@@ -5,12 +5,16 @@ import textwrap
 
 import click
 import pierone.api
+import pierone.cli
+import stups_cli.config
+import os
 import yaml
+import zign.api
 from senza.aws import resolve_referenced_resource
 from senza.components.auto_scaling_group import component_auto_scaling_group
 from senza.docker import docker_image_exists
 from senza.utils import ensure_keys
-from zign.api import get_existing_token
+from typing import Optional
 
 _AWS_FN_RE = re.compile(r"('[{]{2} (.*?) [}]{2}')", re.DOTALL)
 
@@ -31,10 +35,37 @@ def check_application_version(version: str):
                                'expression pattern "{}"'.format(APPLICATION_VERSION_RE.pattern))
 
 
+def get_token(docker_image: pierone.api.DockerImage) -> Optional[dict]:
+    """
+    Attempt to get existing token.
+    If that fails, try to login to pierone and then get the token.
+
+    :return: {'access_token': ...,
+             'creation_time': ...,
+             'expires_in': ...,
+             'refresh_token': ...,
+             'scope': ...,
+             'token_type':  ...}
+    """
+    token = zign.api.get_existing_token('pierone')
+    if token:
+        return token
+
+    config = stups_cli.config.load_config('pierone')
+    url = docker_image.registry
+    url = pierone.cli.set_pierone_url(config, url)
+    user = zign.api.get_config().get('user') or os.getenv('USER')
+    pierone.api.docker_login(
+        url=url, realm=None, name='pierone',
+        user=user, password=None, prompt=True
+    )
+    return zign.api.get_existing_token('pierone')
+
+
 def check_docker_image_exists(docker_image: pierone.api.DockerImage):
     token = None
     if 'pierone' in docker_image.registry:
-        token = get_existing_token('pierone')
+        token = get_token(docker_image)
         if not token:
             msg = textwrap.dedent('''
             Unauthorized: Cannot check whether Docker image "{}" exists in Pier One Docker registry.

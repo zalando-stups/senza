@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import ast
 import base64
 import calendar
 import collections
@@ -1392,10 +1391,11 @@ def get_auto_scaling_groups(stack_refs, region):
 
 @cli.command()
 @click.argument('stack_name')
-@click.argument('stack_version', required=False)
+@click.argument('stack_version', required=True)
+@click.argument('toggle', type=bool, required=True)
 @region_option
-def maintenance(stack_name, stack_version, region):
-    '''Negates the value of the tag named 'maintenance' across the given stack
+def maintenance(stack_name, stack_version, toggle, region):
+    '''Sets the value of the tag named 'maintenance' to `toggle` across the given stack
     asg and its instances.'''
 
     stack_refs = get_stack_refs([stack_name, stack_version])
@@ -1410,23 +1410,21 @@ def maintenance(stack_name, stack_version, region):
             result = asg.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
             groups = result['AutoScalingGroups']
             for group in groups:
-                result = [tag['Value'] for tag in group['Tags'] if tag['Key'] == 'maintenance']
-                result = 'false' if not result else not ast.literal_eval(result[0])
                 ec2.create_tags(
                     Resources=[instance['InstanceId'] for instance in group['Instances']],
                     Tags=[{
                         'Key': 'maintenance',
-                        'Value': str(result)
+                        'Value': str(toggle)
                     }]
                 )
                 asg.create_or_update_tags(Tags=[{
                     'ResourceId': group['AutoScalingGroupName'],
                     'ResourceType': 'auto-scaling-group',
                     'Key': 'maintenance',
-                    'Value': str(result),
+                    'Value': str(toggle),
                     'PropagateAtLaunch': True
                 }])
-                act.ok('\nMaintance mode set to {} for {}'.format(result, asg_name))
+                act.ok('\nMaintance mode set to {} for {}'.format(toggle, asg_name))
 
 
 @cli.command()

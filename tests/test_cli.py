@@ -1515,10 +1515,11 @@ def test_maintenance(monkeypatch):
   monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
 
   runner = CliRunner()
-  result = runner.invoke(cli, ['maintenance', 'myapp', '1', '--region=aa-fakeregion-1'],
+  result = runner.invoke(cli, ['maintenance', 'myapp', '1', 'false', '--region=aa-fakeregion-1'],
                          catch_exceptions=False)
 
   assert 'Changing maintenance mode on Auto Scaling Group' in result.output
+  assert 'Maintance mode set to False' in result.output
 
 def test_patch(monkeypatch):
     boto3 = MagicMock()

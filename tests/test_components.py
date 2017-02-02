@@ -832,7 +832,7 @@ def test_check_docker_image_exists():
 
     # image from pierone has CVEs
     with patch('senza.components.taupage_auto_scaling_group.click.secho') as output_function, patch(
-            "senza.components.taupage_auto_scaling_group.get_existing_token",
+            "senza.components.taupage_auto_scaling_group.get_token",
             return_value=fake_token), patch(
             'senza.components.taupage_auto_scaling_group.pierone.api.image_exists',
             return_value=True), patch(
@@ -846,7 +846,7 @@ def test_check_docker_image_exists():
 
     # image from pierone no CVEs
     with patch('senza.components.taupage_auto_scaling_group.click.secho') as output_function, patch(
-            "senza.components.taupage_auto_scaling_group.get_existing_token",
+            "senza.components.taupage_auto_scaling_group.get_token",
             return_value=fake_token), patch(
             'senza.components.taupage_auto_scaling_group.pierone.api.image_exists',
             return_value=True), patch(
@@ -858,7 +858,7 @@ def test_check_docker_image_exists():
         assert not output_function.called
 
     # image from pierone auth error
-    with patch("senza.components.taupage_auto_scaling_group.get_existing_token",
+    with patch("senza.components.taupage_auto_scaling_group.get_token",
                return_value=None), pytest.raises(click.UsageError):
 
         check_docker_image_exists(build_image(from_registry_url='pierone'))

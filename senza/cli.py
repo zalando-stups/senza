@@ -1146,7 +1146,14 @@ def domains(stack_ref, region, output, w, watch):
 
 @contextmanager
 def all_stacks_in_final_state(stack_name: str, region: str, timeout: Optional[int], interval: int):
-    # if there is no timeout, we don't wait anything and just execute the traffic change
+    ''' Wait and check if all related stacks are in a final state before performing traffic
+    changes. If there is no timeout, we don't wait anything and just execute the traffic change.
+
+    :param stack_name: Name of stack
+    :param region: region where stacks are present
+    :param timeout: optional value of how long we should wait for the stack should be `None`
+    :param interval: interval between checks using AWS CF API
+    '''
     all_in_final_state = False
     if timeout is None or timeout < 1:
         yield

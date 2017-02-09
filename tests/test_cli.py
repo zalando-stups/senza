@@ -1419,14 +1419,14 @@ def test_traffic_change_stack_in_progress(monkeypatch, boto_client):  # noqa: F8
                 return [
                     SenzaStackSummary({'StackName': 'myapp',
                                        'StackStatus': stacks_state_progress_queue.popleft()})
-                    for ref in stack_refs]
+                    for _ in stack_refs]
             else:
                 return []
 
         monkeypatch.setattr('senza.cli.get_stacks', _fake_progress_of_stack_changes)
 
         with runner.isolated_filesystem():
-            sub_command = ['traffic', '--region=aa-fakeregion-1', 'myapp', target_stack_version, '100']
+            sub_command = ['traffic', '--region=aa-fakeregion-1', 'myapp', target_stack_version, '100', '-t', '200']
             return runner.invoke(cli, sub_command, catch_exceptions=False)
 
     mocked_change_version_traffic = MagicMock(name='mocked_change_version_traffic')

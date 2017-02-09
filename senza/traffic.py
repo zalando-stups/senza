@@ -259,6 +259,7 @@ class StackVersion(collections.namedtuple('StackVersion',
 
 
 def get_stack_versions(stack_name: str, region: str) -> Iterator[StackVersion]:
+    '''Get stack versions by name and region.'''
     cf = boto3.resource('cloudformation', region)
     for stack in get_stacks([StackReference(name=stack_name, version=None)], region):
         if stack.StackStatus in ('ROLLBACK_COMPLETE', 'CREATE_FAILED'):

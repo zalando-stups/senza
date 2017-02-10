@@ -7,13 +7,17 @@ import collections
 import functools
 import re
 from pprint import pformat
+import datetime
+import time
+from contextlib import contextmanager
+from typing import Optional
 
 import arrow
 import boto3
 import yaml
 from botocore.exceptions import ClientError, BotoCoreError
 from click import FileError
-from clickclick import Action, info
+from clickclick import Action, info, error
 
 from .exceptions import SecurityGroupNotFound
 from .manaus.boto_proxy import BotoClientProxy
@@ -436,3 +440,48 @@ def update_stack_from_template(region: str, template: dict, dry_run: bool):
                 act.ok('NO UPDATE')
             else:
                 act.fatal_error('ClientError: {}'.format(pformat(response)))
+
+
+@contextmanager
+def all_stacks_in_final_state(related_stacks_refs: list, region: str, timeout: Optional[int], interval: int):
+    ''' Wait and check if all related stacks are in a final state before performing code block
+    changes. If there is no timeout, we don't wait anything and just execute the traffic change.
+
+    :param related_stacks_refs: Related stacks to wait
+    :param region: region where stacks are present
+    :param timeout: optional value of how long we should wait for the stack should be `None`
+    :param interval: interval between checks using AWS CF API
+    '''
+    if timeout is None or timeout < 1:
+        yield
+    else:
+        wait_timeout = datetime.datetime.utcnow() + datetime.timedelta(seconds=timeout)
+
+        all_in_final_state = False
+        while not all_in_final_state and wait_timeout > datetime.datetime.utcnow():
+            # assume all stacks are ready
+            all_in_final_state = True
+            related_stacks = list(get_stacks(related_stacks_refs, region))
+
+            if len(related_stacks) > 0:
+                for related_stack in related_stacks:
+                    current_stack_status = related_stack.StackStatus
+
+                    if current_stack_status.endswith('_COMPLETE') or current_stack_status.endswith('_FAILED'):
+                        continue
+                    elif current_stack_status.endswith('_IN_PROGRESS'):
+                        # some operation in progress, let's wait some time to try again
+                        all_in_final_state = False
+                        info(
+                            "Waiting for stack {} ({}) to perform requested operation..".format(
+                                related_stack.StackName, current_stack_status))
+                        time.sleep(interval)
+            else:
+                error("Stack not found!")
+                exit(1)
+
+        if datetime.datetime.utcnow() > wait_timeout:
+            info("Timeout reached, requested operation not executed.")
+            exit(1)
+        else:
+            yield

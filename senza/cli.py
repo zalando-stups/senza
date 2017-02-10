@@ -10,8 +10,6 @@ import os
 import re
 import sys
 import time
-from contextlib import contextmanager
-from typing import Optional
 from urllib.error import URLError
 from urllib.parse import quote
 from urllib.request import urlopen
@@ -31,7 +29,7 @@ from .arguments import (GLOBAL_OPTIONS, json_output_option, output_option,
                         watchrefresh_option)
 from .aws import (StackReference, get_required_capabilities, get_stacks,
                   get_tag, matches_any, parse_time, resolve_topic_arn,
-                  update_stack_from_template)
+                  update_stack_from_template, all_stacks_in_final_state)
 from .components import evaluate_template, get_component
 from .components.stups_auto_configuration import find_taupage_image
 from .definitions import AccountArguments
@@ -1144,52 +1142,6 @@ def domains(stack_ref, region, output, w, watch):
                         rows, styles=STYLES, titles=TITLES)
 
 
-@contextmanager
-def all_stacks_in_final_state(stack_name: str, region: str, timeout: Optional[int], interval: int):
-    ''' Wait and check if all related stacks are in a final state before performing traffic
-    changes. If there is no timeout, we don't wait anything and just execute the traffic change.
-
-    :param stack_name: Name of stack
-    :param region: region where stacks are present
-    :param timeout: optional value of how long we should wait for the stack should be `None`
-    :param interval: interval between checks using AWS CF API
-    '''
-    all_in_final_state = False
-    if timeout is None or timeout < 1:
-        yield
-    else:
-        wait_timeout = datetime.datetime.utcnow() + datetime.timedelta(seconds=timeout)
-        related_stack_refs = get_stack_refs([stack_name])
-
-        while not all_in_final_state and wait_timeout > datetime.datetime.utcnow():
-            # assume all stacks are ready
-            all_in_final_state = True
-            related_stacks = list(get_stacks(related_stack_refs, region))
-
-            if len(related_stacks) > 0:
-                for related_stack in related_stacks:
-                    current_stack_status = related_stack.StackStatus
-
-                    if current_stack_status.endswith('_COMPLETE') or current_stack_status.endswith('_FAILED'):
-                        continue
-                    elif current_stack_status.endswith('_IN_PROGRESS'):
-                        # some operation in progress, let's wait some time to try again
-                        all_in_final_state = False
-                        info(
-                            "Waiting for stack {} ({}) to perform traffic change..".format(
-                                related_stack.StackName, current_stack_status))
-                        time.sleep(interval)
-            else:
-                error("Stack not found!")
-                exit(1)
-
-        if datetime.datetime.utcnow() > wait_timeout:
-            info("Timeout reached, traffic switch was not executed.")
-            exit(1)
-        else:
-            yield
-
-
 @cli.command()
 @click.argument('stack_name')
 @click.argument('stack_version', required=False)
@@ -1216,7 +1168,8 @@ def traffic(stack_name, stack_version, percentage, region, output, timeout, inte
             if percentage is None:
                 print_version_traffic(ref, region)
             else:
-                with all_stacks_in_final_state(stack_name, region, timeout=timeout, interval=interval):
+                related_stacks_refs = get_stack_refs([stack_name])
+                with all_stacks_in_final_state(related_stacks_refs, region, timeout=timeout, interval=interval):
                     change_version_traffic(ref, percentage, region)
 
 

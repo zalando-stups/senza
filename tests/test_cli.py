@@ -1423,7 +1423,7 @@ def test_traffic_change_stack_in_progress(monkeypatch, boto_client):  # noqa: F8
             else:
                 return []
 
-        monkeypatch.setattr('senza.cli.get_stacks', _fake_progress_of_stack_changes)
+        monkeypatch.setattr('senza.aws.get_stacks', _fake_progress_of_stack_changes)
 
         with runner.isolated_filesystem():
             sub_command = ['traffic', '--region=aa-fakeregion-1', 'myapp', target_stack_version, '100', '-t', '200']
@@ -1453,7 +1453,7 @@ def test_traffic_change_stack_in_progress(monkeypatch, boto_client):  # noqa: F8
     with _reset_mocks_ctx():
         result = _run_for_stacks_states_changes(['UPDATE_IN_PROGRESS', 'UPDATE_COMPLETE'])
 
-        assert 'Waiting for stack myapp (UPDATE_IN_PROGRESS) to perform traffic change..' in result.output
+        assert 'Waiting for stack myapp (UPDATE_IN_PROGRESS) to perform requested operation..' in result.output
         mocked_time_sleep.assert_called_once_with(5)
         mocked_change_version_traffic.assert_called_once_with(get_stack_refs(['myapp', 'v1'])[0], 100.0,
                                                               'aa-fakeregion-1')
@@ -1462,7 +1462,7 @@ def test_traffic_change_stack_in_progress(monkeypatch, boto_client):  # noqa: F8
     with _reset_mocks_ctx():
         result = _run_for_stacks_states_changes(['CREATE_IN_PROGRESS', 'CREATE_FAILED'])
 
-        assert 'Waiting for stack myapp (CREATE_IN_PROGRESS) to perform traffic change..' in result.output
+        assert 'Waiting for stack myapp (CREATE_IN_PROGRESS) to perform requested operation..' in result.output
         mocked_time_sleep.assert_called_once_with(5)
 
     # test stack ready to change

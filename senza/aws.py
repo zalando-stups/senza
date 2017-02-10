@@ -4,20 +4,20 @@ Functions to interact with AWS and objects to model resources
 
 import base64
 import collections
+import datetime
 import functools
 import re
-from pprint import pformat
-import datetime
 import time
 from contextlib import contextmanager
+from pprint import pformat
 from typing import Optional
 
 import arrow
 import boto3
 import yaml
-from botocore.exceptions import ClientError, BotoCoreError
+from botocore.exceptions import BotoCoreError, ClientError
 from click import FileError
-from clickclick import Action, info, error
+from clickclick import Action, error, info
 
 from .exceptions import SecurityGroupNotFound
 from .manaus.boto_proxy import BotoClientProxy

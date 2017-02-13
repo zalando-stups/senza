@@ -469,10 +469,7 @@ def all_stacks_in_final_state(related_stacks_refs: list, region: str, timeout: O
 
             for related_stack in related_stacks:
                 current_stack_status = related_stack.StackStatus
-
-                if current_stack_status.endswith('_COMPLETE') or current_stack_status.endswith('_FAILED'):
-                    continue
-                elif current_stack_status.endswith('_IN_PROGRESS'):
+                if current_stack_status.endswith('_IN_PROGRESS'):
                     # some operation in progress, let's wait some time to try again
                     all_in_final_state = False
                     info(

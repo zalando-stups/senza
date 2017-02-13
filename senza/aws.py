@@ -463,22 +463,22 @@ def all_stacks_in_final_state(related_stacks_refs: list, region: str, timeout: O
             all_in_final_state = True
             related_stacks = list(get_stacks(related_stacks_refs, region))
 
-            if len(related_stacks) > 0:
-                for related_stack in related_stacks:
-                    current_stack_status = related_stack.StackStatus
-
-                    if current_stack_status.endswith('_COMPLETE') or current_stack_status.endswith('_FAILED'):
-                        continue
-                    elif current_stack_status.endswith('_IN_PROGRESS'):
-                        # some operation in progress, let's wait some time to try again
-                        all_in_final_state = False
-                        info(
-                            "Waiting for stack {} ({}) to perform requested operation..".format(
-                                related_stack.StackName, current_stack_status))
-                        time.sleep(interval)
-            else:
+            if len(related_stacks) <= 0:
                 error("Stack not found!")
                 exit(1)
+
+            for related_stack in related_stacks:
+                current_stack_status = related_stack.StackStatus
+
+                if current_stack_status.endswith('_COMPLETE') or current_stack_status.endswith('_FAILED'):
+                    continue
+                elif current_stack_status.endswith('_IN_PROGRESS'):
+                    # some operation in progress, let's wait some time to try again
+                    all_in_final_state = False
+                    info(
+                        "Waiting for stack {} ({}) to perform requested operation..".format(
+                            related_stack.StackName, current_stack_status))
+                    time.sleep(interval)
 
         if datetime.datetime.utcnow() > wait_timeout:
             info("Timeout reached, requested operation not executed.")

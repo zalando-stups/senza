@@ -463,7 +463,7 @@ def all_stacks_in_final_state(related_stacks_refs: list, region: str, timeout: O
             all_in_final_state = True
             related_stacks = list(get_stacks(related_stacks_refs, region))
 
-            if len(related_stacks) <= 0:
+            if not related_stacks:
                 error("Stack not found!")
                 exit(1)
 

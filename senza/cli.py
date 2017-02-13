@@ -29,7 +29,7 @@ from .arguments import (GLOBAL_OPTIONS, json_output_option, output_option,
                         watchrefresh_option)
 from .aws import (StackReference, get_required_capabilities, get_stacks,
                   get_tag, matches_any, parse_time, resolve_topic_arn,
-                  update_stack_from_template)
+                  update_stack_from_template, all_stacks_in_final_state)
 from .components import evaluate_template, get_component
 from .components.stups_auto_configuration import find_taupage_image
 from .definitions import AccountArguments
@@ -80,7 +80,6 @@ STYLES = {
     'OK': {'fg': 'green'},
     'ERROR': {'fg': 'red'},
 }
-
 
 TITLES = {
     'creation_time': 'Created',
@@ -847,7 +846,7 @@ def events(stack_ref, region, w, watch, output):
 
         with OutputFormat(output):
             print_table(('stack_name version resource_type LogicalResourceId ' +
-                        'ResourceStatus ResourceStatusReason event_time').split(),
+                         'ResourceStatus ResourceStatusReason event_time').split(),
                         rows, styles=STYLES, titles=TITLES, max_column_widths=MAX_COLUMN_WIDTHS)
 
 
@@ -982,7 +981,6 @@ def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region,
             if not stack_refs or matches_any(cf_stack_name, stack_refs):
                 instance_health = get_instance_health(cf_stack_name, region)
                 if instance.state['Name'].upper() != 'TERMINATED' or terminated:
-
                     docker_source = get_instance_docker_image_source(instance) if docker_image else ''
 
                     rows.append({'stack_name': stack_name or '',
@@ -1148,50 +1146,31 @@ def domains(stack_ref, region, output, w, watch):
 @click.argument('stack_name')
 @click.argument('stack_version', required=False)
 @click.argument('percentage', type=FloatRange(0, 100, clamp=True), required=False)
+@click.option('-t', '--timeout', default=None,
+              type=click.IntRange(1, 600, clamp=True),
+              help=('Timeout for waiting for stacks to be ready to perform the '
+                    'traffic change (by default it does not wait)'))
 @click.option('-i', '--interval', default=5,
               type=click.IntRange(1, 600, clamp=True),
               help='Time between checks (default: 5s)')
 @region_option
 @output_option
 @stacktrace_visible_option
-def traffic(stack_name, stack_version, percentage, region, output, interval):
-    """Route traffic to a specific stack (weighted DNS record)"""
+def traffic(stack_name, stack_version, percentage, region, output, timeout, interval):
+    '''Route traffic to a specific stack (weighted DNS record)'''
 
     stack_refs = get_stack_refs([stack_name, stack_version])
-    related_stack_refs = get_stack_refs([stack_name])
     region = get_region(region)
     check_credentials(region)
 
     with OutputFormat(output):
-        for ref in stack_refs:
+        for ref in stack_refs:  # it's expected to always iterate only once
             if percentage is None:
                 print_version_traffic(ref, region)
             else:
-                all_stacks_in_final_state = False
-                while not all_stacks_in_final_state:
-                    # assume all stacks are ready
-                    all_stacks_in_final_state = True
-                    related_stacks = list(get_stacks(related_stack_refs, region))
-
-                    if len(related_stacks) > 0:
-                        for related_stack in related_stacks:
-                            current_stack_status = related_stack.StackStatus
-
-                            if current_stack_status.endswith('_COMPLETE') or current_stack_status.endswith('_FAILED'):
-                                continue
-                            elif current_stack_status.endswith('_IN_PROGRESS'):
-                                # some operation in progress, let's wait some time to try again
-                                all_stacks_in_final_state = False
-                                info(
-                                    "Waiting for stack {} ({}) to perform traffic change..".format(
-                                        related_stack.StackName, current_stack_status))
-                                time.sleep(interval)
-                    else:
-                        error("Stack not found!")
-                        exit(1)
-
-                # change traffic after all related stacks are in a final state
-                change_version_traffic(ref, percentage, region)
+                related_stacks_refs = get_stack_refs([stack_name])
+                with all_stacks_in_final_state(related_stacks_refs, region, timeout=timeout, interval=interval):
+                    change_version_traffic(ref, percentage, region)
 
 
 @cli.command()
@@ -1473,7 +1452,7 @@ def scale(stack_ref, region, desired_capacity):
         group = get_auto_scaling_group(asg, asg_name)
         current_capacity = group['DesiredCapacity']
         with Action('Scaling {} from {} to {} instances..'.format(
-                    asg_name, current_capacity, desired_capacity)) as act:
+                asg_name, current_capacity, desired_capacity)) as act:
             if current_capacity == desired_capacity:
                 act.ok('NO CHANGES')
             else:

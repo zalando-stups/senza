@@ -4,6 +4,7 @@ from senza.components.elastic_load_balancer import (ALLOWED_LOADBALANCER_SCHEMES
                                                     get_load_balancer_name,
                                                     get_ssl_cert)
 from senza.definitions import AccountArguments
+from ..utils import extract_attribute
 
 from ..cli import TemplateArguments
 from ..manaus.route53 import convert_cname_records_to_alias
@@ -115,6 +116,14 @@ def component_elastic_load_balancer_v2(definition,
             "Value": info["StackVersion"]
         }
     ]
+
+    application_name = extract_attribute(definition, 'ApplicationName')
+
+    if application_name:
+        tags.append({
+            "Key": "ApplicationName",
+            "Value": application_name
+        })
 
     # load balancer
     definition["Resources"][lb_name] = {

@@ -1966,7 +1966,7 @@ def test_application_name_tag_for_load_balancer(monkeypatch,
     # attribute is put into 'Mappings' by default from the .yaml file
     assert data['Mappings']['Senza']['Info']['ApplicationName'] == 'SenzaApp'
 
-    # ApplicationName is saved as a tag for ELBs
+    # ApplicationName is saved as a tag for the ELB
     tags = data['Resources']['AppLoadBalancer']['Properties']['Tags']
     assert {'Key': 'ApplicationName', 'Value': 'SenzaApp'} in tags
 
@@ -2019,7 +2019,7 @@ def test_application_name_tag_for_load_balancer_v2(monkeypatch,
     # attribute is put into 'Mappings' by default from the .yaml file
     assert data['Mappings']['Senza']['Info']['ApplicationName'] == 'SenzaApp'
 
-    # ApplicationName is saved as a tag for ELBs
+    # ApplicationName is saved as a tag for the ELBv2
     tags = data['Resources']['AppLoadBalancer']['Properties']['Tags']
     assert {'Key': 'ApplicationName', 'Value': 'SenzaApp'} in tags
 
@@ -2072,6 +2072,6 @@ def test_random_attribute_not_exported_as_tag(monkeypatch,
     # attribute is put into 'Mappings' by default from the .yaml file
     assert data['Mappings']['Senza']['Info']['RandomAttribute123'] == 'SenzaApp'
 
-    # ApplicationName is saved as a tag for ELBs
+    # RandomAttribute123 is not saved as a tag for ELBs
     tags = data['Resources']['AppLoadBalancer']['Properties']['Tags']
     assert {'Key': 'RandomAttribute123', 'Value': 'SenzaApp'} not in tags

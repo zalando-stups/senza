@@ -134,8 +134,10 @@ def compensate(calculation_error, compensations, identifier, new_record_weights,
     return percentage
 
 
-def set_new_weights(dns_names: list, identifier, lb_dns_name: str,
-                    new_record_weights: Dict, region: str):
+def set_new_weights(dns_names: list,
+                    old_record_weights: Dict,
+                    new_record_weights: Dict,
+                    region: str):
     action('Setting weights for {dns_names}..', dns_names=', '.join(dns_names))
     for idx, dns_name in enumerate(dns_names):
         domain = dns_name.split('.', 1)[1]
@@ -144,6 +146,9 @@ def set_new_weights(dns_names: list, identifier, lb_dns_name: str,
 
         changed = False
         for stack_name, percentage in new_record_weights.items():
+            if old_record_weights[stack_name] == percentage:
+                # Stack weight will not change
+                continue
             try:
                 stack = CloudFormationStack.get_by_stack_name(stack_name,
                                                               region=region)
@@ -412,7 +417,7 @@ def change_version_traffic(stack_ref: StackReference, percentage: float,
                                        deltas)
         print_traffic_changes(message)
         inform_sns(arns, message, region)
-    set_new_weights(version.dns_name, identifier, version.lb_dns_name,
+    set_new_weights(version.dns_name, known_record_weights,
                     new_record_weights, region)
 
 

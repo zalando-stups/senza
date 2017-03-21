@@ -191,7 +191,7 @@ class CloudFormationStack:
             client.update_stack(StackName=self.name,
                                 TemplateBody=json.dumps(self.template),
                                 Parameters=parameters,
-                                Capabilities=self.capabilities)
+                                Capabilities=self.capabilities or [])
         except ClientError as err:
             response = err.response
             error_info = response['Error']

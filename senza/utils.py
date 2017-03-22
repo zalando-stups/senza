@@ -47,3 +47,13 @@ def pystache_render(*args, **kwargs):
     """
     render = pystache.Renderer(missing_tags='strict')
     return render.render(*args, **kwargs)
+
+
+def get_load_balancer_name(stack_name: str, stack_version: str):
+    """
+    Returns the name of the load balancer for the stack name and version,
+    truncating the name if necessary.
+    """
+    # Loadbalancer name cannot exceed 32 characters, try to shorten
+    l = 32 - len(stack_version) - 1
+    return '{}-{}'.format(stack_name[:l], stack_version)

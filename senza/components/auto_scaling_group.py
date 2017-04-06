@@ -186,7 +186,7 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
             asg_properties["TargetGroupARNs"] = [{"Ref": configuration["ElasticLoadBalancerV2"] + 'TargetGroup'}]
         elif isinstance(configuration["ElasticLoadBalancerV2"], list):
             asg_properties["TargetGroupARNs"] = [
-                {'Ref': ref} for ref in configuration["ElasticLoadBalancerV2"] + 'TargetGroup'
+                {'Ref': ref + 'TargetGroup'} for ref in configuration["ElasticLoadBalancerV2"]
             ]
         # use ELB health check by default
         default_health_check_type = 'ELB'

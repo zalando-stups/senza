@@ -85,7 +85,22 @@ CERT2 = {'CertificateArn': 'arn:aws:acm:eu-west-1:cert2',
                                      '*.senza.aws.example.net',
                                      '*.app.example.net']}
 
-CERT3 = {'NotAfter': datetime(2017, 5, 7, 10, 0, tzinfo=timezone.utc), 'SubjectAlternativeNames': ['pierone.stups.zalan.do', 'registry.opensource.zalan.do'], 'Subject': 'C=DE,L=Berlin,O=Zalando SE,OU=CDP,CN=CDP Proxy', 'Serial': '2a:d2:f6:d3:23:62:0b:5f:f8:2f:d6:3a:4a:9f:b8:c6:48:a0:11:62', 'Type': 'IMPORTED', 'ImportedAt': datetime(2017, 4, 7, 10, 12, 55, tzinfo=timezone.utc), 'SignatureAlgorithm': 'SHA256WITHRSA', 'CertificateArn': 'arn:aws:acm:eu-central-1:085668006708:certificate/f14f9718-7da8-4250-9c21-d0341da4e44f', 'NotBefore': datetime(2017, 4, 7, 10, 0, tzinfo=timezone.utc), 'DomainValidationOptions': [{'DomainName': 'pierone.stups.zalan.do'}, {'DomainName': 'registry.opensource.zalan.do'}], 'Status': 'ISSUED', 'DomainName': 'pierone.stups.zalan.do', 'Issuer': 'Zalando SE', 'InUseBy': [], 'KeyAlgorithm': 'RSA-2048'}
+CERT3 = {
+        'NotAfter': datetime(2017, 5, 7, 10, 0, tzinfo=timezone.utc),
+        'SubjectAlternativeNames': ['pierone.stups.zalan.do', 'registry.opensource.zalan.do'],
+        'Subject': 'C=DE,L=Berlin,O=Zalando SE,OU=CDP,CN=CDP Proxy',
+        'Serial': '2a:d2:f6:d3:23:62:0b:5f:f8:2f:d6:3a:4a:9f:b8:c6:48:a0:11:62',
+        'Type': 'IMPORTED',
+        'ImportedAt': datetime(2017, 4, 7, 10, 12, 55, tzinfo=timezone.utc),
+        'SignatureAlgorithm': 'SHA256WITHRSA',
+        'CertificateArn': 'arn:aws:acm:eu-west-1:cert3',
+        'NotBefore': datetime(2017, 4, 7, 10, 0, tzinfo=timezone.utc),
+        'DomainValidationOptions': [{'DomainName': 'pierone.stups.zalan.do'}, {'DomainName': 'registry.opensource.zalan.do'}],
+        'Status': 'ISSUED',
+        'DomainName': 'pierone.stups.zalan.do',
+        'Issuer': 'Zalando SE',
+        'InUseBy': [],
+        'KeyAlgorithm': 'RSA-2048'}
 
 CERT_VALIDATION_TIMED_OUT = {
     'KeyAlgorithm': 'RSA-2048',

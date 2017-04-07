@@ -34,7 +34,7 @@ CERT1 = {'CertificateArn': 'arn:aws:acm:eu-west-1:cert1',
          'IssuedAt': datetime(2016, 4, 1, 12, 14, 14, tzinfo=timezone.utc),
          'Issuer': 'SenzaTest',
          'KeyAlgorithm': 'RSA-2048',
-         'NotAfter': datetime(2017, 4, 1, 12, 14, 14, tzinfo=timezone.utc),
+         'NotAfter': datetime(2020, 4, 1, 12, 14, 14, tzinfo=timezone.utc),
          'NotBefore': datetime(2016, 4, 1, 12, 14, 14, tzinfo=timezone.utc),
          'Serial': '00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00',
          'SignatureAlgorithm': 'SHA256WITHRSA',
@@ -75,7 +75,7 @@ CERT2 = {'CertificateArn': 'arn:aws:acm:eu-west-1:cert2',
          'IssuedAt': datetime(2016, 4, 1, 12, 14, 14),
          'Issuer': 'SenzaTest',
          'KeyAlgorithm': 'RSA-2048',
-         'NotAfter': datetime(2017, 4, 1, 12, 14, 14),
+         'NotAfter': datetime(2020, 4, 1, 12, 14, 14),
          'NotBefore': datetime(2016, 4, 1, 12, 14, 14),
          'Serial': '00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00',
          'SignatureAlgorithm': 'SHA256WITHRSA',
@@ -84,6 +84,8 @@ CERT2 = {'CertificateArn': 'arn:aws:acm:eu-west-1:cert2',
          'SubjectAlternativeNames': ['*.senza.example.net',
                                      '*.senza.aws.example.net',
                                      '*.app.example.net']}
+
+CERT3 = {'NotAfter': datetime(2017, 5, 7, 10, 0, tzinfo=timezone.utc), 'SubjectAlternativeNames': ['pierone.stups.zalan.do', 'registry.opensource.zalan.do'], 'Subject': 'C=DE,L=Berlin,O=Zalando SE,OU=CDP,CN=CDP Proxy', 'Serial': '2a:d2:f6:d3:23:62:0b:5f:f8:2f:d6:3a:4a:9f:b8:c6:48:a0:11:62', 'Type': 'IMPORTED', 'ImportedAt': datetime(2017, 4, 7, 10, 12, 55, tzinfo=timezone.utc), 'SignatureAlgorithm': 'SHA256WITHRSA', 'CertificateArn': 'arn:aws:acm:eu-central-1:085668006708:certificate/f14f9718-7da8-4250-9c21-d0341da4e44f', 'NotBefore': datetime(2017, 4, 7, 10, 0, tzinfo=timezone.utc), 'DomainValidationOptions': [{'DomainName': 'pierone.stups.zalan.do'}, {'DomainName': 'registry.opensource.zalan.do'}], 'Status': 'ISSUED', 'DomainName': 'pierone.stups.zalan.do', 'Issuer': 'Zalando SE', 'InUseBy': [], 'KeyAlgorithm': 'RSA-2048'}
 
 CERT_VALIDATION_TIMED_OUT = {
     'KeyAlgorithm': 'RSA-2048',
@@ -109,7 +111,7 @@ def test_certificate_valid():
     assert certificate1.domain_name == '*.senza.example.com'
     assert certificate1.is_valid(when=datetime(2016, 4, 5, 12, 14, 14,
                                                tzinfo=timezone.utc))
-    assert not certificate1.is_valid(when=datetime(2018, 4, 5, 12, 14, 14,
+    assert not certificate1.is_valid(when=datetime(2021, 4, 5, 12, 14, 14,
                                                    tzinfo=timezone.utc))
     assert not certificate1.is_valid(when=datetime(2013, 4, 2, 10, 11, 12,
                                                    tzinfo=timezone.utc))
@@ -121,7 +123,7 @@ def test_certificate_valid():
     assert certificate1_revoked.domain_name == '*.senza.example.com'
     assert not certificate1_revoked.is_valid(when=datetime(2016, 4, 5, 12, 14, 14,
                                                            tzinfo=timezone.utc))
-    assert not certificate1_revoked.is_valid(when=datetime(2018, 4, 5, 12, 14, 14,
+    assert not certificate1_revoked.is_valid(when=datetime(2021, 4, 5, 12, 14, 14,
                                                            tzinfo=timezone.utc))
     assert not certificate1_revoked.is_valid(when=datetime(2013, 4, 2, 10, 11, 12,
                                                            tzinfo=timezone.utc))
@@ -153,7 +155,7 @@ def test_certificate_get_by_arn(monkeypatch):
     assert certificate1.domain_name == '*.senza.example.com'
     assert certificate1.is_valid(when=datetime(2016, 4, 5, 12, 14, 14,
                                                tzinfo=timezone.utc))
-    assert not certificate1.is_valid(when=datetime(2018, 4, 5, 12, 14, 14,
+    assert not certificate1.is_valid(when=datetime(2021, 4, 5, 12, 14, 14,
                                                    tzinfo=timezone.utc))
     assert not certificate1.is_valid(when=datetime(2013, 4, 2, 10, 11, 12,
                                                    tzinfo=timezone.utc))
@@ -200,6 +202,12 @@ def test_get_certificates(monkeypatch):
                                                  domain_name="app.senza.example.net"))
     assert len(certificates_net) == 1
     assert certificates_net[0].arn == 'arn:aws:acm:eu-west-1:cert2'
+
+    m_client.describe_certificate.side_effect = [{'Certificate': CERT3}]
+    certificates_net = list(acm.get_certificates(valid_only=False,
+                                                 domain_name="registry.opensource.zalan.do"))
+    assert len(certificates_net) == 1
+    assert certificates_net[0].arn == 'arn:aws:acm:eu-west-1:cert3'
 
 
 def test_arn_is_acm_certificate():

@@ -81,7 +81,7 @@ class ACMCertificate:
         subject_alternative_name = certificate['SubjectAlternativeNames']
         domain_validation_options = certificate['DomainValidationOptions']
         subject = certificate['Subject']
-        created_at = certificate['CreatedAt']
+        created_at = certificate.get('CreatedAt')
         status = certificate['Status']
         signature_algorithm = certificate['SignatureAlgorithm']
         in_use_by = certificate['InUseBy']

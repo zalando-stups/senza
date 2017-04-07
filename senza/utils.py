@@ -47,3 +47,18 @@ def pystache_render(*args, **kwargs):
     """
     render = pystache.Renderer(missing_tags='strict')
     return render.render(*args, **kwargs)
+
+
+def extract_attribute(definition: dict, attr_name: str):
+    """
+    Extracts an attribute `attr_name` from `SenzaInfo` section from a
+    senza-definition .yaml file.
+
+    :param definition: Definition parsed from the .yaml file.
+    :param attr_name: Name of the attribute to be extracted.
+    :return: Value of the attribute `attr_name` if provided otherwise None.
+    """
+
+    mappings = definition.get('Mappings', {})
+    attr_value = mappings.get('Senza', {}).get('Info', {}).get(attr_name)
+    return attr_value

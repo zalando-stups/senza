@@ -5,7 +5,6 @@ import os
 from contextlib import contextmanager
 
 from typing import List, Dict
-from typing import Optional
 from unittest.mock import MagicMock, mock_open
 
 import botocore.exceptions
@@ -1917,3 +1916,162 @@ def test_create_cf_template_compact_json(monkeypatch):
     cf_template = create_cf_template(definition, 'aa-fakeregion-1', '1', [], False, None)
     # verify that we are using the "compressed" JSON format (no indentation, no extra whitespace)
     assert '"Senza":{"Info":' in cf_template['TemplateBody']
+
+
+def test_application_name_tag_for_load_balancer(monkeypatch,
+                                                boto_client,
+                                                boto_resource,
+                                                disable_version_check):
+    senza.traffic.DNS_ZONE_CACHE = {}
+
+    data = {'SenzaInfo': {'StackName': 'test',
+                          'OperatorTopicId': 'mytopic',
+                          'Parameters': [
+                              {'ImageVersion': {'Description': ''}}]},
+            'SenzaComponents': [
+                {'Configuration': {'Type': 'Senza::StupsAutoConfiguration'}},
+                {'AppServer': {'Type': 'Senza::TaupageAutoScalingGroup',
+                               'ElasticLoadBalancer': 'AppLoadBalancer',
+                               'InstanceType': 't2.micro',
+                               'TaupageConfig': {'runtime': 'Docker',
+                                                 'source': 'foo/bar:{{Arguments.ImageVersion}}'},
+                               'IamRoles': [{'Stack': 'stack1',
+                                             'LogicalId': 'ReferencedRole'}],
+                               'SecurityGroups': ['app-sg', 'sg-123'],
+                               'AutoScaling':
+                                   {'Minimum': 1,
+                                    'Maximum': 10,
+                                    'MetricType': 'CPU'}}},
+                {'AppLoadBalancer': {
+                    'Type': 'Senza::WeightedDnsElasticLoadBalancer',
+                    'HTTPPort': 8080,
+                    'SecurityGroups': ['app-sg']}}]}
+
+    data['SenzaInfo']['ApplicationName'] = 'SenzaApp'
+
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+
+        result = runner.invoke(cli,
+                               ['print', 'myapp.yaml', '--region=aa-fakeregion-1', '123', '1.0-SNAPSHOT'],
+                               catch_exceptions=False)
+    # no stdout/stderr seperation with runner.invoke...
+    stdout, cfjson = result.output.split('\n', 1)
+    assert 'Generating Cloud Formation template.. OK' == stdout
+    data = json.loads(cfjson)
+
+    # attribute is put into 'Mappings' by default from the .yaml file
+    assert data['Mappings']['Senza']['Info']['ApplicationName'] == 'SenzaApp'
+
+    # ApplicationName is saved as a tag for the ELB
+    tags = data['Resources']['AppLoadBalancer']['Properties']['Tags']
+    assert {'Key': 'ApplicationName', 'Value': 'SenzaApp'} in tags
+
+
+def test_application_name_tag_for_load_balancer_v2(monkeypatch,
+                                                   boto_client,
+                                                   boto_resource,
+                                                   disable_version_check):
+    senza.traffic.DNS_ZONE_CACHE = {}
+
+    data = {'SenzaInfo': {'StackName': 'test',
+                          'OperatorTopicId': 'mytopic',
+                          'Parameters': [
+                              {'ImageVersion': {'Description': ''}}]},
+            'SenzaComponents': [
+                {'Configuration': {'Type': 'Senza::StupsAutoConfiguration'}},
+                {'AppServer': {'Type': 'Senza::TaupageAutoScalingGroup',
+                               'ElasticLoadBalancer': 'AppLoadBalancer',
+                               'InstanceType': 't2.micro',
+                               'TaupageConfig': {'runtime': 'Docker',
+                                                 'source': 'foo/bar:{{Arguments.ImageVersion}}'},
+                               'IamRoles': [{'Stack': 'stack1',
+                                             'LogicalId': 'ReferencedRole'}],
+                               'SecurityGroups': ['app-sg', 'sg-123'],
+                               'AutoScaling':
+                                   {'Minimum': 1,
+                                    'Maximum': 10,
+                                    'MetricType': 'CPU'}}},
+                {'AppLoadBalancer': {
+                    'Type': 'Senza::WeightedDnsElasticLoadBalancerV2',
+                    'HTTPPort': 8080,
+                    'SecurityGroups': ['app-sg']}}]}
+
+    data['SenzaInfo']['ApplicationName'] = 'SenzaApp'
+
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+
+        result = runner.invoke(cli,
+                               ['print', 'myapp.yaml', '--region=aa-fakeregion-1', '123', '1.0-SNAPSHOT'],
+                               catch_exceptions=False)
+    # no stdout/stderr seperation with runner.invoke...
+    stdout, cfjson = result.output.split('\n', 1)
+    assert 'Generating Cloud Formation template.. OK' == stdout
+    data = json.loads(cfjson)
+
+    # attribute is put into 'Mappings' by default from the .yaml file
+    assert data['Mappings']['Senza']['Info']['ApplicationName'] == 'SenzaApp'
+
+    # ApplicationName is saved as a tag for the ELBv2
+    tags = data['Resources']['AppLoadBalancer']['Properties']['Tags']
+    assert {'Key': 'ApplicationName', 'Value': 'SenzaApp'} in tags
+
+
+def test_random_attribute_not_exported_as_tag(monkeypatch,
+                                              boto_client,
+                                              boto_resource,
+                                              disable_version_check):
+    senza.traffic.DNS_ZONE_CACHE = {}
+
+    data = {'SenzaInfo': {'StackName': 'test',
+                          'OperatorTopicId': 'mytopic',
+                          'Parameters': [
+                              {'ImageVersion': {'Description': ''}}]},
+            'SenzaComponents': [
+                {'Configuration': {'Type': 'Senza::StupsAutoConfiguration'}},
+                {'AppServer': {'Type': 'Senza::TaupageAutoScalingGroup',
+                               'ElasticLoadBalancer': 'AppLoadBalancer',
+                               'InstanceType': 't2.micro',
+                               'TaupageConfig': {'runtime': 'Docker',
+                                                 'source': 'foo/bar:{{Arguments.ImageVersion}}'},
+                               'IamRoles': [{'Stack': 'stack1',
+                                             'LogicalId': 'ReferencedRole'}],
+                               'SecurityGroups': ['app-sg', 'sg-123'],
+                               'AutoScaling':
+                                   {'Minimum': 1,
+                                    'Maximum': 10,
+                                    'MetricType': 'CPU'}}},
+                {'AppLoadBalancer': {
+                    'Type': 'Senza::WeightedDnsElasticLoadBalancerV2',
+                    'HTTPPort': 8080,
+                    'SecurityGroups': ['app-sg']}}]}
+
+    data['SenzaInfo']['RandomAttribute123'] = 'SenzaApp'
+
+    runner = CliRunner()
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+
+        result = runner.invoke(cli,
+                               ['print', 'myapp.yaml', '--region=aa-fakeregion-1', '123', '1.0-SNAPSHOT'],
+                               catch_exceptions=False)
+    # no stdout/stderr seperation with runner.invoke...
+    stdout, cfjson = result.output.split('\n', 1)
+    assert 'Generating Cloud Formation template.. OK' == stdout
+    data = json.loads(cfjson)
+
+    # attribute is put into 'Mappings' by default from the .yaml file
+    assert data['Mappings']['Senza']['Info']['RandomAttribute123'] == 'SenzaApp'
+
+    # RandomAttribute123 is not saved as a tag for ELBs
+    tags = data['Resources']['AppLoadBalancer']['Properties']['Tags']
+    assert {'Key': 'RandomAttribute123', 'Value': 'SenzaApp'} not in tags

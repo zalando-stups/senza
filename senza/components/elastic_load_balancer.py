@@ -4,6 +4,8 @@ from senza.aws import resolve_security_groups
 from senza.definitions import AccountArguments
 
 from ..cli import TemplateArguments
+from ..utils import extract_attribute
+
 from ..manaus import ClientError
 from ..manaus.acm import ACM, ACMCertificate
 from ..manaus.iam import IAM, IAMServerCertificate
@@ -104,6 +106,7 @@ def component_elastic_load_balancer(definition,
                                     info: dict,
                                     force,
                                     account_info: AccountArguments):
+
     lb_name = configuration["Name"]
     # domains pointing to the load balancer
     subdomain = ''
@@ -210,6 +213,15 @@ def component_elastic_load_balancer(definition,
             ]
         }
     }
+
+    application_name = extract_attribute(definition, 'ApplicationName')
+
+    if application_name:
+        definition["Resources"][lb_name]["Properties"]["Tags"].append({
+            "Key": "ApplicationName",
+            "Value": application_name
+        })
+
     for key, val in configuration.items():
         # overwrite any specified properties, but
         # ignore our special Senza properties as they are not supported by CF

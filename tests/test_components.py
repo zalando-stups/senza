@@ -1121,3 +1121,98 @@ def test_component_coreos_auto_configuration(monkeypatch):
     result = component_coreos_auto_configuration(definition, configuration, args, info, False, MagicMock())
     assert 'ami-007' == result['Mappings']['Images']['foo']['LatestCoreOSImage']
 
+def test_component_autoscaling_group_single_string_load_balancer(monkeypatch):
+    configuration = {
+        'Name': 'Test',
+        'InstanceType': 't2.micro',
+        'Image': 'foo',
+        'ElasticLoadBalancer': 'LB1'
+    }
+    definition = {"Resources": {}}
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    args = MagicMock()
+    args.region = "foo"
+
+    result = component_auto_scaling_group(definition, configuration, args, info, False, MagicMock())
+
+    assert [{'Ref': 'LB1'}] == result['Resources']['Test']['Properties']['LoadBalancerNames']
+
+def test_component_autoscaling_group_single_list_load_balancer(monkeypatch):
+    configuration = {
+        'Name': 'Test',
+        'InstanceType': 't2.micro',
+        'Image': 'foo',
+        'ElasticLoadBalancer': [ 'LB1' ]
+    }
+    definition = {"Resources": {}}
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    args = MagicMock()
+    args.region = "foo"
+
+    result = component_auto_scaling_group(definition, configuration, args, info, False, MagicMock())
+
+    assert [{'Ref': 'LB1'}] == result['Resources']['Test']['Properties']['LoadBalancerNames']
+
+def test_component_autoscaling_group_multiple_load_balancer(monkeypatch):
+    configuration = {
+        'Name': 'Test',
+        'InstanceType': 't2.micro',
+        'Image': 'foo',
+        'ElasticLoadBalancer': [ 'LB1', 'LB2' ]
+    }
+    definition = {"Resources": {}}
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    args = MagicMock()
+    args.region = "foo"
+
+    result = component_auto_scaling_group(definition, configuration, args, info, False, MagicMock())
+
+    assert [{'Ref': 'LB1'},{'Ref': 'LB2'}] == result['Resources']['Test']['Properties']['LoadBalancerNames']
+
+def test_component_autoscaling_group_single_string_load_balancer_v2(monkeypatch):
+    configuration = {
+        'Name': 'Test',
+        'InstanceType': 't2.micro',
+        'Image': 'foo',
+        'ElasticLoadBalancerV2': 'LB1'
+    }
+    definition = {"Resources": {}}
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    args = MagicMock()
+    args.region = "foo"
+
+    result = component_auto_scaling_group(definition, configuration, args, info, False, MagicMock())
+
+    assert [{'Ref': 'LB1TargetGroup'}] == result['Resources']['Test']['Properties']['TargetGroupARNs']
+
+def test_component_autoscaling_group_single_list_load_balancer_v2(monkeypatch):
+    configuration = {
+        'Name': 'Test',
+        'InstanceType': 't2.micro',
+        'Image': 'foo',
+        'ElasticLoadBalancerV2': [ 'LB1' ]
+    }
+    definition = {"Resources": {}}
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    args = MagicMock()
+    args.region = "foo"
+
+    result = component_auto_scaling_group(definition, configuration, args, info, False, MagicMock())
+
+    assert [{'Ref': 'LB1TargetGroup'}] == result['Resources']['Test']['Properties']['TargetGroupARNs']
+
+def test_component_autoscaling_group_multiple_load_balancer_v2(monkeypatch):
+    configuration = {
+        'Name': 'Test',
+        'InstanceType': 't2.micro',
+        'Image': 'foo',
+        'ElasticLoadBalancerV2': [ 'LB1', 'LB2']
+    }
+    definition = {"Resources": {}}
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    args = MagicMock()
+    args.region = "foo"
+
+    result = component_auto_scaling_group(definition, configuration, args, info, False, MagicMock())
+
+    assert [{'Ref': 'LB1TargetGroup'},{'Ref': 'LB2TargetGroup'}] == result['Resources']['Test']['Properties']['TargetGroupARNs']

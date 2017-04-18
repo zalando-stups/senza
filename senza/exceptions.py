@@ -31,7 +31,7 @@ class InvalidConfigKey(SenzaException, ValueError):
 
 class InvalidDefinition(SenzaException):
     """
-    Exception raised when trying to parse and invalid senza definition
+    Exception raised when trying to parse an invalid senza definition
     """
 
     def __init__(self, path: str, reason: str):
@@ -40,6 +40,20 @@ class InvalidDefinition(SenzaException):
 
     def __str__(self):
         return ("{path} is not a valid senza definition: "
+                "{reason}".format_map(vars(self)))
+
+
+class InvalidParameterFile(SenzaException):
+    """
+    Exception raised when trying to parse an invalid parameter
+    """
+
+    def __init__(self, path: str, reason: str):
+        self.path = path
+        self.reason = reason
+
+    def __str__(self):
+        return ("{path} is not a valid parameter: "
                 "{reason}".format_map(vars(self)))
 
 

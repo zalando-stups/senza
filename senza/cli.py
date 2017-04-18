@@ -34,7 +34,7 @@ from .components import evaluate_template, get_component
 from .components.stups_auto_configuration import find_taupage_image
 from .definitions import AccountArguments
 from .error_handling import HandleExceptions
-from .exceptions import InvalidDefinition
+from .exceptions import InvalidDefinition, InvalidParameterFile
 from .manaus.boto_proxy import BotoClientProxy
 from .manaus.cloudformation import CloudFormation
 from .manaus.exceptions import VPCError
@@ -310,6 +310,9 @@ def read_parameter_file(parameter_file):
 
     try:
         cfg = yaml.safe_load(response.read())
+        if cfg is None:
+            raise InvalidParameterFile(parameter_file,
+                                       'Parameter file is empty')
         for key, val in cfg.items():
             paras.append("{}={}".format(key, val))
     except yaml.YAMLError as e:

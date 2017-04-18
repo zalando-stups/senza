@@ -146,7 +146,9 @@ def component_elastic_load_balancer(definition,
                                               health_check_port,
                                               health_check_path)
 
-    if configuration.get('NameSuffix'):
+    if configuration.get('LoadBalancerName'):
+        loadbalancer_name = info["LoadBalancerName"]
+    elif configuration.get('NameSuffix'):
         version = '{}-{}'.format(info["StackVersion"],
                                  configuration['NameSuffix'])
         loadbalancer_name = get_load_balancer_name(info["StackName"], version)

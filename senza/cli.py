@@ -49,7 +49,7 @@ from .templates import get_template_description, get_templates
 from .traffic import (change_version_traffic, get_records,
                       print_version_traffic, resolve_to_ip_addresses)
 from .utils import (camel_case_to_underscore, ensure_keys, named_value,
-                    pystache_render)
+                    pystache_render, get_load_balancer_name)
 
 STYLES = {
     'RUNNING': {'fg': 'green'},
@@ -532,7 +532,7 @@ def health(region, stack_ref, all, output, w, watch):
                 alb_id = ''.join([d['Value'] for d in metric['Dimensions'] if d['Name'] == 'LoadBalancer'])
                 alb_ids[alb_id.split('/')[1]] = alb_id
         for stack in get_stacks(stack_refs, region, all=all):
-            lb_name = stack.StackName
+            lb_name = get_load_balancer_name(stack_name=stack.name, stack_version=stack.version)
             instance_health = get_instance_health(lb_name, region)
             row = {
                 'stack_name': stack.name,

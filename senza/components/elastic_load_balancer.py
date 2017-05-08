@@ -2,6 +2,7 @@ import click
 from clickclick import fatal_error
 from senza.aws import resolve_security_groups
 from senza.definitions import AccountArguments
+from senza.utils import get_load_balancer_name
 
 from ..cli import TemplateArguments
 from ..manaus import ClientError
@@ -13,16 +14,6 @@ SENZA_PROPERTIES = frozenset(['Domains', 'HealthCheckPath', 'HealthCheckPort', '
                               'HTTPPort', 'Name', 'SecurityGroups', 'SSLCertificateId', 'Type'])
 ALLOWED_HEALTH_CHECK_PROTOCOLS = frozenset(["HTTP", "TCP", "UDP", "SSL"])
 ALLOWED_LOADBALANCER_SCHEMES = frozenset(["internet-facing", "internal"])
-
-
-def get_load_balancer_name(stack_name: str, stack_version: str):
-    """
-    Returns the name of the load balancer for the stack name and version,
-    truncating the name if necessary.
-    """
-    # Loadbalancer name cannot exceed 32 characters, try to shorten
-    l = 32 - len(stack_version) - 1
-    return '{}-{}'.format(stack_name[:l], stack_version)
 
 
 def get_ssl_cert(subdomain, main_zone, configuration, account_info: AccountArguments):

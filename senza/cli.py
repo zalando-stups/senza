@@ -422,7 +422,7 @@ def list_stacks(region, stack_ref, all, output, w, watch):
                          'creation_time': calendar.timegm(stack.CreationTime.timetuple()),
                          'description': stack.TemplateDescription})
 
-        rows.sort(key=lambda x: (x['stack_name'], x['version']))
+        rows.sort(key=lambda x: (x['stack_name'], int(x['version'])))
 
         with OutputFormat(output):
             print_table('stack_name version status creation_time description'.split(), rows,

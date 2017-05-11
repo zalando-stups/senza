@@ -403,9 +403,10 @@ def all_with_version(stack_refs: list):
 @watch_option
 @watchrefresh_option
 @click.option('--all', is_flag=True, help='Show all stacks, including deleted ones')
+@click.option('--field', '-f', metavar='NAME', multiple=True, help='Specify field to be returned')
 @click.argument('stack_ref', nargs=-1)
 @stacktrace_visible_option
-def list_stacks(region, stack_ref, all, output, w, watch):
+def list_stacks(region, stack_ref, all, output, field, w, watch):
     '''List Cloud Formation stacks'''
 
     region = get_region(region)
@@ -424,9 +425,13 @@ def list_stacks(region, stack_ref, all, output, w, watch):
 
         rows.sort(key=lambda x: (x['stack_name'], x['version']))
 
+        columns = ['stack_name', 'version', 'status', 'creation_time', 'description']
+
+        if field:
+            columns = [column for column in columns if column in field]
+
         with OutputFormat(output):
-            print_table('stack_name version status creation_time description'.split(), rows,
-                        styles=STYLES, titles=TITLES)
+            print_table(columns, rows, styles=STYLES, titles=TITLES)
 
 
 def get_application_load_balancer_metrics(cloudwatch, alb_id, start, now):

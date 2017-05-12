@@ -117,6 +117,14 @@ MAX_COLUMN_WIDTHS = {
 
 
 def filter_output_columns(output_columns, filter_columns):
+    """
+    Filters a list of columns and only keeps those present in a list of allowed columns.
+    Returns original list of columns if no allowed columns specified.
+
+    :param output_columns: a column list to filter
+    :param filter_columns: a list of allowed columns
+    :return: a filtered list of columns
+    """
     if filter_columns:
         return [column for column in output_columns if column in filter_columns]
 

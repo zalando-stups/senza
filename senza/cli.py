@@ -26,7 +26,7 @@ from clickclick.console import print_table
 from .arguments import (GLOBAL_OPTIONS, json_output_option, output_option,
                         parameter_file_option, region_option,
                         stacktrace_visible_option, watch_option,
-                        watchrefresh_option)
+                        watchrefresh_option, field_option)
 from .aws import (StackReference, get_required_capabilities, get_stacks,
                   get_tag, matches_any, parse_time, resolve_topic_arn,
                   update_stack_from_template, all_stacks_in_final_state)
@@ -410,7 +410,7 @@ def all_with_version(stack_refs: list):
 @watch_option
 @watchrefresh_option
 @click.option('--all', is_flag=True, help='Show all stacks, including deleted ones')
-@click.option('--field', '-f', metavar='NAME', multiple=True, help='Specify field to be returned')
+@field_option
 @click.argument('stack_ref', nargs=-1)
 @stacktrace_visible_option
 def list_stacks(region, stack_ref, all, output, field, w, watch):
@@ -513,7 +513,7 @@ def get_classic_load_balancer_metrics(cloudwatch, lb_name, start, now):
 @cli.command()
 @region_option
 @output_option
-@click.option('--field', '-f', metavar='NAME', multiple=True, help='Specify field to be returned')
+@field_option
 @watch_option
 @watchrefresh_option
 @click.option('--all', is_flag=True, help='Show all stacks, including deleted ones')
@@ -795,7 +795,7 @@ def format_resource_type(resource_type):
 @watch_option
 @watchrefresh_option
 @output_option
-@click.option('--field', '-f', metavar='NAME', multiple=True, help='Specify field to be returned')
+@field_option
 @stacktrace_visible_option
 def resources(stack_ref, region, w, watch, output, field):
     '''Show all resources of a single Cloud Formation stack'''
@@ -833,7 +833,7 @@ def resources(stack_ref, region, w, watch, output, field):
 @watch_option
 @watchrefresh_option
 @output_option
-@click.option('--field', '-f', metavar='NAME', multiple=True, help='Specify field to be returned')
+@field_option
 @stacktrace_visible_option
 def events(stack_ref, region, w, watch, output, field):
     '''Show all Cloud Formation events for a single stack'''
@@ -965,7 +965,7 @@ def get_instance_docker_image_source(instance) -> str:
 @click.option('-O', '--odd-host', help='Odd SSH bastion hostname', envvar='ODD_HOST', metavar='HOSTNAME')
 @region_option
 @output_option
-@click.option('--field', '-f', metavar='NAME', multiple=True, help='Specify field to be returned')
+@field_option
 @watch_option
 @watchrefresh_option
 @stacktrace_visible_option
@@ -1033,7 +1033,7 @@ def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region,
 @click.argument('stack_ref', nargs=-1)
 @region_option
 @output_option
-@click.option('--field', '-f', metavar='NAME', multiple=True, help='Specify field to be returned')
+@field_option
 @watch_option
 @watchrefresh_option
 @stacktrace_visible_option
@@ -1102,7 +1102,7 @@ def status(stack_ref, region, output, field, w, watch):
 @click.argument('stack_ref', nargs=-1)
 @region_option
 @output_option
-@click.option('--field', '-f', metavar='NAME', multiple=True, help='Specify field to be returned')
+@field_option
 @watch_option
 @watchrefresh_option
 @stacktrace_visible_option
@@ -1203,7 +1203,7 @@ def traffic(stack_name, stack_version, percentage, region, output, timeout, inte
 @click.option('--show-instances', is_flag=True, help='Show EC2 instance IDs')
 @region_option
 @output_option
-@click.option('--field', '-f', metavar='NAME', multiple=True, help='Specify field to be returned')
+@field_option
 @stacktrace_visible_option
 def images(stack_ref, region, output, field, hide_older_than, show_instances):
     '''Show all used AMIs and available Taupage AMIs'''

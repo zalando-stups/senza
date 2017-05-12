@@ -68,4 +68,11 @@ watchrefresh_option = click.option('-w', '--watch',
                                    type=click.IntRange(1, 300),
                                    metavar='SECS',
                                    help='Auto update the screen every X seconds')
+
+field_option = click.option('--field',
+                            '-f',
+                            metavar='NAME',
+                            multiple=True,
+                            help='Specify field to be returned')
+
 GLOBAL_OPTIONS = {}

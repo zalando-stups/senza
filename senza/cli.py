@@ -116,7 +116,7 @@ MAX_COLUMN_WIDTHS = {
 }
 
 
-def filter_output_columns(output_columns, filter_columns=list()):
+def filter_output_columns(output_columns, filter_columns):
     if filter_columns:
         return [column for column in output_columns if column in filter_columns]
 

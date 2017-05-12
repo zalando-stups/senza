@@ -116,6 +116,13 @@ MAX_COLUMN_WIDTHS = {
 }
 
 
+def filter_output_columns(output_columns, filter_columns=list()):
+    if filter_columns:
+        return [column for column in output_columns if column in filter_columns]
+
+    return output_columns
+
+
 def print_json(data, output=None):
     if output == 'yaml':
         parsed_data = yaml.safe_load(data)
@@ -425,12 +432,8 @@ def list_stacks(region, stack_ref, all, output, field, w, watch):
 
         rows.sort(key=lambda x: (x['stack_name'], x['version']))
 
-        columns = ['stack_name', 'version', 'status', 'creation_time', 'description']
-
-        if field:
-            columns = [column for column in columns if column in field]
-
         with OutputFormat(output):
+            columns = filter_output_columns(['stack_name', 'version', 'status', 'creation_time', 'description'], field)
             print_table(columns, rows, styles=STYLES, titles=TITLES)
 
 

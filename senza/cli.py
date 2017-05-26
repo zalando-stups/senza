@@ -26,7 +26,7 @@ from clickclick.console import print_table
 from .arguments import (GLOBAL_OPTIONS, json_output_option, output_option,
                         parameter_file_option, region_option,
                         stacktrace_visible_option, watch_option,
-                        watchrefresh_option)
+                        watchrefresh_option, field_option)
 from .aws import (StackReference, get_required_capabilities, get_stacks,
                   get_tag, matches_any, parse_time, resolve_topic_arn,
                   update_stack_from_template, all_stacks_in_final_state)
@@ -114,6 +114,21 @@ MAX_COLUMN_WIDTHS = {
     'stacks': 20,
     'ResourceStatusReason': 50
 }
+
+
+def filter_output_columns(output_columns, filter_columns):
+    """
+    Filters a list of columns and only keeps those present in a list of allowed columns.
+    Returns original list of columns if no allowed columns specified.
+
+    :param output_columns: a column list to filter
+    :param filter_columns: a list of allowed columns
+    :return: a filtered list of columns
+    """
+    if filter_columns:
+        return [column for column in output_columns if column in filter_columns]
+
+    return output_columns
 
 
 def print_json(data, output=None):
@@ -403,7 +418,7 @@ def all_with_version(stack_refs: list):
 @watch_option
 @watchrefresh_option
 @click.option('--all', is_flag=True, help='Show all stacks, including deleted ones')
-@click.option('--field', '-f', metavar='NAME', multiple=True, help='Specify field to be returned')
+@field_option
 @click.argument('stack_ref', nargs=-1)
 @stacktrace_visible_option
 def list_stacks(region, stack_ref, all, output, field, w, watch):
@@ -425,12 +440,8 @@ def list_stacks(region, stack_ref, all, output, field, w, watch):
 
         rows.sort(key=lambda x: (x['stack_name'], x['version']))
 
-        columns = ['stack_name', 'version', 'status', 'creation_time', 'description']
-
-        if field:
-            columns = [column for column in columns if column in field]
-
         with OutputFormat(output):
+            columns = filter_output_columns(['stack_name', 'version', 'status', 'creation_time', 'description'], field)
             print_table(columns, rows, styles=STYLES, titles=TITLES)
 
 
@@ -510,12 +521,13 @@ def get_classic_load_balancer_metrics(cloudwatch, lb_name, start, now):
 @cli.command()
 @region_option
 @output_option
+@field_option
 @watch_option
 @watchrefresh_option
 @click.option('--all', is_flag=True, help='Show all stacks, including deleted ones')
 @click.argument('stack_ref', nargs=-1)
 @stacktrace_visible_option
-def health(region, stack_ref, all, output, w, watch):
+def health(region, stack_ref, all, output, field, w, watch):
     '''Show stack health (ELB req/s, ..)'''
 
     region = get_region(region)
@@ -556,9 +568,10 @@ def health(region, stack_ref, all, output, w, watch):
         rows.sort(key=lambda x: (x['stack_name'], x['version']))
 
         with OutputFormat(output):
-            print_table('stack_name version status healthy_hosts requests_per_sec '
-                        '4xx_percentage 5xx_percentage latency_ms'.split(), rows,
-                        styles=STYLES, titles=TITLES)
+            columns = filter_output_columns(
+                ['stack_name', 'version', 'status', 'healthy_hosts', 'requests_per_sec', '4xx_percentage',
+                 '5xx_percentage', 'latency_ms'], field)
+            print_table(columns, rows, styles=STYLES, titles=TITLES)
 
 
 @cli.command()
@@ -790,8 +803,9 @@ def format_resource_type(resource_type):
 @watch_option
 @watchrefresh_option
 @output_option
+@field_option
 @stacktrace_visible_option
-def resources(stack_ref, region, w, watch, output):
+def resources(stack_ref, region, w, watch, output, field):
     '''Show all resources of a single Cloud Formation stack'''
 
     stack_refs = get_stack_refs(stack_ref)
@@ -815,8 +829,10 @@ def resources(stack_ref, region, w, watch, output):
         rows.sort(key=lambda x: (x['stack_name'], x['version'], x['LogicalResourceId']))
 
         with OutputFormat(output):
-            print_table('stack_name version LogicalResourceId resource_type ResourceStatus creation_time'.split(),
-                        rows, styles=STYLES, titles=TITLES)
+            columns = filter_output_columns(
+                ['stack_name', 'version', 'LogicalResourceId', 'resource_type', 'ResourceStatus', 'creation_time'],
+                field)
+            print_table(columns, rows, styles=STYLES, titles=TITLES)
 
 
 @cli.command()
@@ -825,8 +841,9 @@ def resources(stack_ref, region, w, watch, output):
 @watch_option
 @watchrefresh_option
 @output_option
+@field_option
 @stacktrace_visible_option
-def events(stack_ref, region, w, watch, output):
+def events(stack_ref, region, w, watch, output, field):
     '''Show all Cloud Formation events for a single stack'''
 
     stack_refs = get_stack_refs(stack_ref)
@@ -850,9 +867,10 @@ def events(stack_ref, region, w, watch, output):
         rows.sort(key=lambda x: x['event_time'])
 
         with OutputFormat(output):
-            print_table(('stack_name version resource_type LogicalResourceId ' +
-                         'ResourceStatus ResourceStatusReason event_time').split(),
-                        rows, styles=STYLES, titles=TITLES, max_column_widths=MAX_COLUMN_WIDTHS)
+            columns = filter_output_columns(
+                ['stack_name', 'version', 'resource_type', 'LogicalResourceId', 'ResourceStatus',
+                 'ResourceStatusReason', 'event_time'], field)
+            print_table(columns, rows, styles=STYLES, titles=TITLES, max_column_widths=MAX_COLUMN_WIDTHS)
 
 
 @cli.command()
@@ -955,11 +973,12 @@ def get_instance_docker_image_source(instance) -> str:
 @click.option('-O', '--odd-host', help='Odd SSH bastion hostname', envvar='ODD_HOST', metavar='HOSTNAME')
 @region_option
 @output_option
+@field_option
 @watch_option
 @watchrefresh_option
 @stacktrace_visible_option
 def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region,
-              output, w, watch):
+              output, field, w, watch):
     '''List the stack's EC2 instances'''
 
     stack_refs = get_stack_refs(stack_ref)
@@ -1002,9 +1021,10 @@ def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region,
         rows.sort(key=lambda r: (r['stack_name'], r['version'], r['instance_id']))
 
         with OutputFormat(output):
-            print_table(('stack_name version resource_id instance_id public_ip ' +
-                         'private_ip state lb_status{} launch_time'.format(opt_docker_column)).split(),
-                        rows, styles=STYLES, titles=TITLES)
+            columns = filter_output_columns(
+                ['stack_name', 'version', 'resource_id', 'instance_id', 'public_ip',
+                 'private_ip', 'state', 'lb_status{}'.format(opt_docker_column), 'launch_time'], field)
+            print_table(columns, rows, styles=STYLES, titles=TITLES)
 
         if piu is not None:
             odd_host = odd_host or Piu.find_odd_host(region)
@@ -1021,10 +1041,11 @@ def instances(stack_ref, all, terminated, docker_image, piu, odd_host, region,
 @click.argument('stack_ref', nargs=-1)
 @region_option
 @output_option
+@field_option
 @watch_option
 @watchrefresh_option
 @stacktrace_visible_option
-def status(stack_ref, region, output, w, watch):
+def status(stack_ref, region, output, field, w, watch):
     '''Show stack status information'''
 
     stack_refs = get_stack_refs(stack_ref)
@@ -1079,18 +1100,21 @@ def status(stack_ref, region, output, w, watch):
                          })
 
         with OutputFormat(output):
-            print_table(('stack_name version status total_instances running_instances healthy_instances ' +
-                         'lb_status http_status main_dns').split(), rows, styles=STYLES, titles=TITLES)
+            columns = filter_output_columns(
+                ['stack_name', 'version', 'status', 'total_instances', 'running_instances', 'healthy_instances',
+                 'lb_status', 'http_status', 'main_dns'], field)
+            print_table(columns, rows, styles=STYLES, titles=TITLES)
 
 
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
 @region_option
 @output_option
+@field_option
 @watch_option
 @watchrefresh_option
 @stacktrace_visible_option
-def domains(stack_ref, region, output, w, watch):
+def domains(stack_ref, region, output, field, w, watch):
     '''List the stack's Route53 domains'''
 
     stack_refs = get_stack_refs(stack_ref)
@@ -1143,8 +1167,9 @@ def domains(stack_ref, region, output, w, watch):
                     rows.append(row)
 
         with OutputFormat(output):
-            print_table('stack_name version resource_id domain weight type value create_time'.split(),
-                        rows, styles=STYLES, titles=TITLES)
+            columns = filter_output_columns(
+                ['stack_name', 'version', 'resource_id', 'domain', 'weight', 'type', 'value', 'create_time'], field)
+            print_table(columns, rows, styles=STYLES, titles=TITLES)
 
 
 @cli.command()
@@ -1186,8 +1211,9 @@ def traffic(stack_name, stack_version, percentage, region, output, timeout, inte
 @click.option('--show-instances', is_flag=True, help='Show EC2 instance IDs')
 @region_option
 @output_option
+@field_option
 @stacktrace_visible_option
-def images(stack_ref, region, output, hide_older_than, show_instances):
+def images(stack_ref, region, output, field, hide_older_than, show_instances):
     '''Show all used AMIs and available Taupage AMIs'''
 
     stack_refs = get_stack_refs(stack_ref)
@@ -1237,10 +1263,11 @@ def images(stack_ref, region, output, hide_older_than, show_instances):
 
     rows.sort(key=lambda x: x.get('Name'))
     with OutputFormat(output):
-        cols = 'ImageId Name OwnerId Description stacks total_instances creation_time'
-        if show_instances:
-            cols = cols.replace('total_instances', 'instances')
-        print_table(cols.split(), rows, titles=TITLES, max_column_widths=MAX_COLUMN_WIDTHS)
+        instances_column_name = 'instances' if show_instances else 'total_instances'
+
+        columns = filter_output_columns(
+            ['ImageId', 'Name', 'OwnerId', 'Description', 'stacks', instances_column_name, 'creation_time'], field)
+        print_table(columns, rows, titles=TITLES, max_column_widths=MAX_COLUMN_WIDTHS)
 
 
 def is_ip_address(x: str):

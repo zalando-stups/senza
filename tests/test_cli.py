@@ -909,6 +909,33 @@ def test_list(monkeypatch):
 
     assert 'test-stack 1' in result.output
 
+def test_list_version(monkeypatch):
+    def my_resource(rtype, *args):
+        return MagicMock()
+
+    def my_client(rtype, *args):
+        if rtype == 'cloudformation':
+            cf = MagicMock()
+            cf.list_stacks.return_value = {'StackSummaries': [{'StackName': 'test-stack-1',
+                                                               'CreationTime': datetime.datetime.utcnow()}]}
+            return cf
+        return MagicMock()
+
+    monkeypatch.setattr('boto3.resource', my_resource)
+    monkeypatch.setattr('boto3.client', my_client)
+
+    runner = CliRunner()
+
+    data = {'SenzaInfo': {'StackName': 'test-stack'}}
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+        result = runner.invoke(cli, ['list', 'myapp.yaml', '--region=aa-fakeregion-1', '--field=version'],
+                               catch_exceptions=False)
+
+    assert '1' in result.output
+    assert 'test-stack' not in result.output
 
 def test_images(monkeypatch):
     def my_resource(rtype, *args):

@@ -1401,6 +1401,44 @@ def get_auto_scaling_groups(stack_refs, region):
 
 
 @cli.command()
+@click.argument('stack_name')
+@click.argument('stack_version', required=True)
+@click.argument('toggle', type=bool, required=True)
+@region_option
+def maintenance(stack_name, stack_version, toggle, region):
+    '''Sets the value of the tag named 'maintenance' to `toggle` across the given stack
+    asg and its instances.'''
+
+    stack_refs = get_stack_refs([stack_name, stack_version])
+    region = get_region(region)
+    check_credentials(region)
+
+    asg = BotoClientProxy('autoscaling', region)
+    ec2 = BotoClientProxy('ec2', region)
+
+    for asg_name in get_auto_scaling_groups(stack_refs, region):
+        with Action('Changing maintenance mode on Auto Scaling Group {}..'.format(asg_name)) as act:
+            result = asg.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
+            groups = result['AutoScalingGroups']
+            for group in groups:
+                ec2.create_tags(
+                    Resources=[instance['InstanceId'] for instance in group['Instances']],
+                    Tags=[{
+                        'Key': 'maintenance',
+                        'Value': str(toggle)
+                    }]
+                )
+                asg.create_or_update_tags(Tags=[{
+                    'ResourceId': group['AutoScalingGroupName'],
+                    'ResourceType': 'auto-scaling-group',
+                    'Key': 'maintenance',
+                    'Value': str(toggle),
+                    'PropagateAtLaunch': True
+                }])
+                act.ok('\nMaintance mode set to {} for {}'.format(toggle, asg_name))
+
+
+@cli.command()
 @click.argument('stack_ref', nargs=-1)
 @region_option
 @click.option('--image',

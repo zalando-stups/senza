@@ -215,6 +215,8 @@ def set_new_weights(dns_names: list,
                     hosted_zone.upsert([zone_update['record']],
                                        comment=zone_update['comment'])
                     changed = True
+        else:
+            changed = True
 
     if changed:
         ok()

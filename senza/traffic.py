@@ -184,13 +184,13 @@ def set_new_weights(dns_names: list,
             except NameError:
                 raise ELBNotFound(dns_name)
 
-            if not stack_name in updates.keys():
+            if stack_name not in updates.keys():
                 update = { 'stack': stack, 'zones': {}}
                 updates[stack_name] = update
             else:
                 update = updates[stack_name]
 
-            if not domain in update['zones'].keys():
+            if domain not in update['zones'].keys():
                 records = list()
                 update['zones'][domain] = records
             else:

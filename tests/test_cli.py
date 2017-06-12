@@ -1406,7 +1406,12 @@ def test_traffic(monkeypatch, boto_client, boto_resource):  # noqa: F811
 
     with runner.isolated_filesystem():
         run(['v4', '100'])
-        m_ok.assert_called_once_with(' not changed')
+        # TODO this now only checks for the correct result but it should actually check for the raw Route53 commands
+        assert get_weight(m_stacks['myapp-v1']) == 0
+        assert get_weight(m_stacks['myapp-v2']) == 0
+        assert get_weight(m_stacks['myapp-v3']) == 0
+        assert get_weight(m_stacks['myapp-v4']) == 200
+        # m_ok.assert_called_once_with(' not changed')
 
     # test fallback
     m_cfs.get_by_stack_name = MagicMock(side_effect=StackNotFound('abc'))

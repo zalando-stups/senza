@@ -202,7 +202,8 @@ def set_new_weights(dns_names: list,
                     break
             if record and record.weight != percentage:
                 record.weight = percentage
-                records.append({'record': record, 'comment' : "Change weight of {} to {}".format(stack_name,percentage)})
+                records.append({'record': record,
+                                'comment' : "Change weight of {} to {}".format(stack_name,percentage)})
 
     for key, update in updates.items():
         try:

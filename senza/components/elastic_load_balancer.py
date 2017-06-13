@@ -2,7 +2,7 @@ import click
 from clickclick import fatal_error
 from senza.aws import resolve_security_groups
 from senza.definitions import AccountArguments
-from senza.utils import get_load_balancer_name
+from senza.utils import (get_load_balancer_name, generate_valid_cloud_name)
 
 from ..cli import TemplateArguments
 from ..manaus import ClientError

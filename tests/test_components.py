@@ -13,7 +13,7 @@ from senza.components.auto_scaling_group import (component_auto_scaling_group,
                                                  to_iso8601_duration)
 from senza.components.coreos_auto_configuration import component_coreos_auto_configuration
 from senza.components.elastic_load_balancer import (component_elastic_load_balancer,
-                                                    get_load_balancer_name)
+                                                    get_load_balancer_name, generate_valid_cloud_name)
 from senza.components.elastic_load_balancer_v2 import component_elastic_load_balancer_v2
 from senza.components.iam_role import component_iam_role, get_merged_policies
 from senza.components.redis_cluster import component_redis_cluster

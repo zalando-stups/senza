@@ -3,7 +3,7 @@ from senza.aws import resolve_security_groups
 from senza.components.elastic_load_balancer import (ALLOWED_LOADBALANCER_SCHEMES,
                                                     get_load_balancer_name,
                                                     get_ssl_cert)
-from senza.utils import generate_valid_cloud_name;
+from senza.utils import generate_valid_cloud_name
 from senza.definitions import AccountArguments
 
 from ..cli import TemplateArguments

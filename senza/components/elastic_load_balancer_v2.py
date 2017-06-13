@@ -75,9 +75,11 @@ def component_elastic_load_balancer_v2(definition,
     health_check_port = configuration.get("HealthCheckPort") or configuration["HTTPPort"]
 
     if configuration.get('LoadBalancerName'):
-        loadbalancer_name = get_load_balancer_name(configuration["LoadBalancerName"], info["StackVersion"])
+        loadbalancer_name = get_load_balancer_name(configuration["LoadBalancerName"], 32)
     elif configuration.get('NameSuffix'):
-        loadbalancer_name = generate_valid_cloud_name(info["StackName"], 32)
+        version = '{}-{}'.format(info["StackVersion"],
+                                 configuration['NameSuffix'])
+        loadbalancer_name = get_load_balancer_name(info["StackName"], version)
         del(configuration['NameSuffix'])
     else:
         loadbalancer_name = get_load_balancer_name(info["StackName"],

@@ -51,8 +51,8 @@ def pystache_render(*args, **kwargs):
 
 def generate_valid_cloud_name(name: str, length: int):
     """
-	Generate a name with that length and remove double - signs
-        remove a starting or trailing -
+    Generate a name with that length and remove double - signs
+    remove a starting or trailing -
     """
     return re.sub(r'(-(?=-{1,})|^-|-$)', '', name[:length])
 

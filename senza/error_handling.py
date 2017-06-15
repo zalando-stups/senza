@@ -8,15 +8,16 @@ from tempfile import NamedTemporaryFile
 from traceback import format_exception
 from typing import Optional  # noqa: F401
 
-import senza
 import yaml.constructor
 from botocore.exceptions import ClientError, NoCredentialsError
 from clickclick import fatal_error
 from raven import Client
 
+import senza
 from .configuration import configuration
 from .exceptions import (InvalidDefinition, InvalidUserDataType,
-                         PiuNotFound, SecurityGroupNotFound)
+                         PiuNotFound, SecurityGroupNotFound,
+                         InvalidParameterFile)
 from .manaus.exceptions import (ELBNotFound, HostedZoneNotFound, InvalidState,
                                 RecordNotFound)
 from .manaus.utils import extract_client_error_code
@@ -33,7 +34,8 @@ def store_exception(exception: Exception) -> str:
 
     content = ''.join(tracebacks)
 
-    with NamedTemporaryFile(prefix="senza-traceback-", delete=False) as error_file:
+    with NamedTemporaryFile(prefix="senza-traceback-",
+                            delete=False) as error_file:
         file_name = error_file.name
         error_file.write(content.encode())
 
@@ -92,7 +94,8 @@ class HandleExceptions:
             raise unknown_exception
         elif sentry:
             die_fatal_error("Unknown Error: {e}.\n"
-                            "This error will be pushed to sentry ".format(e=unknown_exception))
+                            "This error will be pushed to sentry ".format(
+                                e=unknown_exception))
         elif not sentry:
             file_name = store_exception(unknown_exception)
             die_fatal_error('Unknown Error: {e}.\n'
@@ -135,7 +138,8 @@ class HandleExceptions:
                 "{}\nYou can install piu with the following command:"
                 "\nsudo pip3 install --upgrade stups-piu".format(error))
         except (ELBNotFound, HostedZoneNotFound, RecordNotFound,
-                InvalidDefinition, InvalidState, InvalidUserDataType) as error:
+                InvalidDefinition, InvalidState, InvalidUserDataType,
+                InvalidParameterFile) as error:
             die_fatal_error(error)
         except SecurityGroupNotFound as error:
             message = ("{}\nRun `senza init` to (re-)create "
@@ -160,4 +164,5 @@ def setup_sentry(sentry_endpoint: Optional[str]):
     return sentry_client
 
 
-sentry = setup_sentry(configuration.get('sentry.endpoint'))  # pylint: disable=locally-disabled, invalid-name
+sentry = setup_sentry(configuration.get(
+    'sentry.endpoint'))  # pylint: disable=locally-disabled, invalid-name

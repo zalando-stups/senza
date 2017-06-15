@@ -95,7 +95,7 @@ class HandleExceptions:
         elif sentry:
             die_fatal_error("Unknown Error: {e}.\n"
                             "This error will be pushed to sentry ".format(
-                e=unknown_exception))
+                                e=unknown_exception))
         elif not sentry:
             file_name = store_exception(unknown_exception)
             die_fatal_error('Unknown Error: {e}.\n'

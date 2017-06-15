@@ -139,12 +139,13 @@ def set_new_weights(dns_names: list,
                     new_record_weights: Dict,
                     region: str):
     action('Setting weights for {dns_names}..', dns_names=', '.join(dns_names))
+    changed = False
+    updates = {}
     for idx, dns_name in enumerate(dns_names):
         domain = dns_name.split('.', 1)[1]
         hosted_zone = Route53HostedZone.get_by_domain_name(domain)
         convert_cname_records_to_alias(dns_name)
 
-        changed = False
         for stack_name, percentage in new_record_weights.items():
             if old_record_weights[stack_name] == percentage:
                 # Stack weight will not change
@@ -183,28 +184,45 @@ def set_new_weights(dns_names: list,
             except NameError:
                 raise ELBNotFound(dns_name)
 
-            try:
-                stack.update()
-            except StackNotUpdated:
-                # make sure we update DNS records which were not updated via CloudFormation
-                record = None
-                for r in Route53.get_records(name=dns_name):
-                    if r.set_identifier == stack_name:
-                        record = r
-                        break
-                if record and record.weight != percentage:
-                    record.weight = percentage
-                    hosted_zone.upsert([record],
-                                       comment="Change weight of {} to {}".format(stack_name,
-                                                                                  percentage))
-                    changed = True
+            if stack_name not in updates.keys():
+                update = {'stack': stack, 'zones': {}}
+                updates[stack_name] = update
             else:
-                changed = True
+                update = updates[stack_name]
 
-        if changed:
-            ok()
+            if domain not in update['zones'].keys():
+                records = list()
+                update['zones'][domain] = records
+            else:
+                records = update['zones'][domain]
+            record = None
+            for r in Route53.get_records(name=dns_name):
+                if r.set_identifier == stack_name:
+                    record = r
+                    break
+            if record and record.weight != percentage:
+                record.weight = percentage
+                records.append({'record': record,
+                                'comment': "Change weight of {} to {}".format(stack_name, percentage)})
+
+    for key, update in updates.items():
+        try:
+            update['stack'].update()
+        except StackNotUpdated:
+            # make sure we update DNS records which were not updated via CloudFormation
+            for domain, records in update['zones'].items():
+                hosted_zone = Route53HostedZone.get_by_domain_name(domain)
+                for zone_update in records:
+                    hosted_zone.upsert([zone_update['record']],
+                                       comment=zone_update['comment'])
+                    changed = True
         else:
-            ok(' not changed')
+            changed = True
+
+    if changed:
+        ok()
+    else:
+        ok(' not changed')
 
 
 def dump_traffic_changes(stack_name: str,

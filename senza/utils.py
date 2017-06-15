@@ -49,6 +49,14 @@ def pystache_render(*args, **kwargs):
     return render.render(*args, **kwargs)
 
 
+def generate_valid_cloud_name(name: str, length: int):
+    """
+    Generate a name with that length and remove double - signs
+    remove a starting or trailing -
+    """
+    return re.sub(r'(-(?=-{1,})|^-|-$)', '', name[:length])
+
+
 def get_load_balancer_name(stack_name: str, stack_version: str):
     """
     Returns the name of the load balancer for the stack name and version,
@@ -56,4 +64,4 @@ def get_load_balancer_name(stack_name: str, stack_version: str):
     """
     # Loadbalancer name cannot exceed 32 characters, try to shorten
     l = 32 - len(stack_version) - 1
-    return '{}-{}'.format(stack_name[:l], stack_version)
+    return '{}-{}'.format(generate_valid_cloud_name(stack_name, l), stack_version)

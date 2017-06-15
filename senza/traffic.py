@@ -185,7 +185,7 @@ def set_new_weights(dns_names: list,
                 raise ELBNotFound(dns_name)
 
             if stack_name not in updates.keys():
-                update = { 'stack': stack, 'zones': {}}
+                update = {'stack': stack, 'zones': {}}
                 updates[stack_name] = update
             else:
                 update = updates[stack_name]
@@ -203,7 +203,7 @@ def set_new_weights(dns_names: list,
             if record and record.weight != percentage:
                 record.weight = percentage
                 records.append({'record': record,
-                                'comment' : "Change weight of {} to {}".format(stack_name,percentage)})
+                                'comment': "Change weight of {} to {}".format(stack_name, percentage)})
 
     for key, update in updates.items():
         try:

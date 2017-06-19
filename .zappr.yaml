@@ -6,3 +6,4 @@ approvals:
       - zalando-stups
     # OR a collaborator of the repo
     collaborators: true
+X-Zalando-Team: bus

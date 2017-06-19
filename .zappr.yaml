@@ -1,9 +1,5 @@
 approvals:
-  minimum: 1
-  # approval = comment that matches this regex
-  pattern: "^(:\\+1:|👍)"
-  # note that `from` is by default empty,
-  # accepting any matching comment as approval
+  minimum: 2
   from:
     # commenter must be either one of:
     orgs:

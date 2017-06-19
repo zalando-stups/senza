@@ -8,7 +8,8 @@ from typing import Dict, Iterator
 
 import boto3
 import click
-from clickclick import Action, action, fatal_error, ok, print_table, warning
+import dns.resolver
+from clickclick import Action, action, ok, print_table, warning
 
 from .aws import StackReference, get_stacks, get_tag
 from .manaus import ClientError
@@ -18,12 +19,6 @@ from .manaus.exceptions import ELBNotFound, StackNotFound, StackNotUpdated
 from .manaus.route53 import (RecordType, Route53, Route53HostedZone,
                              convert_cname_records_to_alias)
 from .manaus.utils import extract_client_error_code
-
-try:
-    import dns.resolver
-except ImportError:
-    fatal_error("Failed to import dns.resolver.\n"
-                "Run 'pip3 install -U --force-reinstall dnspython'.")
 
 PERCENT_RESOLUTION = 2
 FULL_PERCENTAGE = PERCENT_RESOLUTION * 100

@@ -12,7 +12,7 @@ from ..manaus.route53 import convert_cname_records_to_alias
 
 SENZA_PROPERTIES = frozenset(['Domains', 'HealthCheckPath', 'HealthCheckPort', 'HealthCheckProtocol',
                               'HTTPPort', 'Name', 'SecurityGroups', 'SSLCertificateId', 'Type'])
-ALLOWED_HEALTH_CHECK_PROTOCOLS = frozenset(["HTTP","HTTPS", "TCP", "UDP", "SSL"])
+ALLOWED_HEALTH_CHECK_PROTOCOLS = frozenset(["HTTP", "HTTPS", "TCP", "UDP", "SSL"])
 ALLOWED_LOADBALANCER_SCHEMES = frozenset(["internet-facing", "internal"])
 
 

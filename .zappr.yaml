@@ -8,4 +8,4 @@ approvals:
       minimum: 2
       from:
         orgs:
-          - zalando-stups
+          - zalando

@@ -146,8 +146,11 @@ def set_new_weights(dns_names: list,
                 # Stack weight will not change
                 continue
             try:
-                stack = CloudFormationStack.get_by_stack_name(stack_name,
-                                                              region=region)
+                if stack_name not in updates.keys():
+                    stack = CloudFormationStack.get_by_stack_name(stack_name,
+                                                                  region=region)
+                else:
+                    stack = updates[stack_name]['stack']
             except StackNotFound:
                 # The Route53 record doesn't have an associated stack
                 # fallback to the old logic

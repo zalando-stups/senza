@@ -33,6 +33,7 @@ class ACMCertificate:
                  subject: str,
                  issuer: str,
                  created_at: datetime,
+                 imported_at: datetime,
                  issued_at: datetime,
                  status: str,
                  not_before: datetime,
@@ -49,6 +50,7 @@ class ACMCertificate:
         self.subject = subject
         self.issuer = issuer
         self.created_at = created_at
+        self.imported_at = imported_at
         self.issued_at = issued_at
         self.status = ACMCertificateStatus(status)
         self.not_before = not_before
@@ -60,7 +62,9 @@ class ACMCertificate:
         self.revocation_reason = revocation_reason
 
     def __lt__(self, other: "ACMCertificate"):
-        return self.created_at < other.created_at
+        self_date = self.created_at or self.imported_at
+        other_date = other.created_at or other.imported_at
+        return self_date < other_date
 
     def __eq__(self, other: "ACMCertificate"):
         return self.arn == other.arn
@@ -82,6 +86,7 @@ class ACMCertificate:
         domain_validation_options = certificate['DomainValidationOptions']
         subject = certificate['Subject']
         created_at = certificate.get('CreatedAt')
+        imported_at = certificate.get('ImportedAt')
         status = certificate['Status']
         signature_algorithm = certificate['SignatureAlgorithm']
         in_use_by = certificate['InUseBy']
@@ -96,7 +101,8 @@ class ACMCertificate:
 
         return cls(domain_name, arn, subject_alternative_name,
                    domain_validation_options, serial, subject, issuer,
-                   created_at, issued_at, status, not_before, not_after,
+                   created_at, imported_at,
+                   issued_at, status, not_before, not_after,
                    signature_algorithm, in_use_by,
                    revoked_at, revocation_reason)
 

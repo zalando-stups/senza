@@ -1,3 +1,4 @@
+import boto3
 import json
 import re
 import sys
@@ -139,11 +140,28 @@ def component_taupage_auto_scaling_group(definition, configuration, args, info, 
     if not force and docker_image.registry:
         check_docker_image_exists(docker_image)
 
-    userdata = generate_user_data(taupage_config, args.region)
-
     config_name = configuration["Name"] + "Config"
-    ensure_keys(definition, "Resources", config_name, "Properties", "UserData")
-    definition["Resources"][config_name]["Properties"]["UserData"]["Fn::Base64"] = userdata
+    ensure_keys(definition, "Resources", config_name, "Properties")
+    properties = definition["Resources"][config_name]["Properties"]
+
+    mappings = definition.get('Mappings', {})
+    server_subnets = set(mappings.get('ServerSubnets', {}).get(args.region, {}).get('Subnets', []))
+
+    # in dmz or public subnet but without public ip
+    if server_subnets and not properties.get('AssociatePublicIpAddress') and server_subnets ==\
+            set(mappings.get('LoadBalancerInternalSubnets', {}).get(args.region, {}).get('Subnets', [])):
+        # we need to extend taupage_config with the mapping subnet-id => net ip
+        nat_gateways = {}
+        ec2 = boto3.client('ec2', args.region)
+        for nat_gateway in ec2.describe_nat_gateways()['NatGateways']:
+            if nat_gateway['SubnetId'] in server_subnets:
+                for address in nat_gateway['NatGatewayAddresses']:
+                    nat_gateways[nat_gateway['SubnetId']] = address['PrivateIp']
+                    break
+        if nat_gateways:
+            taupage_config['nat_gateways'] = nat_gateways
+
+    properties["UserData"] = {"Fn::Base64": generate_user_data(taupage_config, args.region)}
 
     return definition
 

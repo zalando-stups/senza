@@ -131,9 +131,9 @@ def component_elastic_load_balancer(definition,
         raise click.UsageError('Protocol "{}" is not supported for LoadBalancer'.format(health_check_protocol))
 
     if health_check_protocol in ['HTTP', 'HTTPS']:
-      health_check_path = configuration.get("HealthCheckPath") or '/health'
+        health_check_path = configuration.get("HealthCheckPath") or '/health'
     else:
-      health_check_path = ''
+        health_check_path = ''
 
     health_check_port = configuration.get("HealthCheckPort") or configuration["HTTPPort"]
 

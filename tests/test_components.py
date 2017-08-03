@@ -99,7 +99,7 @@ def test_component_load_balancer_healthcheck(monkeypatch):
     m_acm.get_certificates.return_value = iter([m_acm_certificate])
     configuration["HealthCheckProtocol"] = "TCP"
     result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
-    assert "TCP:9999/healthcheck" == result["Resources"]["test_lb"]["Properties"]["HealthCheck"]["Target"]
+    assert "TCP:9999" == result["Resources"]["test_lb"]["Properties"]["HealthCheck"]["Target"]
 
     # Will fail on incorrect protocol
     m_acm.get_certificates.return_value = iter([m_acm_certificate])

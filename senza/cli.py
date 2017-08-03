@@ -304,7 +304,8 @@ def parse_args(input, region, version, parameter, account_info):
 
     # finally, make sure every parameter got a value assigned, using defaults if given
     for key, defval in defaults.items():
-        paras[key] = paras[key] or defval
+        if not paras[key] and paras[key] != "":
+            paras[key] = defval
         if paras[key] is None:
             raise click.UsageError('Missing parameter "{}". Need: "{}"'.format(key, ' '.join(parameterlist)))
 

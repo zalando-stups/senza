@@ -1587,6 +1587,44 @@ def test_scale(monkeypatch):
                            catch_exceptions=False)
     assert 'Scaling myasg from 1 to 2 instances' in result.output
 
+def test_scale_with_confirm(monkeypatch):
+    boto3 = MagicMock()
+    boto3.list_stacks.return_value = {'StackSummaries': [
+        {'StackName': 'myapp-1', 'CreationTime': '2016-06-14'},
+        {'StackName': 'myapp-1', 'CreationTime': '2016-06-15'},
+        {'StackName': 'myapp-1', 'CreationTime': '2016-06-16'},
+    ]}
+    boto3.describe_stack_resources.return_value = {'StackResources':
+                                                       [{'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
+                                                         'PhysicalResourceId': 'myasg'}]}
+    group = {'AutoScalingGroupName': 'myasg', 'DesiredCapacity': 1, 'MinSize': 3, 'MaxSize': 1}
+    boto3.describe_auto_scaling_groups.return_value = {'AutoScalingGroups': [group]}
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+    runner = CliRunner()
+    result = runner.invoke(cli, ['scale', 'myapp', '2', '--region=aa-fakeregion-1'],
+                           catch_exceptions=False)
+    assert 'Number of stacks to be scaled - 3. Do you want to continue?' in result.output
+
+
+def test_scale_with_force_confirm(monkeypatch):
+    boto3 = MagicMock()
+    boto3.list_stacks.return_value = {'StackSummaries': [
+        {'StackName': 'myapp-1', 'CreationTime': '2016-06-14'},
+        {'StackName': 'myapp-1', 'CreationTime': '2016-06-15'},
+        {'StackName': 'myapp-1', 'CreationTime': '2016-06-16'},
+    ]}
+    boto3.describe_stack_resources.return_value = {'StackResources':
+                                                       [{'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
+                                                         'PhysicalResourceId': 'myasg'}]}
+    group = {'AutoScalingGroupName': 'myasg', 'DesiredCapacity': 1, 'MinSize': 3, 'MaxSize': 1}
+    boto3.describe_auto_scaling_groups.return_value = {'AutoScalingGroups': [group]}
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+    runner = CliRunner()
+    result = runner.invoke(cli, ['scale', 'myapp', '2', '--region=aa-fakeregion-1', '--force'],
+                           catch_exceptions=False)
+    assert 'Scaling myasg from 1 to 2 instances' in result.output
+
+
 
 def test_wait(monkeypatch):
     cf = MagicMock()

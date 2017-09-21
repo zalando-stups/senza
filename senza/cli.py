@@ -1473,9 +1473,10 @@ def respawn_instances(stack_ref, inplace, force, region):
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
 @click.argument('desired_capacity', type=click.IntRange(0, 100, clamp=True))
+@click.option('--force', ' /-F', default=False, help='Force scaling multiple stacks if needed')
 @region_option
 @stacktrace_visible_option
-def scale(stack_ref, region, desired_capacity):
+def scale(stack_ref, region, desired_capacity, force):
     '''Scale Auto Scaling Group to desired capacity'''
 
     stack_refs = get_stack_refs(stack_ref)
@@ -1483,6 +1484,11 @@ def scale(stack_ref, region, desired_capacity):
     check_credentials(region)
 
     asg = BotoClientProxy('autoscaling', region)
+
+    stack_count = len(list(get_stacks(stack_refs, region)))
+    if not force and stack_count > 1:
+        confirm_str = 'Number of stacks to be scaled - %s. Do you want to continue?' % stack_count
+        click.confirm(confirm_str, abort=True)
 
     for asg_name in get_auto_scaling_groups(stack_refs, region):
         group = get_auto_scaling_group(asg, asg_name)

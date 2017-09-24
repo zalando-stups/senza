@@ -1487,7 +1487,7 @@ def scale(stack_ref, region, desired_capacity, force):
 
     stack_count = len(list(get_stacks(stack_refs, region)))
     if not force and stack_count > 1:
-        confirm_str = 'Number of stacks to be scaled - %s. Do you want to continue?' % stack_count
+        confirm_str = 'Number of stacks to be scaled - {}. Do you want to continue?'.format(stack_count)
         click.confirm(confirm_str, abort=True)
 
     for asg_name in get_auto_scaling_groups(stack_refs, region):

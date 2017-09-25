@@ -1473,7 +1473,9 @@ def respawn_instances(stack_ref, inplace, force, region):
 @cli.command()
 @click.argument('stack_ref', nargs=-1)
 @click.argument('desired_capacity', type=click.IntRange(0, 100, clamp=True))
-@click.option('--force', ' /-F', default=False, help='Force scaling multiple stacks if needed')
+@click.option('-f', '--force',
+              is_flag=True,
+              help='Force scaling multiple stacks if needed')
 @region_option
 @stacktrace_visible_option
 def scale(stack_ref, region, desired_capacity, force):

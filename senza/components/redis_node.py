@@ -4,7 +4,7 @@ from senza.utils import ensure_keys
 
 
 def component_redis_node(definition, configuration, args, info, force, account_info):
-    name = configuration["Name"]
+    name = configuration.get("ClusterName", configuration["Name"])
     definition = ensure_keys(definition, "Resources")
 
     definition["Resources"]["RedisCacheCluster"] = {

@@ -358,6 +358,41 @@ def test_component_redis_node(monkeypatch):
     assert 'SubnetIds' in result['Resources']['RedisSubnetGroup']['Properties']
 
 
+def test_component_redis_node_cluster_name(monkeypatch):
+    mock_string = "foo"
+    cluster_name = "foo-redis-cluster"
+
+    configuration = {
+        "Name": mock_string,
+        "SecurityGroups": "",
+        "ClusterName": cluster_name,
+    }
+    info = {'StackName': 'foobar' * 5, 'StackVersion': '0.1'}
+    definition = {"Resources": {}}
+
+    args = MagicMock()
+    args.region = "foo"
+
+    mock_string_result = MagicMock()
+    mock_string_result.return_value = mock_string
+    monkeypatch.setattr('senza.components.redis_node.resolve_security_groups', mock_string_result)
+
+    result = component_redis_node(definition, configuration, args, info, False, MagicMock())
+
+    assert 'RedisCacheCluster' in result['Resources']
+    assert mock_string == result['Resources']['RedisCacheCluster']['Properties']['VpcSecurityGroupIds']
+    assert cluster_name == result['Resources']['RedisCacheCluster']['Properties']['ClusterName']
+    assert 1 == result['Resources']['RedisCacheCluster']['Properties']['NumCacheNodes']
+    assert 'Engine' in result['Resources']['RedisCacheCluster']['Properties']
+    assert 'EngineVersion' in result['Resources']['RedisCacheCluster']['Properties']
+    assert 'CacheNodeType' in result['Resources']['RedisCacheCluster']['Properties']
+    assert 'CacheSubnetGroupName' in result['Resources']['RedisCacheCluster']['Properties']
+    assert 'CacheParameterGroupName' in result['Resources']['RedisCacheCluster']['Properties']
+
+    assert 'RedisSubnetGroup' in result['Resources']
+    assert 'SubnetIds' in result['Resources']['RedisSubnetGroup']['Properties']
+
+
 def test_component_redis_cluster(monkeypatch):
     mock_string = "foo"
 

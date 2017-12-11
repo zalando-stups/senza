@@ -33,6 +33,8 @@ def component_subnet_auto_configuration(definition, configuration, args, info, f
             elif 'internal' in name:
                 lb_internal_subnets.append(subnet.id)
                 server_subnets.append(subnet.id)
+            elif 'nat' in name:
+                pass # ignore creating listeners in NAT gateway subnets
             else:
                 server_subnets.append(subnet.id)
 

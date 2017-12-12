@@ -518,6 +518,6 @@ def get_latest_image(registry_domain='registry.opensource.zalan.do', team='acid'
                     break
                 latest = latest or tag
             return "{0}/{1}/{2}:{3}".format(registry_domain, team, artifact, latest)
-    except:
+    except Exception:
         pass
     return ""

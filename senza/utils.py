@@ -63,5 +63,5 @@ def get_load_balancer_name(stack_name: str, stack_version: str):
     truncating the name if necessary.
     """
     # Loadbalancer name cannot exceed 32 characters, try to shorten
-    l = 32 - len(stack_version) - 1
-    return '{}-{}'.format(generate_valid_cloud_name(stack_name, l), stack_version)
+    nchars = 32 - len(stack_version) - 1
+    return '{}-{}'.format(generate_valid_cloud_name(stack_name, nchars), stack_version)

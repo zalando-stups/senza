@@ -453,7 +453,7 @@ def resolve_to_ip_addresses(dns_name: str) -> set:
     """
     try:
         answers = dns.resolver.query(dns_name, 'A')
-    except:
+    except Exception:
         return set()
     else:
         return {answer.address for answer in answers}

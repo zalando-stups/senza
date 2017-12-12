@@ -174,7 +174,7 @@ class KeyValParamType(click.ParamType):
         if isinstance(value, str):
             try:
                 key, val = value.split('=', 1)
-            except:
+            except Exception:
                 self.fail('invalid key value parameter "{}" (must be KEY=VAL)'.format(value))
             key_val = (key, val)
         else:
@@ -346,7 +346,7 @@ def get_region(region):
             config.read(os.path.expanduser('~/.aws/config'))
             if 'default' in config:
                 region = config['default']['region']
-        except:
+        except Exception:
             pass
 
     if not region:
@@ -1080,7 +1080,7 @@ def status(stack_ref, region, output, field, w, watch):
                         try:
                             requests.get('https://{}/'.format(name), timeout=1)
                             http_status = 'OK'
-                        except:
+                        except Exception:
                             http_status = 'ERROR'
                         version_addresses = resolve_to_ip_addresses(name)
                     else:
@@ -1353,7 +1353,7 @@ def console(instance_or_stack_ref, limit, region, w, watch):
                 output = {}
                 try:
                     output = instance.console_output()
-                except:
+                except Exception:
                     pass
                 click.secho('Showing last {} lines of {}/{}..'.format(limit,
                                                                       cf_stack_name,

@@ -104,7 +104,7 @@ def get_mint_bucket_name(region: str):
     try:
         bucket.load()
         return bucket.name
-    except:
+    except Exception:
         bucket = None
     for bucket in s3.buckets.all():
         if bucket.name.startswith('{}-stups-mint-{}-'.format(prefix, account_id)):
@@ -172,7 +172,7 @@ def check_s3_bucket(bucket_name: str, region: str):
         try:
             s3.meta.client.head_bucket(Bucket=bucket_name)
             exists = True
-        except:
+        except Exception:
             pass
     if not exists:
         with Action("Creating S3 bucket {}...".format(bucket_name)):

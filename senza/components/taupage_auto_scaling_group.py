@@ -186,7 +186,7 @@ def generate_user_data(taupage_config, region):
     def is_aws_fn(name):
         try:
             return name == "Ref" or (isinstance(name, str) and name.startswith("Fn::"))
-        except:
+        except Exception:
             return False
 
     def transform(node):

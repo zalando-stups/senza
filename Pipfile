@@ -10,7 +10,7 @@ name = "pypi"
 arrow = "*"
 clickclick = ">=1.0"
 pystache = "*"
-PyYAML = "*"
+pyyaml = "*"
 dnspython = ">=1.15.0"
 stups-pierone = ">=1.0.34"
 "boto3" = ">=1.3.0"
@@ -22,6 +22,7 @@ typing = "*"
 
 [dev-packages]
 
+tox = "*"
 
 
 [requires]

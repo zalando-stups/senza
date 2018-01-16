@@ -26,14 +26,7 @@ DNS_RR_CACHE = {}
 DNS_ZONE_CACHE = {}
 
 
-def get_weights(dns_names: list, identifier: str, all_identifiers) -> ({str: int}, int, int):
-    """
-    For the given dns_name, get the dns record weights from provided dns record set
-    followed by partial count and partial weight sum.
-    Here partial means without the element that we are operating now on.
-    """
-    partial_count = 0
-    partial_sum = 0
+def get_weights_for_dns(dns_names):
     known_record_weights = {}
     for dns_name in dns_names:
         for record in Route53.get_records(name=dns_name):
@@ -47,6 +40,18 @@ def get_weights(dns_names: list, identifier: str, all_identifiers) -> ({str: int
                     continue
                 else:
                     known_record_weights[record.set_identifier] = weight
+    return known_record_weights
+
+
+def get_weights(dns_names: list, identifier: str, all_identifiers) -> ({str: int}, int, int):
+    """
+    For the given dns_name, get the dns record weights from provided dns record set
+    followed by partial count and partial weight sum.
+    Here partial means without the element that we are operating now on.
+    """
+    partial_count = 0
+    partial_sum = 0
+    known_record_weights = get_weights_for_dns(dns_names)
 
     all_records_have_0_weight = sum(known_record_weights.values()) == 0
     if all_records_have_0_weight:

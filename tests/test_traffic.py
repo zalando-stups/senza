@@ -81,14 +81,25 @@ def test_get_weights(monkeypatch):
                              type=RecordType.A,
                              weight=None,
                              set_identifier='app-1')
-    mock_route53.get_records.return_value = [mock_record2]
+    mock_record3 = MagicMock(name='app1.example.com',
+                             type=RecordType.A,
+                             weight=None,
+                             set_identifier='app-2')
+    mock_record4 = MagicMock(name='app1.example.com',
+                             type=RecordType.A,
+                             weight=None,
+                             set_identifier='app-3')
+    mock_route53.get_records.return_value = [mock_record2,
+                                             mock_record3,
+                                             mock_record4]
 
-    all_identifiers = ['app-1', 'app-2', 'app-3']
+    all_identifiers = ['app-1', 'app-2', 'app-3', 'app-4']
     domains = ['app1.example.com']
     assert get_weights(domains, 'app-1', all_identifiers) == ({'app-1': 0,
                                                                'app-2': 0,
-                                                               'app-3': 0},
-                                                              0,
+                                                               'app-3': 0,
+                                                               'app-4': 0},
+                                                              2,
                                                               0)
 
 

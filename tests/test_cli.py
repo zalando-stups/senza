@@ -1093,6 +1093,7 @@ def test_create(monkeypatch):
 
     monkeypatch.setattr('boto3.client', my_client)
     monkeypatch.setattr('boto3.resource', my_resource)
+    monkeypatch.setattr('senza.cli.get_stack_versions', MagicMock(return_value=[]))
 
     runner = CliRunner()
 
@@ -1224,6 +1225,7 @@ def test_update(monkeypatch):
         return MagicMock()
 
     monkeypatch.setattr('boto3.client', my_client)
+    monkeypatch.setattr('senza.cli.get_stack_versions', MagicMock(return_value=[]))
 
     runner = CliRunner()
 

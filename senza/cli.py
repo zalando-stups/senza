@@ -20,7 +20,7 @@ import requests
 import yaml
 from botocore.exceptions import ClientError
 from clickclick import (Action, FloatRange, OutputFormat, choice, error,
-                        fatal_error, info, ok)
+                        warning, fatal_error, info, ok)
 from clickclick.console import print_table
 
 from .arguments import (GLOBAL_OPTIONS, json_output_option, output_option,
@@ -46,8 +46,9 @@ from .stups.piu import Piu
 from .subcommands.config import cmd_config
 from .subcommands.root import cli
 from .templates import get_template_description, get_templates
-from .traffic import (change_version_traffic, get_records,
-                      print_version_traffic, resolve_to_ip_addresses)
+from .traffic import (change_version_traffic, get_records, get_weights_for_dns,
+                      print_version_traffic, resolve_to_ip_addresses,
+                      get_stack_versions)
 from .utils import (camel_case_to_underscore, ensure_keys, named_value,
                     pystache_render, get_load_balancer_name)
 
@@ -592,10 +593,13 @@ def health(region, stack_ref, all, output, field, w, watch):
               help='Ignore failing validation checks')
 @click.option('--update-if-exists', is_flag=True,
               help='Updates the the stack if it exists')
+@click.option('--ensure-no-traffic', is_flag=True,
+              help="Don't create a stack if it would automatically receive "
+                   "traffic")
 @click.option('-t', '--tag', help='Tags to associate with the stack.', multiple=True)
 @stacktrace_visible_option
 def create(definition, region, version, parameter, disable_rollback, dry_run,
-           force, tag, parameter_file, update_if_exists):
+           force, tag, parameter_file, update_if_exists, ensure_no_traffic):
     '''Create a new Cloud Formation stack from the given Senza definition file'''
 
     region = get_region(region)
@@ -612,7 +616,36 @@ def create(definition, region, version, parameter, disable_rollback, dry_run,
 
     update_stack = False
 
-    with Action('Creating Cloud Formation stack {}..'.format(data['StackName'])) as act:
+    full_stack_name = data['StackName']
+    stack_name, _ = full_stack_name.rsplit('-', 1)  # stack name without version
+    versions = list(get_stack_versions(stack_name, region))
+    if versions:
+        domain_names = versions[0].domain
+    else:
+        domain_names = None
+
+    if domain_names:
+        known_record_weights = get_weights_for_dns(domain_names)
+        all_records_have_0_weight = sum(known_record_weights.values()) == 0
+        if all_records_have_0_weight:
+            if ensure_no_traffic:
+                fatal_error("All current stacks have 0 traffic weight. "
+                            "Aborting creation to ensure no traffic to new "
+                            "stack.")
+            else:
+                warning("Current stacks have 0 traffic weight. The {} will "
+                        "get a proportional amount of "
+                        "traffic.".format(full_stack_name))
+    elif not versions:
+        if ensure_no_traffic:
+            fatal_error("There are no other instances of {}. "
+                        "Aborting creation to ensure no traffic "
+                        "to new stack.".format(stack_name))
+        else:
+            warning("There are no other instances of {} so {} will get 100% "
+                    "of traffic.".format(stack_name, full_stack_name))
+
+    with Action('Creating Cloud Formation stack {}..'.format(full_stack_name)) as act:
         try:
             if dry_run:
                 info('**DRY-RUN** {}'.format(data['NotificationARNs']))

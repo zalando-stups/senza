@@ -27,6 +27,9 @@ DNS_ZONE_CACHE = {}
 
 
 def get_weights_for_dns(dns_names):
+    """
+    Gets all traffic weights for provided dns_names
+    """
     known_record_weights = {}
     for dns_name in dns_names:
         for record in Route53.get_records(name=dns_name):

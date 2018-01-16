@@ -47,12 +47,21 @@ def get_weights(dns_names: list, identifier: str, all_identifiers) -> ({str: int
                     continue
                 else:
                     known_record_weights[record.set_identifier] = weight
-                    if record.set_identifier != identifier and weight > 0:
-                        # we should ignore all versions that do not get any
-                        # traffic to not give traffic to disabled versions when
-                        # redistributing traffic weights
-                        partial_sum += weight
-                        partial_count += 1
+
+    all_records_have_0_weight = sum(known_record_weights.values()) == 0
+    if all_records_have_0_weight:
+        warning("All stacks have 0 weight, so all of them will be considered "
+                "for traffic changing.")
+    for record_identifier, weight in known_record_weights.items():
+        record_has_traffic = weight > 0
+        change_record_traffic = record_has_traffic or all_records_have_0_weight
+        if record_identifier != identifier and change_record_traffic:
+            # we should ignore all versions that do not get any
+            # traffic to not give traffic to disabled versions when
+            # redistributing traffic weights unless all records have 0 weight
+            # see https://github.com/zalando-stups/senza/issues/490
+            partial_sum += weight
+            partial_count += 1
     if identifier not in known_record_weights:
         known_record_weights[identifier] = 0
     for ident in all_identifiers:
@@ -120,7 +129,7 @@ def compensate(calculation_error, compensations, identifier, new_record_weights,
         compensations[identifier] = calculation_error
         calculation_error = 0
         warning(
-            ("Changing given percentage from {} to {} " +
+            ("Changing given percentage from {} to {} "
              "because all other versions are already getting the possible minimum traffic").format(
                  percentage / PERCENT_RESOLUTION, adjusted_percentage / PERCENT_RESOLUTION))
         percentage = adjusted_percentage

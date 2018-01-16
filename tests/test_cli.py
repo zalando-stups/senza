@@ -1094,6 +1094,8 @@ def test_create_fail_traffic(monkeypatch):
     monkeypatch.setattr('boto3.client', my_client)
     monkeypatch.setattr('boto3.resource', my_resource)
     monkeypatch.setattr('senza.cli.get_stack_versions', MagicMock(return_value=[]))
+    mock_error = MagicMock(side_effect=SystemExit)
+    monkeypatch.setattr('senza.cli.fatal_error', mock_error)
     runner = CliRunner()
 
     data = {'SenzaComponents': [{'Config': {'Type': 'Senza::Configuration'}}],
@@ -1110,7 +1112,9 @@ def test_create_fail_traffic(monkeypatch):
                                      'my-param-value', 'extra-param-value'],
                                catch_exceptions=False)
         assert result.exit_code == 1
+        assert mock_error.call_count == 1
 
+    mock_error.reset_mock()
     version = MagicMock(domains=['test.example'])
     monkeypatch.setattr('senza.cli.get_stack_versions',
                         MagicMock(return_value=[version]))
@@ -1127,6 +1131,7 @@ def test_create_fail_traffic(monkeypatch):
                                      'my-param-value', 'extra-param-value'],
                                catch_exceptions=False)
         assert result.exit_code == 1
+        assert mock_error.call_count == 1
 
 
 def test_create(monkeypatch):

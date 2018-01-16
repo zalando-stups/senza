@@ -26,7 +26,7 @@ DNS_RR_CACHE = {}
 DNS_ZONE_CACHE = {}
 
 
-def get_weights_for_dns(dns_names):
+def get_weights_for_dns(dns_names: list):
     """
     Gets all traffic weights for provided dns_names
     """

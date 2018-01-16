@@ -1075,6 +1075,60 @@ def test_delete_with_traffic(monkeypatch, boto_resource, boto_client):  # noqa: 
         assert 'OK' in result.output
 
 
+def test_create_fail_traffic(monkeypatch):
+    cf = MagicMock()
+
+    def my_resource(rtype, *args):
+        if rtype == 'sns':
+            sns = MagicMock()
+            topic = MagicMock(arn='arn:123:my-topic')
+            sns.topics.all.return_value = [topic]
+            return sns
+        return MagicMock()
+
+    def my_client(rtype, *args):
+        if rtype == 'cloudformation':
+            return cf
+        return MagicMock()
+
+    monkeypatch.setattr('boto3.client', my_client)
+    monkeypatch.setattr('boto3.resource', my_resource)
+    monkeypatch.setattr('senza.cli.get_stack_versions', MagicMock(return_value=[]))
+    runner = CliRunner()
+
+    data = {'SenzaComponents': [{'Config': {'Type': 'Senza::Configuration'}}],
+            'SenzaInfo': {'OperatorTopicId': 'my-topic',
+                          'Parameters': [{'MyParam': {'Type': 'String'}}, {'ExtraParam': {'Type': 'String'}}],
+                          'StackName': 'test'}}
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run',
+                                     '--region=aa-fakeregion-1',
+                                     '--ensure-no-traffic', '1',
+                                     'my-param-value', 'extra-param-value'],
+                               catch_exceptions=False)
+        assert result.exit_code == 1
+
+    version = MagicMock(domains=['test.example'])
+    monkeypatch.setattr('senza.cli.get_stack_versions',
+                        MagicMock(return_value=[version]))
+    monkeypatch.setattr('senza.cli.get_weights_for_dns',
+                        MagicMock(return_value={'test.example': 0}))
+
+    with runner.isolated_filesystem():
+        with open('myapp.yaml', 'w') as fd:
+            yaml.dump(data, fd)
+
+        result = runner.invoke(cli, ['create', 'myapp.yaml', '--dry-run',
+                                     '--region=aa-fakeregion-1',
+                                     '--ensure-no-traffic', '1',
+                                     'my-param-value', 'extra-param-value'],
+                               catch_exceptions=False)
+        assert result.exit_code == 1
+
+
 def test_create(monkeypatch):
     cf = MagicMock()
 

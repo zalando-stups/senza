@@ -1,0 +1,29 @@
+[[source]]
+
+url = "https://pypi.python.org/simple"
+verify_ssl = true
+name = "pypi"
+
+
+[packages]
+
+arrow = "*"
+clickclick = ">=1.0"
+pystache = "*"
+PyYAML = "*"
+dnspython = ">=1.15.0"
+stups-pierone = ">=1.0.34"
+"boto3" = ">=1.3.0"
+botocore = ">=1.4.10"
+pytest = ">=2.7.3"
+raven = "*"
+typing = "*"
+
+
+[dev-packages]
+
+
+
+[requires]
+
+python_version = "3"

@@ -213,7 +213,7 @@ def test_validation(capsys):
 
 def test_yaml_error(capsys):
     def func():
-        return yaml.load("[]: value")
+        return yaml.safe_load("[]: value")
 
     with raises(SystemExit):
         senza.error_handling.HandleExceptions(func)()

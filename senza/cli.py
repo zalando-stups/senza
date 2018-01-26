@@ -221,7 +221,7 @@ def evaluate(definition, args, account_info, force: bool):
     info = definition.pop("SenzaInfo")
     info["StackVersion"] = args.version
     # replace Arguments and AccountInfo Variabales in info section
-    info = yaml.load(evaluate_template(yaml.dump(info), {}, {}, args, account_info))
+    info = yaml.safe_load(evaluate_template(yaml.dump(info), {}, {}, args, account_info))
 
     # add info as mappings
     # http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html
@@ -230,7 +230,7 @@ def evaluate(definition, args, account_info, force: bool):
 
     template = yaml.dump(definition, default_flow_style=False)
     definition = evaluate_template(template, info, [], args, account_info)
-    definition = yaml.load(definition)
+    definition = yaml.safe_load(definition)
 
     components = definition.pop("SenzaComponents", [])
 
@@ -254,7 +254,7 @@ def evaluate(definition, args, account_info, force: bool):
     # throw executed template to templating engine and provide all information for substitutions
     template = yaml.dump(definition, default_flow_style=False)
     definition = evaluate_template(template, info, components, args, account_info)
-    definition = yaml.load(definition)
+    definition = yaml.safe_load(definition)
 
     return definition
 
@@ -956,7 +956,7 @@ def get_instance_user_data(instance) -> dict:
         attrs = instance.describe_attribute(Attribute='userData')
         data_b64 = attrs['UserData']['Value']
         data_yaml = base64.b64decode(data_b64)
-        data_dict = yaml.load(data_yaml)
+        data_dict = yaml.safe_load(data_yaml)
         return data_dict
     except Exception as e:
         # there's just too many ways this can fail, catch 'em all

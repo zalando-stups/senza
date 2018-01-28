@@ -591,7 +591,7 @@ def health(region, stack_ref, all, output, field, w, watch):
 @click.option('-f', '--force', is_flag=True,
               help='Ignore failing validation checks')
 @click.option('--update-if-exists', is_flag=True,
-              help='Updates the the stack if it exists')
+              help='Updates the stack if it exists')
 @click.option('-t', '--tag', help='Tags to associate with the stack.', multiple=True)
 @stacktrace_visible_option
 def create(definition, region, version, parameter, disable_rollback, dry_run,

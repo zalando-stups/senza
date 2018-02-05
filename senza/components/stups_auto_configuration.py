@@ -10,7 +10,7 @@ _TAUPAGE_CHANNELS = {
 }
 
 
-def find_taupage_image(region: str, channel_suffix: str):
+def find_taupage_image(region: str, channel_suffix: str = ""):
     '''Find the latest Taupage AMI, first try private images, fallback to public'''
     ec2 = boto3.resource('ec2', region)
     filters = [{'Name': 'name', 'Values': ['*Taupage{}-AMI-*'.format(channel_suffix)]},

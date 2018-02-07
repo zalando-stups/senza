@@ -18,11 +18,6 @@ from senza.utils import ensure_keys
 from typing import Optional
 
 _AWS_FN_RE = re.compile(r"('[{]{2} (.*?) [}]{2}')", re.DOTALL)
-_CHANNEL_MAPPING = {
-    "stable": "LatestTaupageImage",
-    "staging": "LatestTaupageStagingImage",
-    "dev": "LatestTaupageDevImage"
-}
 
 # from kio OpenAPI yaml
 APPLICATION_ID_RE = re.compile(r"^[a-z][a-z0-9-]*[a-z0-9]$")
@@ -114,9 +109,7 @@ def check_docker_image_exists(docker_image: pierone.api.DockerImage):
 def component_taupage_auto_scaling_group(definition, configuration, args, info, force, account_info):
     # inherit from the normal auto scaling group but discourage user info and replace with a Taupage config
     if 'Image' not in configuration:
-        taupage_channel = configuration.get("TaupageChannel", "stable")
-        configuration['Image'] = _CHANNEL_MAPPING[taupage_channel]
-
+        configuration['Image'] = 'LatestTaupageImage'
     definition = component_auto_scaling_group(definition, configuration, args, info, force, account_info)
 
     taupage_config = configuration['TaupageConfig']

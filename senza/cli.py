@@ -184,7 +184,7 @@ class KeyValParamType(click.ParamType):
 
 def validate_version(ctx, param, value):
     if not VERSION_PATTERN.match(value):
-        raise click.BadParameter('Version must satisfy regular expression pattern "[a-zA-Z0-9]+"')
+        raise click.BadParameter('Version must satisfy regular expression pattern "[a-zA-Z0-9-]+"')
     return value
 
 
@@ -205,7 +205,7 @@ def watching(w: bool, watch: int):
 # Stack name must contain only alphanumeric characters (case sensitive)
 # and start with an alpha character. Maximum length of the name is 255 characters.
 STACK_NAME_PATTERN = re.compile(r'^[a-zA-Z][a-zA-Z0-9-]*$')
-VERSION_PATTERN = re.compile(r'^[a-zA-Z0-9]+$')
+VERSION_PATTERN = re.compile(r'^[a-zA-Z0-9-]+$')
 
 DEFINITION = DefinitionParamType()
 

@@ -1551,7 +1551,7 @@ def test_patch(monkeypatch):
         props.update(properties)
 
     monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
-    monkeypatch.setattr('senza.cli.find_taupage_image', MagicMock(return_value=image))
+    monkeypatch.setattr('senza.stups.taupage.find_image', MagicMock(return_value=image))
     monkeypatch.setattr('senza.cli.patch_auto_scaling_group', patch_auto_scaling_group)
     runner = CliRunner()
     result = runner.invoke(cli, ['patch', 'myapp', '1', '--image=latest', '--region=aa-fakeregion-1'],

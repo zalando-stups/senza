@@ -1,0 +1,61 @@
+SenzaInfo:
+  StackName: hello-world
+  StackVersion: one
+
+SenzaComponents:
+  - AppServerElastigroup:
+      Type: Spotinst::Elastigroup
+      "ServiceToken": "arn:aws:lambda:us-west-2:178579023202:function:spotinst-cloudformation"
+      "accessToken": "spotinst-token"
+      Elastigroup:
+        name: Spotinst-CloudFormation
+        strategy:
+          risk: 100
+          availabilityVsCost: balanced
+        capacity:
+          target: 1
+          minimum: 1
+          maximum: 1
+        scaling: {}
+        compute:
+          instanceTypes:
+            ondemand: m3.large
+            spot:
+            - m3.large
+            - m4.large
+            - c3.large
+            - c4.large
+          availabilityZones:
+          - name: us-west-2a
+            subnetId: subnet-79daaaaa
+          - name: us-west-2b
+            subnetId: subnet-1ba25aaa
+          launchSpecification:
+            monitoring: false
+            imageId: ami-32d81aaa
+            keyPair: test-key
+            securityGroupIds:
+            - sg-5750aaaa
+            ElasticLoadBalancer: AppLoadBalancer
+          product: Linux/UNIX
+        scheduling: {}
+        thirdPartiesIntegration: {}
+  - AppLoadBalancer:
+            Type: Senza::ElasticLoadBalancer
+            Name: Spotinst-CloudFormation
+            HTTPPort: 80
+            HealthCheckPath: /hello-world/
+            SecurityGroups: [sg-5750aaa]
+            Scheme: internet-facing
+            Listeners:
+                - Protocol: HTTP
+                  InstancePort: 80
+                  LoadBalancerPort: 80
+
+Mappings:
+      LoadBalancerSubnets:
+         us-west-2:
+            Subnets: [subnet-79daaaa]
+
+
+

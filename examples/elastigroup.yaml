@@ -1,12 +1,15 @@
 SenzaInfo:
   StackName: hello-world
   StackVersion: one
+  VpcID: vpc-11111111
+  SpotinstAccessToken: <spotinst-token>
 
 SenzaComponents:
+  - Configuration:
+        Type: Senza::StupsAutoConfiguration # auto-detect network setup
+
   - AppServerElastigroup:
       Type: Spotinst::Elastigroup
-      "ServiceToken": "arn:aws:lambda:us-west-2:178579023202:function:spotinst-cloudformation"
-      "accessToken": "spotinst-token"
       Elastigroup:
         name: Spotinst-CloudFormation
         strategy:
@@ -27,35 +30,27 @@ SenzaComponents:
             - c4.large
           availabilityZones:
           - name: us-west-2a
-            subnetId: subnet-79daaaaa
+            subnetId: subnet-11111111
           - name: us-west-2b
-            subnetId: subnet-1ba25aaa
+            subnetId: subnet-11111112
           launchSpecification:
             monitoring: false
-            imageId: ami-32d81aaa
-            keyPair: test-key
-            securityGroupIds:
-            - sg-5750aaaa
+            Image: LatestTaupageImage
+            keyPair: default
+            SecurityGroups: default
             ElasticLoadBalancer: AppLoadBalancer
           product: Linux/UNIX
         scheduling: {}
         thirdPartiesIntegration: {}
+
   - AppLoadBalancer:
             Type: Senza::ElasticLoadBalancer
             Name: Spotinst-CloudFormation
-            HTTPPort: 80
+            HTTPPort: 8080
             HealthCheckPath: /hello-world/
-            SecurityGroups: [sg-5750aaa]
+            SecurityGroups: [default]
             Scheme: internet-facing
             Listeners:
                 - Protocol: HTTP
                   InstancePort: 80
                   LoadBalancerPort: 80
-
-Mappings:
-      LoadBalancerSubnets:
-         us-west-2:
-            Subnets: [subnet-79daaaa]
-
-
-

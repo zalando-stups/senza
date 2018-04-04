@@ -26,7 +26,7 @@ def component_elastigroup(definition, configuration, args, info, force, account_
         "Type": "Custom::elastigroup",
         "Properties": {
             "ServiceToken": create_service_token(args.region),
-            "accessToken": extract_access_token(definition),
+            "accessToken": _extract_spotinst_access_token(definition),
             "group": elastigroup_config
         }
     }
@@ -35,6 +35,11 @@ def component_elastigroup(definition, configuration, args, info, force, account_
 
 
 def extract_load_balancer_name(elastigroup_config: dict):
+    """
+    This function identifies whether a senza ELB-Classic is configured,
+    if so it transforms it into a Spotinst Elastigroup balancer API configuration
+
+    """
     load_balancers = []
 
     launch_spec_config = elastigroup_config["compute"]["launchSpecification"]
@@ -61,6 +66,11 @@ def extract_load_balancer_name(elastigroup_config: dict):
 
 
 def extract_image_id(elastigroup_config: dict):
+    """
+    This function identifies whether a senza formatted AMI mapping is configured,
+    if so it transforms it into a Spotinst Elastigroup AMI API configuration
+
+    """
     launch_spec_config = elastigroup_config["compute"]["launchSpecification"]
 
     if "imageId" not in launch_spec_config.keys():
@@ -71,6 +81,11 @@ def extract_image_id(elastigroup_config: dict):
 
 
 def extract_security_group_ids(elastigroup_config: dict, args):
+    """
+    This function identifies whether a senza formatted EC2-sg (by name) is configured,
+    if so it transforms it into a Spotinst Elastigroup EC2-sq (by id) API configuration
+
+    """
     security_group_ids = []
 
     launch_spec_config = elastigroup_config["compute"]["launchSpecification"]
@@ -90,8 +105,14 @@ def extract_security_group_ids(elastigroup_config: dict, args):
 
 
 def create_service_token(region: str):
-    return SPOTINST_LAMBDA_FORMATION_ARN.format(region)
+    """
+    dynamically creates the AWS Lambda service token based on the region
+    """
+    return SPOTINST_LAMBDA_FORMATION_ARN.format(region)  # cannot use cfn intrinsic function
 
 
-def extract_access_token(definition: dict):
+def _extract_spotinst_access_token(definition: dict):
+    """
+    extract the provided access token
+    """
     return definition["Mappings"]["Senza"]["Info"]["SpotinstAccessToken"]

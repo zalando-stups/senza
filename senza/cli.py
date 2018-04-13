@@ -16,8 +16,10 @@ from urllib.request import urlopen
 
 import boto3
 import click
+import senza.stups.taupage as taupage
 import requests
 import yaml
+
 from botocore.exceptions import ClientError
 from clickclick import (Action, FloatRange, OutputFormat, choice, error,
                         fatal_error, info, ok)
@@ -31,7 +33,6 @@ from .aws import (StackReference, get_required_capabilities, get_stacks,
                   get_tag, matches_any, parse_time, resolve_topic_arn,
                   update_stack_from_template, all_stacks_in_final_state)
 from .components import evaluate_template, get_component
-from .components.stups_auto_configuration import find_taupage_image
 from .definitions import AccountArguments
 from .error_handling import HandleExceptions
 from .exceptions import InvalidDefinition, InvalidParameterFile
@@ -1239,10 +1240,11 @@ def images(stack_ref, region, output, field, hide_older_than, show_instances):
     for image in ec2.images.filter(ImageIds=list(instances_by_image.keys())):
         images[image.id] = image
     if not stack_refs:
-        filters = [{'Name': 'name', 'Values': ['*Taupage-*']},
-                   {'Name': 'state', 'Values': ['available']}]
-        for image in ec2.images.filter(Filters=filters):
-            images[image.id] = image
+        for channel in taupage.CHANNELS.values():
+            filters = [{'Name': 'name', 'Values': [channel.ami_wildcard]},
+                       {'Name': 'state', 'Values': ['available']}]
+            for image in ec2.images.filter(Filters=filters):
+                images[image.id] = image
     rows = []
     cutoff = datetime.datetime.now() - datetime.timedelta(days=hide_older_than)
     for image in images.values():
@@ -1409,7 +1411,7 @@ def get_auto_scaling_groups(stack_refs, region):
 @region_option
 @click.option('--image',
               metavar='AMI_ID_OR_LATEST',
-              help='Use specified image (AMI ID or "latest")')
+              help='Use specified image (AMI ID or one of "latest", "staging", "dev")')
 @click.option('--instance-type',
               metavar='INSTANCE_TYPE',
               help='Use specified EC2 instance type')
@@ -1425,8 +1427,11 @@ def patch(stack_ref, region, image, instance_type, user_data):
     region = get_region(region)
     check_credentials(region)
 
-    if image == 'latest':
-        image = find_taupage_image(region).id
+    if image in taupage.CHANNELS:
+        ami = taupage.find_image(region, channel=taupage.CHANNELS[image])
+        if ami is None:
+            fatal_error("No Taupage AMI found for {}".format(image))
+        image = ami.id
 
     properties = {'ImageId': image,
                   'InstanceType': instance_type,

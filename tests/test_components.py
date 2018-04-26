@@ -930,7 +930,7 @@ def test_get_load_balancer_name():
                            '1') == 'toolong12345678901234567890123-1'
 
 
-def test_weighted_dns_load_balancer_v2(monkeypatch, boto_client, boto_resource):  # noqa: F811
+def test_weighted_dns_load_balancer_v2_no_certificate(monkeypatch, boto_client, boto_resource):  # noqa: F811
     senza.traffic.DNS_ZONE_CACHE = {}
 
     configuration = {
@@ -975,6 +975,62 @@ def test_weighted_dns_load_balancer_v2(monkeypatch, boto_client, boto_resource):
     assert target_group['Properties']['HealthCheckPort'] == '9999'
     assert lb_listener['Properties']['Certificates'] == [
         {'CertificateArn': 'arn:aws:42'}
+    ]
+    # test that our custom drain setting works
+    assert target_group['Properties']['TargetGroupAttributes'] == [
+        {'Key': 'deregistration_delay.timeout_seconds',
+         'Value': '123'}
+    ]
+    assert result['Resources']['MyLB']['Properties']['SecurityGroups'] == ['sg-foo']
+
+
+def test_weighted_dns_load_balancer_v2_two_certificates(monkeypatch, boto_client, boto_resource):  # noqa: F811
+    senza.traffic.DNS_ZONE_CACHE = {}
+
+    configuration = {
+        "Name": "MyLB",
+        "SecurityGroups": "",
+        "HTTPPort": "9999",
+        'MainDomain': 'great.api.zo.ne',
+        'SSLCertificateId': 'my-cert,my-other-cert',
+        'VersionDomain': 'version.api.zo.ne',
+        # test overwritting specific properties in one of the resources
+        'TargetGroupAttributes': [{'Key': 'deregistration_delay.timeout_seconds', 'Value': '123'}],
+        # test that Security Groups are resolved
+        'SecurityGroups': ['foo-security-group']
+    }
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    definition = {"Resources": {}}
+
+    args = MagicMock()
+    args.region = "foo"
+
+    mock_string_result = MagicMock()
+    mock_string_result.return_value = ['sg-foo']
+    monkeypatch.setattr('senza.components.elastic_load_balancer_v2.resolve_security_groups', mock_string_result)
+
+    get_ssl_cert = MagicMock()
+    get_ssl_cert.side_effect = ['arn:aws:42', 'arn:aws:13']
+    monkeypatch.setattr('senza.components.elastic_load_balancer_v2.get_ssl_cert', get_ssl_cert)
+
+    result = component_weighted_dns_elastic_load_balancer_v2(definition,
+                                                             configuration,
+                                                             args,
+                                                             info,
+                                                             False,
+                                                             AccountArguments('dummyregion'))
+
+    assert 'MyLB' in result["Resources"]
+    assert 'MyLBListener' in result["Resources"]
+    assert 'MyLBTargetGroup' in result["Resources"]
+
+    target_group = result['Resources']['MyLBTargetGroup']
+    lb_listener = result['Resources']['MyLBListener']
+
+    assert target_group['Properties']['HealthCheckPort'] == '9999'
+    assert lb_listener['Properties']['Certificates'] == [
+        {'CertificateArn': 'arn:aws:42'},
+        {'CertificateArn': 'arn:aws:13'}
     ]
     # test that our custom drain setting works
     assert target_group['Properties']['TargetGroupAttributes'] == [

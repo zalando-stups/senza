@@ -463,6 +463,41 @@ Additionally, you can specify any of the `valid AWS CloudFormation ELB propertie
 
 .. _valid AWS CloudFormation ELB properties: http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-elb.html
 
+WeightedDnsElasticLoadBalancerV2
+==================================
+
+Similar to the WeightedDnsElasticLoadBalancer component **WeightedDnsElasticLoadBalancerV2** creates one HTTPs ELBv2 resource with Route 53 weighted domains.
+ELBv2 listeners support SNI, hence you can specify multiple SSL certificates.
+
+.. code-block:: yaml
+
+    SenzaComponents:
+      - AppLoadBalancer:
+          Type: Senza::WeightedDnsElasticLoadBalancerV2
+          HTTPPort: 8080
+          SecurityGroups:
+            - app-myapp-lb
+
+The WeightedDnsElasticLoadBalancerV2 component supports the following configuration properties:
+
+``HTTPPort``
+    The HTTP port used by the EC2 instances.
+``HealthCheckPath``
+    The HTTP path to use for health checks, e.g. "/health". Must return 200.
+``HealthCheckPort``
+    Optional. Port used for the health check. Defaults to ``HTTPPort``.
+``SecurityGroups``
+    List of security groups to use for the ELBv2. The security groups must allow SSL traffic.
+``MainDomain``
+    Main domain to use, e.g. "myapp.example.org".
+``VersionDomain``
+    Version domain to use, e.g. "myapp-1.example.org". You can use the usual templating feature to integrate the stack version, e.g. ``myapp-{{SenzaInfo.StackVersion}}.example.org``.
+``Scheme``
+    The load balancer scheme. Either ``internal`` or ``internet-facing``. Defaults to ``internal``.
+``SSLCertificateId``
+    A comma-separated list of names or ARN ID of the uploaded SSL/TLS server certificates to use, e.g. ``myapp-example-org-letsencrypt`` or ``arn:aws:acm:eu-central-1:123123123:certificate/abcdefgh-ijkl-mnop-qrst-uvwxyz012345``.
+    You can check available IAM server certificates with :code:`aws iam list-server-certificates`. For ACM certificates, use :code:`aws acm list-certificates`.
+
 Cross-Stack References
 ======================
 

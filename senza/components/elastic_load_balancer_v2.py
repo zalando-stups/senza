@@ -16,11 +16,19 @@ ALLOWED_HEALTH_CHECK_PROTOCOLS = frozenset(["HTTP", "HTTPS"])
 
 def get_listeners(lb_name, target_group_name, subdomain, main_zone, configuration,
                   account_info: AccountArguments):
-    ssl_cert = get_ssl_cert(subdomain, main_zone, configuration, account_info)
+    ssl_cert = configuration.get('SSLCertificateId')
+    if ssl_cert is None:
+        ssl_certs = [None]
+    elif isinstance(ssl_cert, list):
+        ssl_certs = ssl_cert
+    else:
+        ssl_certs = ssl_cert.split(',')
+
     return [{
         'Type': 'AWS::ElasticLoadBalancingV2::Listener',
         'Properties': {
-            "Certificates": [{'CertificateArn': ssl_cert}],
+            "Certificates":
+                list({'CertificateArn': get_ssl_cert(subdomain, main_zone, cert, account_info)} for cert in ssl_certs),
             "Protocol": "HTTPS",
             "DefaultActions": [{'Type': 'forward', 'TargetGroupArn': {'Ref': target_group_name}}],
             'LoadBalancerArn': {'Ref': lb_name},

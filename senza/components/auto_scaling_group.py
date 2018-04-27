@@ -12,7 +12,7 @@ SENZA_PROPERTIES = frozenset(['SecurityGroups', 'Tags'])
 
 # additional CF properties which can be overwritten
 ADDITIONAL_PROPERTIES = {
-    'AWS::AutoScaling::LaunchConfiguration': frozenset(['BlockDeviceMappings', 'IamInstanceProfile', 
+    'AWS::AutoScaling::LaunchConfiguration': frozenset(['BlockDeviceMappings', 'IamInstanceProfile',
                                                         'SpotPrice', 'InstanceMonitoring']),
     'AWS::AutoScaling::AutoScalingGroup': frozenset(['MetricsCollection', 'TargetGroupARNs',
                                                      'TerminationPolicies', 'PlacementGroup'])

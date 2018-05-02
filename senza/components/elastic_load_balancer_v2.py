@@ -28,7 +28,7 @@ def get_listeners(lb_name, target_group_name, subdomain, main_zone, configuratio
         'Type': 'AWS::ElasticLoadBalancingV2::Listener',
         'Properties': {
             "Certificates":
-                list({'CertificateArn': get_ssl_cert(subdomain, main_zone, cert, account_info)} for cert in ssl_certs),
+                [{'CertificateArn': get_ssl_cert(subdomain, main_zone, cert, account_info)} for cert in ssl_certs],
             "Protocol": "HTTPS",
             "DefaultActions": [{'Type': 'forward', 'TargetGroupArn': {'Ref': target_group_name}}],
             'LoadBalancerArn': {'Ref': lb_name},

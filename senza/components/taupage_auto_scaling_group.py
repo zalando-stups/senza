@@ -83,26 +83,6 @@ def check_docker_image_exists(docker_image: pierone.api.DockerImage):
     if not exists:
         raise click.UsageError('Docker image "{}" does not exist'.format(docker_image))
 
-    image_tag = pierone.api.get_image_tag(docker_image, token)
-    if image_tag is not None and 'severity_fix_available' in image_tag:
-        if image_tag.get('severity_fix_available') not in ['COULDNT_FIGURE_OUT',
-                                                           'NO_CVES_FOUND']:
-            warn_msg = textwrap.dedent('''
-                    You are deploying an image that has *{}* severity
-                    security fixes easily available!  Please check this artifact
-                    tag in pierone and see which software versions you should
-                    upgrade to apply those fixes.
-                    '''.format(image_tag['severity_fix_available']))
-        else:
-            # Image is good to deploy!
-            return True
-    else:
-        warn_msg = textwrap.dedent('''
-        You are deploying an image that was not automatically checked for
-        vulnerabilities. Images stored in Pierone are automatically checked!
-        ''')
-
-    click.secho(warn_msg.replace('\n', ' ').strip(), fg='red', bold=True)
     return True
 
 

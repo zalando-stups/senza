@@ -806,22 +806,12 @@ def test_check_docker_image_exists():
                                        team='bar', artifact='foobar',
                                        tag='1.0')
 
-    pierone_has_cves = {
-        'tag': '1.0',
-        'team': 'foo',
-        'artifact': 'app1',
-        'severity_fix_available': 'HIGH',
-        'severity_no_fix_available': 'LOW',
-        'created_by': 'myuser',
-        'created': '2015-08-01T08:14:59.432Z'
-    }
-
-    pierone_no_cves = {
+    pierone_image = {
         'tag': '2.0',
         'team': 'foo',
         'artifact': 'app1',
-        'severity_fix_available': 'NO_CVES_FOUND',
-        'severity_no_fix_available': 'NO_CVES_FOUND',
+        'severity_fix_available': 'NOT_PROCESSED_YET',
+        'severity_no_fix_available': 'NOT_PROCESSED_YET',
         'created_by': 'myuser',
         'created': '2016-06-20T08:14:59.432Z'
     }
@@ -830,28 +820,14 @@ def test_check_docker_image_exists():
         'access_token': 'abc'
     }
 
-    # image from pierone has CVEs
+    # image from pierone 
     with patch('senza.components.taupage_auto_scaling_group.click.secho') as output_function, patch(
             "senza.components.taupage_auto_scaling_group.get_token",
             return_value=fake_token), patch(
             'senza.components.taupage_auto_scaling_group.pierone.api.image_exists',
             return_value=True), patch(
                 'senza.components.taupage_auto_scaling_group.pierone.api.get_image_tag',
-                return_value=pierone_has_cves):
-
-        check_docker_image_exists(build_image(from_registry_url='pierone'))
-
-        assert output_function.called
-        assert 'Please check this artifact tag in pierone' in output_function.call_args[0][0]
-
-    # image from pierone no CVEs
-    with patch('senza.components.taupage_auto_scaling_group.click.secho') as output_function, patch(
-            "senza.components.taupage_auto_scaling_group.get_token",
-            return_value=fake_token), patch(
-            'senza.components.taupage_auto_scaling_group.pierone.api.image_exists',
-            return_value=True), patch(
-                'senza.components.taupage_auto_scaling_group.pierone.api.get_image_tag',
-                return_value=pierone_no_cves):
+                return_value=pierone_image):
 
         check_docker_image_exists(build_image(from_registry_url='pierone'))
 
@@ -863,24 +839,12 @@ def test_check_docker_image_exists():
 
         check_docker_image_exists(build_image(from_registry_url='pierone'))
 
-    # image from pierone and not 'pierone' in url has CVEs
+    # image from pierone and not 'pierone' in url
     with patch('senza.components.taupage_auto_scaling_group.click.secho') as output_function, patch(
             'senza.components.taupage_auto_scaling_group.docker_image_exists',
             return_value=True), patch(
                 'senza.components.taupage_auto_scaling_group.pierone.api.get_image_tag',
-                return_value=pierone_has_cves):
-
-        check_docker_image_exists(build_image(from_registry_url='opensource'))
-
-        assert output_function.called
-        assert 'Please check this artifact tag in pierone' in output_function.call_args[0][0]
-
-    # image from pierone and not 'pierone' in url no CVEs
-    with patch('senza.components.taupage_auto_scaling_group.click.secho') as output_function, patch(
-            'senza.components.taupage_auto_scaling_group.docker_image_exists',
-            return_value=True), patch(
-                'senza.components.taupage_auto_scaling_group.pierone.api.get_image_tag',
-                return_value=pierone_no_cves):
+                return_value=pierone_image):
 
         check_docker_image_exists(build_image(from_registry_url='opensource'))
 
@@ -894,9 +858,7 @@ def test_check_docker_image_exists():
                 return_value=None):
 
         check_docker_image_exists(build_image(from_registry_url='opensource'))
-
-        assert output_function.called
-        assert 'not automatically checked' in output_function.call_args[0][0]
+        assert not output_function.called
 
 
 def test_check_application_id():

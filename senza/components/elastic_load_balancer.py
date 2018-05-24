@@ -16,9 +16,7 @@ ALLOWED_HEALTH_CHECK_PROTOCOLS = frozenset(["HTTP", "HTTPS", "TCP", "UDP", "SSL"
 ALLOWED_LOADBALANCER_SCHEMES = frozenset(["internet-facing", "internal"])
 
 
-def get_ssl_cert(subdomain, main_zone, configuration, account_info: AccountArguments):
-    ssl_cert = configuration.get('SSLCertificateId')
-
+def get_ssl_cert(subdomain, main_zone, ssl_cert, account_info: AccountArguments):
     if ACMCertificate.arn_is_acm_certificate(ssl_cert):
         # check if certificate really exists
         try:
@@ -83,7 +81,7 @@ def resolve_ssl_certificates(listeners, subdomain, main_zone, account_info):
     new_listeners = []
     for listener in listeners:
         if listener.get('Protocol') in ('HTTPS', 'SSL'):
-            ssl_cert = get_ssl_cert(subdomain, main_zone, listener, account_info)
+            ssl_cert = get_ssl_cert(subdomain, main_zone, listener.get('SSLCertificateId'), account_info)
             listener['SSLCertificateId'] = ssl_cert
         new_listeners.append(listener)
     return new_listeners

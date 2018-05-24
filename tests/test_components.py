@@ -945,6 +945,44 @@ def test_weighted_dns_load_balancer_v2(monkeypatch, boto_client, boto_resource):
     ]
     assert result['Resources']['MyLB']['Properties']['SecurityGroups'] == ['sg-foo']
 
+    # test again with comma-separated certificates
+    configuration['SSLCertificateId'] = 'my-cert,my-other-cert'
+
+    get_ssl_cert.side_effect = ['arn:aws:42', 'arn:aws:13']
+    monkeypatch.setattr('senza.components.elastic_load_balancer_v2.get_ssl_cert', get_ssl_cert)
+
+    result = component_weighted_dns_elastic_load_balancer_v2(definition,
+                                                             configuration,
+                                                             args,
+                                                             info,
+                                                             False,
+                                                             AccountArguments('dummyregion'))
+
+    lb_listener = result['Resources']['MyLBListener']
+    assert lb_listener['Properties']['Certificates'] == [
+        {'CertificateArn': 'arn:aws:42'},
+        {'CertificateArn': 'arn:aws:13'}
+    ]
+
+    # test again with certificates as list
+    configuration['SSLCertificateId'] = ['my-cert','my-other-cert']
+
+    get_ssl_cert.side_effect = ['arn:aws:42', 'arn:aws:13']
+    monkeypatch.setattr('senza.components.elastic_load_balancer_v2.get_ssl_cert', get_ssl_cert)
+
+    result = component_weighted_dns_elastic_load_balancer_v2(definition,
+                                                             configuration,
+                                                             args,
+                                                             info,
+                                                             False,
+                                                             AccountArguments('dummyregion'))
+
+    lb_listener = result['Resources']['MyLBListener']
+    assert lb_listener['Properties']['Certificates'] == [
+        {'CertificateArn': 'arn:aws:42'},
+        {'CertificateArn': 'arn:aws:13'}
+    ]
+
 
 def test_max_description_length():
     definition = {}

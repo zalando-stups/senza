@@ -10,7 +10,7 @@ def test_docker_image_exists(monkeypatch):
     monkeypatch.setattr('requests.get', get)
 
     get.return_value = MagicMock(name='response')
-    get.return_value.json = lambda: {'1.0': 'foo'}
+    get.return_value.json = lambda: {'tags': ['1.0']}
     assert docker_image_exists('my-registry/foo/bar:1.0') is True
 
     get.side_effect = requests.HTTPError()

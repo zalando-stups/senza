@@ -18,8 +18,8 @@ def docker_image_exists(docker_image: str) -> bool:
     for scheme in 'https', 'http':
         try:
             url = '{scheme}://{registry}/v2/{repo}/tags/list'.format(scheme=scheme,
-                                                                             registry=registry,
-                                                                             repo=repo)
+                                                                     registry=registry,
+                                                                     repo=repo)
             response = requests.get(url, timeout=5)
             result = response.json()
             return tag in result.get('tags', [])

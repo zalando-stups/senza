@@ -1,0 +1,16 @@
+version: "2017-09-20"
+notifications:
+  hipchat:
+    rooms:
+     - cdp-notifications-test
+pipeline:
+  - id: build
+    type: script
+    overlay: ci/python
+    commands:
+    - desc: "Install dependencies"
+      cmd: pip install -r requirements.txt
+    - desc: "Run Tests"
+      cmd: python3 setup.py test
+    - desc: "Check code style"
+      cmd: python3 setup.py flake8

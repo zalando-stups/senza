@@ -14,3 +14,14 @@ pipeline:
       cmd: python3 setup.py test
     - desc: "Check code style"
       cmd: python3 setup.py flake8
+    - desc: "Build docker image that will upload package"
+      cmd: |
+      VERSION=$(./next-version)
+
+        if [[ -z "${CDP_PULL_REQUEST_NUMBER}" ]]; then
+          DOCKER_IMAGE="pierone.stups.zalan.do/automata/senza:${VERSION}"
+        else
+          DOCKER_IMAGE="pierone.stups.zalan.do/automata/senza:${VERSION}-snapshot"
+        fi
+
+      docker build --build-arg VERSION="$VERSION" -t "$DOCKER_IMAGE" .

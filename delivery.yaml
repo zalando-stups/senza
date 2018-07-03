@@ -1,0 +1,51 @@
+version: "2017-09-20"
+notifications:
+  hipchat:
+    rooms:
+     - cdp-notifications-test
+pipeline:
+  - id: build
+    type: script
+    overlay: ci/python
+    commands:
+    - desc: "Install dependencies"
+      cmd: pip install -r requirements.txt
+    - desc: "Run Tests"
+      cmd: python3 setup.py test
+    - desc: "Check code style"
+      cmd: python3 setup.py flake8
+    - desc: "Build docker image that will upload package"
+      cmd: |
+        VERSION=$(./next-version)
+
+        if [[ -z "${CDP_PULL_REQUEST_NUMBER}" ]]; then
+          DOCKER_IMAGE="pierone.stups.zalan.do/automata/senza-release:${CDP_TARGET_REPOSITORY_COUNTER}"
+        else
+          DOCKER_IMAGE="pierone.stups.zalan.do/automata/senza-release:${CDP_TARGET_REPOSITORY_COUNTER}-snapshot"
+        fi
+
+        docker build --build-arg VERSION="$VERSION" -t "$DOCKER_IMAGE" .
+
+        if [[ -z "${CDP_PULL_REQUEST_NUMBER}" ]]; then
+            docker push "$DOCKER_IMAGE"
+            git gh-tag "$VERSION"
+        fi
+  - id: release
+    type: process
+    desc: Release to TestPyPI
+    target: stups
+    process: microservice_standard_deployment
+    config:
+      apply_permanent_resources:
+        image: pierone.stups.zalan.do/automata/senza-release:#{CDP_TARGET_REPOSITORY_COUNTER}
+        env:
+          - name: USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: teapot-pypi-credentials
+                key: username
+          - name: PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: teapot-pypi-credentials
+                key: password

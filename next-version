@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+
+import subprocess
+
+MAJOR_VERSION = 2
+MINOR_VERSION = 1
+
+
+def get_latest_version() -> (int, int, int):
+    """
+    Gets latest version based on Git Tags.
+    """
+    proc = subprocess.run(['git', 'tag'], stdout=subprocess.PIPE)
+
+    versions = sorted(map(lambda version: tuple(int(sub)
+                                                for sub
+                                                in version.split('.')),
+                          proc.stdout.decode().splitlines()))
+    return versions[-1]
+
+
+if __name__ == '__main__':
+    major, minor, build = get_latest_version()
+
+    if major != MAJOR_VERSION or minor != MINOR_VERSION:
+        new_build = 0
+    else:
+        new_build = build + 1
+
+    print(f"{MAJOR_VERSION}.{MINOR_VERSION}.{new_build}")

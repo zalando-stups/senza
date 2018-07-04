@@ -53,7 +53,7 @@ def component_elastigroup(definition, configuration, args, info, force, account_
         "Properties": {
             "ServiceToken": create_service_token(args.region),
             "accessToken": access_token,
-            "accountId": extract_spotinst_account_id(access_token, definition),
+            "accountId": extract_spotinst_account_id(access_token, definition, account_info),
             "group": elastigroup_config
         }
     }
@@ -253,25 +253,25 @@ def _extract_spotinst_access_token(definition: dict):
     return definition["Mappings"]["Senza"]["Info"]["SpotinstAccessToken"]
 
 
-def extract_spotinst_account_id(access_token: str, definition: dict):
+def extract_spotinst_account_id(access_token: str, definition: dict, account_info):
     """
     if present, return the template defined Spotinst target account id or use the Spotinst API to
     list the accounts and return the first account found
     """
     template_account_id = definition["Mappings"]["Senza"]["Info"].get("SpotinstAccountId", "")
     if not template_account_id:
-        template_account_id = resolve_account_id(access_token)
+        template_account_id = resolve_account_id(access_token, account_info)
     return template_account_id
 
 
-def resolve_account_id(access_token, info):
+def resolve_account_id(access_token, account_info):
     """
     This function will call the remote Spotinst API using the provided Token and obtain the list of registered
     cloud accounts. The cloud accounts are expected to have their name with the pattern "aws:123" where 123 is
     the official AWS account ID.
     The first match to the provided info.AccountID is used to return the Spotinst accountId
     :param access_token: The Spotinst access token that can be created using the console
-    :param info: The AccountInfo object containing the target AWS account ID
+    :param account_info: The AccountInfo object containing the target AWS account ID
     :return: The Spotinst accountId that matched the target AWS account ID
     """
     headers = {
@@ -284,6 +284,6 @@ def resolve_account_id(access_token, info):
     accounts = data.get("response", {}).get("items", [])
     for account in accounts:
         account_id = re.sub(r"(?i)^aws:", "", account["name"])
-        if info.AccountID == account_id:
+        if account_info.AccountID == account_id:
             return account["accountId"]
-    raise MissingSpotinstAccount(info.AccountID)
+    raise MissingSpotinstAccount(account_info.AccountID)

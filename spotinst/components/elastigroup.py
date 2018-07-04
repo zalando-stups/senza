@@ -1,3 +1,7 @@
+"""
+Functions to create Spotinst Elastigroups
+"""
+
 import base64
 import re
 import click

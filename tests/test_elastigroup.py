@@ -1,8 +1,11 @@
+import pytest
+import requests
+import responses
 from mock import MagicMock
-
 from senza.definitions import AccountArguments
+from spotinst import MissingSpotinstAccount
 from spotinst.components.elastigroup import component_elastigroup, ELASTIGROUP_DEFAULT_PRODUCT, \
-    ELASTIGROUP_DEFAULT_STRATEGY, ELASTIGROUP_DEFAULT_CAPACITY
+    ELASTIGROUP_DEFAULT_STRATEGY, ELASTIGROUP_DEFAULT_CAPACITY, resolve_account_id, SPOTINST_API_URL
 
 
 def test_component_elastigroup_defaults(monkeypatch):
@@ -59,3 +62,33 @@ def test_component_elastigroup_defaults(monkeypatch):
     assert "thirdPartiesIntegration" in properties["group"]
 
 
+def test_spotinst_account_resolution():
+    mock_info = MagicMock()
+    mock_info.AccountID = "12345"
+    with responses.RequestsMock() as rsps:
+        rsps.add(rsps.GET, '{}/setup/account/'.format(SPOTINST_API_URL), status=200,
+                 json={"response": {
+                     "items": [
+                         {"accountId": "act-1234abcd", "name": "aws:" + mock_info.AccountID},
+                         {"accountId": "act-xyz", "name": "aws:54321"}
+                     ],
+                 }})
+
+        account_id = resolve_account_id("fake-token", mock_info)
+        assert account_id == "act-1234abcd"
+
+
+def test_spotinst_account_resolution_failure():
+    with pytest.raises(MissingSpotinstAccount):
+        mock_info = MagicMock()
+        mock_info.AccountID = "12345"
+        with responses.RequestsMock() as rsps:
+            rsps.add(rsps.GET, '{}/setup/account/'.format(SPOTINST_API_URL), status=200,
+                     json={"response": {
+                         "items": [
+                             {"accountId": "act-foo", "name": "aws:xyz"},
+                             {"accountId": "act-bar", "name": "aws:zbr"}
+                         ],
+                     }})
+
+            resolve_account_id("fake-token", mock_info)

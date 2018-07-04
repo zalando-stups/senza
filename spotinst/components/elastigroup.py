@@ -1,5 +1,5 @@
 import base64
-
+import re
 import click
 import pierone
 import requests
@@ -8,22 +8,13 @@ from senza.aws import resolve_security_groups
 from senza.components.taupage_auto_scaling_group import check_application_id, check_application_version, \
     check_docker_image_exists, generate_user_data
 from senza.utils import ensure_keys
+from spotinst import MissingSpotinstAccount
 
 SPOTINST_LAMBDA_FORMATION_ARN = 'arn:aws:lambda:{}:178579023202:function:spotinst-cloudformation'
 SPOTINST_API_URL = 'https://api.spotinst.io'
 ELASTIGROUP_DEFAULT_STRATEGY = {"risk": 100, "availabilityVsCost": "balanced"}
 ELASTIGROUP_DEFAULT_CAPACITY = {"target": 1, "minimum": 1, "maximum": 1}
 ELASTIGROUP_DEFAULT_PRODUCT = "Linux/UNIX"
-
-
-def extract_subnets(definition, elastigroup_config, account_info):
-    subnetIds = elastigroup_config["compute"].get("subnetIds", [])
-    targetRegion = elastigroup_config.get("region", account_info.Region)
-    if len(subnetIds) < 1:
-        subnetIds = [subnetId for subnetId in
-                     definition["Mappings"]["ServerSubnets"].get(targetRegion, {}).get("Subnets", [])]
-    elastigroup_config["region"] = targetRegion
-    elastigroup_config["compute"]["subnetIds"] = subnetIds
 
 
 def component_elastigroup(definition, configuration, args, info, force, account_info):
@@ -71,30 +62,49 @@ def component_elastigroup(definition, configuration, args, info, force, account_
 
 
 def ensure_instance_monitoring(elastigroup_config):
+    """
+    This functions will set the monitoring property to True if not set already in the compute.launchSpecification
+    section. This enables EC2 enhanced monitoring, which is also the general STUPS behavior
+    """
     if "monitoring" in elastigroup_config["compute"]["launchSpecification"]:
         return
     elastigroup_config["compute"]["launchSpecification"]["monitoring"] = True
 
 
 def ensure_default_strategy(elastigroup_config):
+    """
+    This functions will add a default strategy if none is present. See ELASTIGROUP_DEFAULT_STRATEGY
+    """
     if "strategy" in elastigroup_config:
         return
     elastigroup_config["strategy"] = ELASTIGROUP_DEFAULT_STRATEGY
 
 
 def ensure_default_capacity(elastigroup_config):
+    """
+    This function will add a default capacity section if none is present. See ELASTIGROUP_DEFAULT_CAPACITY
+    """
     if "capacity" in elastigroup_config:
         return
     elastigroup_config["capacity"] = ELASTIGROUP_DEFAULT_CAPACITY
 
 
 def ensure_default_product(elastigroup_config):
+    """
+    This function ensures that the compute.product attribute for the Elastigroup is defined with a default value.
+    See ELASTIGROUP_DEFAULT_PRODUCT
+    """
     if "product" in elastigroup_config["compute"]:
         return
     elastigroup_config["compute"]["product"] = ELASTIGROUP_DEFAULT_PRODUCT
 
 
 def fill_standard_tags(definition, elastigroup_config):
+    """
+    This function adds the default STUPS EC2 Tags when none are defined in the Elastigroup. It also sets the
+    Elastigroup name attribute to the same value as the EC2 Name tag.
+    The default STUPS EC2 Tags are Name, StackName and StackVersion
+    """
     if "tags" in elastigroup_config["compute"]["launchSpecification"]:
         return
 
@@ -108,6 +118,20 @@ def fill_standard_tags(definition, elastigroup_config):
     ]
     if elastigroup_config.get("name", "") == "":
         elastigroup_config["name"] = full_name
+
+
+def extract_subnets(definition, elastigroup_config, account_info):
+    """
+    This fills in the subnetIds and region attributes of the Spotinst elastigroup, in case their not defined already
+    The subnetIds are discovered by Senza::StupsAutoConfiguration and the region is provided by the AccountInfo object
+    """
+    subnet_ids = elastigroup_config["compute"].get("subnetIds", [])
+    target_region = elastigroup_config.get("region", account_info.Region)
+    if len(subnet_ids) < 1:
+        subnet_ids = [subnetId for subnetId in
+                      definition["Mappings"]["ServerSubnets"].get(target_region, {}).get("Subnets", [])]
+    elastigroup_config["region"] = target_region
+    elastigroup_config["compute"]["subnetIds"] = subnet_ids
 
 
 def extract_user_data(configuration, elastigroup_config, info: dict, force, account_info):
@@ -240,7 +264,16 @@ def extract_spotinst_account_id(access_token: str, definition: dict):
     return template_account_id
 
 
-def resolve_account_id(access_token):
+def resolve_account_id(access_token, info):
+    """
+    This function will call the remote Spotinst API using the provided Token and obtain the list of registered
+    cloud accounts. The cloud accounts are expected to have their name with the pattern "aws:123" where 123 is
+    the official AWS account ID.
+    The first match to the provided info.AccountID is used to return the Spotinst accountId
+    :param access_token: The Spotinst access token that can be created using the console
+    :param info: The AccountInfo object containing the target AWS account ID
+    :return: The Spotinst accountId that matched the target AWS account ID
+    """
     headers = {
         "Authorization": "Bearer {}".format(access_token),
         "Content-Type": "application/json"
@@ -249,5 +282,8 @@ def resolve_account_id(access_token):
     response.raise_for_status()
     data = response.json()
     accounts = data.get("response", {}).get("items", [])
-    if len(accounts) > 0:
-        return accounts[0].get("accountId")
+    for account in accounts:
+        account_id = re.sub(r"(?i)^aws:", "", account["name"])
+        if info.AccountID == account_id:
+            return account["accountId"]
+    raise MissingSpotinstAccount(info.AccountID)

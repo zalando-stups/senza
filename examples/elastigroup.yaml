@@ -1,8 +1,7 @@
 SenzaInfo:
   StackName: hello-world
-  StackVersion: one
-  VpcID: vpc-11111111
-  SpotinstAccessToken: <spotinst-token>
+  StackVersion: latest
+  SpotinstAccessToken: <5da...dc7> # Token created using the SpotInst console for the target account
 
 SenzaComponents:
   - Configuration:
@@ -11,46 +10,29 @@ SenzaComponents:
   - AppServerElastigroup:
       Type: Spotinst::Elastigroup
       Elastigroup:
-        name: Spotinst-CloudFormation
-        strategy:
-          risk: 100
-          availabilityVsCost: balanced
-        capacity:
-          target: 1
-          minimum: 1
-          maximum: 1
-        scaling: {}
         compute:
           instanceTypes:
             ondemand: m3.large
             spot:
-            - m3.large
-            - m4.large
-            - c3.large
-            - c4.large
-          availabilityZones:
-          - name: us-west-2a
-            subnetId: subnet-11111111
-          - name: us-west-2b
-            subnetId: subnet-11111112
+              - m3.large
+              - m4.large
+              - c3.large
+              - c4.large
           launchSpecification:
-            monitoring: false
-            Image: LatestTaupageImage
-            keyPair: default
-            SecurityGroups: default
+            SecurityGroups: default # for this to work make sure the default security group allows ingress on TCP/8000
             ElasticLoadBalancer: AppLoadBalancer
-          product: Linux/UNIX
-        scheduling: {}
-        thirdPartiesIntegration: {}
+      TaupageConfig:
+        runtime: Docker
+        source: "crccheck/hello-world:latest"
+        health_check_path: /
+        ports:
+          8000: 8000
 
   - AppLoadBalancer:
-            Type: Senza::ElasticLoadBalancer
-            Name: Spotinst-CloudFormation
-            HTTPPort: 8080
-            HealthCheckPath: /hello-world/
-            SecurityGroups: [default]
-            Scheme: internet-facing
-            Listeners:
-                - Protocol: HTTP
-                  InstancePort: 80
-                  LoadBalancerPort: 80
+      Type: Senza::WeightedDnsElasticLoadBalancer
+      HTTPPort: 8000
+      HealthCheckPath: /
+      SecurityGroups:
+        - default # for this to work make sure the default security group allows ingress on TCP/443
+      Scheme: internal
+

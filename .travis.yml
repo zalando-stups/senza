@@ -3,7 +3,7 @@ python:
   - "3.4"
   - "3.5"
 install:
-  - pip install --upgrade tox tox-travis coveralls setuptools
+  - pip install -U setuptools && pip install tox tox-travis coveralls
 script:
   - tox
 after_success:

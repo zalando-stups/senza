@@ -12,11 +12,13 @@ import botocore.exceptions
 import pytest
 import senza.traffic
 import yaml
+import base64
 from click.testing import CliRunner
 from senza.aws import SenzaStackSummary
 from senza.cli import (KeyValParamType, StackReference,
                        all_with_version, create_cf_template, failure_event,
-                       get_console_line_style, get_stack_refs, is_ip_address)
+                       get_console_line_style, get_stack_refs, is_ip_address,
+                       decrypt_parameters)
 from senza.definitions import AccountArguments
 from senza.exceptions import InvalidDefinition
 from senza.manaus.exceptions import ELBNotFound, StackNotFound, StackNotUpdated
@@ -1073,6 +1075,72 @@ def test_delete_with_traffic(monkeypatch, boto_resource, boto_client):  # noqa: 
         result = runner.invoke(cli, ['delete', 'myapp.yaml', '--region=aa-fakeregion-1', '--force'],
                                catch_exceptions=False)
         assert 'OK' in result.output
+
+
+def test_decrypt_parameters(monkeypatch):
+    def my_client(service_name, region_name, *args):
+        if service_name == 'kms':
+            kms = MagicMock()
+            kms.decrypt.return_value = {
+                'KeyId': 'string',
+                'Plaintext': bytes('spotinst-decrypted-token', 'UTF-8')
+            }
+            return kms
+        return MagicMock()
+
+    monkeypatch.setattr('boto3.client', my_client)
+
+    b64_encoded_key = base64.b64encode(b'some-encrypted-string')
+    definition = {
+        'Mappings': {
+            'Senza': {
+                'Info': {
+                    'SpotinstAccessToken': 'senza:kms:' + b64_encoded_key.decode("utf-8"),
+                    'SomeOtherProperty': 'some-value'
+                }
+            }
+        }
+    }
+
+    decrypted_definition = decrypt_parameters(definition)
+
+    assert decrypted_definition["Mappings"]["Senza"]["Info"]['SpotinstAccessToken'] == 'spotinst-decrypted-token'
+    assert decrypted_definition["Mappings"]["Senza"]["Info"]['SomeOtherProperty'] == 'some-value'
+
+
+def test_decrypt_parameters_failed(monkeypatch):
+    def my_client(service_name, region_name, *args):
+        if service_name == 'kms':
+            kms = MagicMock()
+            kms.decrypt.side_effect = botocore.exceptions.ClientError({'Error': {'Code': 'KeyUnavailableException',
+                                                                                 'Message': 'Key is unavailable'}},
+                                                                      'foobar')
+            return kms
+        return MagicMock()
+
+    monkeypatch.setattr('boto3.client', my_client)
+
+    b64_encoded_key = base64.b64encode(b'some-encrypted-string')
+    definition = {
+        'Mappings': {
+            'Senza': {
+                'Info': {
+                    'SpotinstAccessToken': 'senza:kms:' + b64_encoded_key.decode("utf-8"),
+                    'SomeOtherProperty': 'some-value'
+                }
+            }
+        }
+    }
+
+    try:
+        decrypt_parameters(definition)
+    except botocore.exceptions.ClientError as client_error:
+        error = client_error.response.get('Error', {})
+        error_code = error.get('Code')
+        assert error_code == 'KeyUnavailableException'
+        return
+
+    assert False
 
 
 def test_create(monkeypatch):

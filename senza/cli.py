@@ -116,6 +116,7 @@ MAX_COLUMN_WIDTHS = {
     'ResourceStatusReason': 50
 }
 
+SENZA_KMS_PREFIX = 'senza:kms:'
 
 def filter_output_columns(output_columns, filter_columns):
     """
@@ -217,6 +218,24 @@ BASE_TEMPLATE = {
 }
 
 
+def decrypt_parameters(definition):
+    senza_info = definition["Mappings"]["Senza"]["Info"]
+    for key in senza_info:
+        if str(senza_info[key]).startswith(SENZA_KMS_PREFIX):
+            senza_info[key] = decrypt_kms(senza_info[key])
+
+    return definition
+
+
+def decrypt_kms(val):
+    ciphertext_blob = val[len(SENZA_KMS_PREFIX):]
+    ciphertext_blob = base64.b64decode(ciphertext_blob)
+    kms_client = boto3.client(service_name='kms', region_name=get_region(region=None))
+    response = kms_client.decrypt(CiphertextBlob=ciphertext_blob)
+
+    return str(response['Plaintext'], "UTF-8")
+
+
 def evaluate(definition, args, account_info, force: bool):
     # extract Senza* meta information
     info = definition.pop("SenzaInfo")
@@ -232,6 +251,7 @@ def evaluate(definition, args, account_info, force: bool):
     template = yaml.dump(definition, default_flow_style=False)
     definition = evaluate_template(template, info, [], args, account_info)
     definition = yaml.safe_load(definition)
+    definition = decrypt_parameters(definition)
 
     components = definition.pop("SenzaComponents", [])
 

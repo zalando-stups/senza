@@ -131,7 +131,7 @@ def extract_subnets(definition, elastigroup_config, account_info):
     """
     subnet_ids = elastigroup_config["compute"].get("subnetIds", [])
     target_region = elastigroup_config.get("region", account_info.Region)
-    if len(subnet_ids) < 1:
+    if not subnet_ids:
         subnet_ids = [subnetId for subnetId in
                       definition["Mappings"]["ServerSubnets"].get(target_region, {}).get("Subnets", [])]
     elastigroup_config["region"] = target_region

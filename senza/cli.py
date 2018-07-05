@@ -240,7 +240,7 @@ def evaluate(definition, args, account_info, force: bool):
     # extract Senza* meta information
     info = definition.pop("SenzaInfo")
     info["StackVersion"] = args.version
-    # replace Arguments and AccountInfo Variabales in info section
+    # replace Arguments and AccountInfo Variables in info section
     info = yaml.safe_load(evaluate_template(yaml.dump(info), {}, {}, args, account_info))
 
     # add info as mappings

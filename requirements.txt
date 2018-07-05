@@ -1,3 +1,4 @@
+requests
 arrow
 clickclick>=1.0
 pystache

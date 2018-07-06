@@ -71,7 +71,7 @@ def die_fatal_error(message):
 
 class HandleExceptions:
     """Class HandleExceptions will display various error messages
-    depending on the type of the exception and show the stacktrack for general exceptions
+    depending on the type of the exception and show the stacktrace for general exceptions
     depending on the value of stacktrace_visible"""
 
     stacktrace_visible = False

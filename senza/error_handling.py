@@ -103,11 +103,6 @@ class HandleExceptions:
                             'content of {fn}'.format(e=unknown_exception,
                                                      fn=file_name))
 
-    # TODO :: sounds like I will have to do something here
-    # InvalidCiphertextException
-    # KeyUnavailableException
-    # KMSInvalidStateException
-    # KMSInternalException
     def __call__(self, *args, **kwargs):
         try:
             self.function(*args, **kwargs)

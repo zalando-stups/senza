@@ -219,7 +219,14 @@ BASE_TEMPLATE = {
 
 
 def decrypt_parameters(definition):
-    senza_info = definition["Mappings"]["Senza"]["Info"]
+    """
+    Searches for encrypted values in the SenzaInfo properties and decrypts them.
+    """
+    try:
+        senza_info = definition["Mappings"]["Senza"]["Info"]
+    except KeyError:
+        return definition
+
     for key in senza_info:
         if str(senza_info[key]).startswith(SENZA_KMS_PREFIX):
             senza_info[key] = decrypt_kms(senza_info[key])
@@ -228,6 +235,9 @@ def decrypt_parameters(definition):
 
 
 def decrypt_kms(val):
+    """
+    Decrypts KMS encrypted values. KMS encrypted values have the prefix 'senza:kms:'
+    """
     ciphertext_blob = val[len(SENZA_KMS_PREFIX):]
     ciphertext_blob = base64.b64decode(ciphertext_blob)
     kms_client = boto3.client(service_name='kms', region_name=get_region(region=None))

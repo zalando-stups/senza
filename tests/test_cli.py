@@ -1102,7 +1102,7 @@ def test_decrypt_parameters(monkeypatch):
         }
     }
 
-    decrypted_definition = decrypt_parameters(definition)
+    decrypted_definition = decrypt_parameters(definition, 'some-region-1')
 
     assert decrypted_definition["Mappings"]["Senza"]["Info"]['SpotinstAccessToken'] == 'spotinst-decrypted-token'
     assert decrypted_definition["Mappings"]["Senza"]["Info"]['SomeOtherProperty'] == 'some-value'
@@ -1133,7 +1133,7 @@ def test_decrypt_parameters_failed(monkeypatch):
     }
 
     try:
-        decrypt_parameters(definition)
+        decrypt_parameters(definition, 'some-region-1')
     except botocore.exceptions.ClientError as client_error:
         error = client_error.response.get('Error', {})
         error_code = error.get('Code')

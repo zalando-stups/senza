@@ -218,7 +218,7 @@ BASE_TEMPLATE = {
 }
 
 
-def decrypt_parameters(definition):
+def decrypt_parameters(definition, region):
     """
     Searches for encrypted values in the SenzaInfo properties and decrypts them.
     """
@@ -229,18 +229,18 @@ def decrypt_parameters(definition):
 
     for key in senza_info:
         if str(senza_info[key]).startswith(SENZA_KMS_PREFIX):
-            senza_info[key] = decrypt_kms(senza_info[key])
+            senza_info[key] = decrypt_kms(senza_info[key], region)
 
     return definition
 
 
-def decrypt_kms(val):
+def decrypt_kms(val, region):
     """
     Decrypts KMS encrypted values. KMS encrypted values have the prefix 'senza:kms:'
     """
     ciphertext_blob = val[len(SENZA_KMS_PREFIX):]
     ciphertext_blob = base64.b64decode(ciphertext_blob)
-    kms_client = boto3.client(service_name='kms', region_name=get_region(region=None))
+    kms_client = boto3.client(service_name='kms', region_name=region)
     response = kms_client.decrypt(CiphertextBlob=ciphertext_blob)
 
     return str(response['Plaintext'], "UTF-8")
@@ -261,7 +261,7 @@ def evaluate(definition, args, account_info, force: bool):
     template = yaml.dump(definition, default_flow_style=False)
     definition = evaluate_template(template, info, [], args, account_info)
     definition = yaml.safe_load(definition)
-    definition = decrypt_parameters(definition)
+    definition = decrypt_parameters(definition, args.region)
 
     components = definition.pop("SenzaComponents", [])
 

@@ -118,6 +118,7 @@ MAX_COLUMN_WIDTHS = {
 
 SENZA_KMS_PREFIX = 'senza:kms:'
 
+
 def filter_output_columns(output_columns, filter_columns):
     """
     Filters a list of columns and only keeps those present in a list of allowed columns.

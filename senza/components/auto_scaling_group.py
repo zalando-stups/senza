@@ -57,45 +57,7 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
     }
 
     if 'IamRoles' in configuration:
-        logical_id = configuration['Name'] + 'InstanceProfile'
-        roles = configuration['IamRoles']
-        if len(roles) > 1:
-            for role in roles:
-                if isinstance(role, dict):
-                    raise click.UsageError('Cannot merge policies of Cloud Formation references ({"Ref": ".."}): ' +
-                                           'You can use at most one IAM role with "Ref".')
-            logical_role_id = configuration['Name'] + 'Role'
-            definition['Resources'][logical_role_id] = {
-                'Type': 'AWS::IAM::Role',
-                'Properties': {
-                    "AssumeRolePolicyDocument": {
-                        "Version": "2012-10-17",
-                        "Statement": [
-                            {
-                                "Effect": "Allow",
-                                "Principal": {
-                                    "Service": ["ec2.amazonaws.com"]
-                                },
-                                "Action": ["sts:AssumeRole"]
-                            }
-                        ]
-                    },
-                    'Path': '/',
-                    'Policies': get_merged_policies(roles)
-                }
-            }
-            instance_profile_roles = [{'Ref': logical_role_id}]
-        elif isinstance(roles[0], dict):
-            instance_profile_roles = [resolve_referenced_resource(roles[0], args.region)]
-        else:
-            instance_profile_roles = roles
-        definition['Resources'][logical_id] = {
-            'Type': 'AWS::IAM::InstanceProfile',
-            'Properties': {
-                'Path': '/',
-                'Roles': instance_profile_roles
-            }
-        }
+        logical_id = handle_iam_roles(definition, configuration, args)
         definition["Resources"][config_name]["Properties"]["IamInstanceProfile"] = {'Ref': logical_id}
 
     if "SecurityGroups" in configuration:
@@ -249,6 +211,49 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
                 props[key] = configuration[key]
 
     return definition
+
+
+def handle_iam_roles(definition, configuration, args):
+    logical_id = configuration['Name'] + 'InstanceProfile'
+    roles = configuration.pop("IamRoles")
+    if len(roles) > 1:
+        for role in roles:
+            if isinstance(role, dict):
+                raise click.UsageError('Cannot merge policies of Cloud Formation references ({"Ref": ".."}): ' +
+                                       'You can use at most one IAM role with "Ref".')
+        logical_role_id = configuration['Name'] + 'Role'
+        definition['Resources'][logical_role_id] = {
+            'Type': 'AWS::IAM::Role',
+            'Properties': {
+                "AssumeRolePolicyDocument": {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Effect": "Allow",
+                            "Principal": {
+                                "Service": ["ec2.amazonaws.com"]
+                            },
+                            "Action": ["sts:AssumeRole"]
+                        }
+                    ]
+                },
+                'Path': '/',
+                'Policies': get_merged_policies(roles)
+            }
+        }
+        instance_profile_roles = [{'Ref': logical_role_id}]
+    elif isinstance(roles[0], dict):
+        instance_profile_roles = [resolve_referenced_resource(roles[0], args.region)]
+    else:
+        instance_profile_roles = roles
+    definition['Resources'][logical_id] = {
+        'Type': 'AWS::IAM::InstanceProfile',
+        'Properties': {
+            'Path': '/',
+            'Roles': instance_profile_roles
+        }
+    }
+    return logical_id
 
 
 duration_regex = r'^(?:\d+[hH])?(?:\d+[mM])?(?:\d+[sS])?$'

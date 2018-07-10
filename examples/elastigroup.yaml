@@ -9,18 +9,14 @@ SenzaComponents:
 
   - AppServerElastigroup:
       Type: Spotinst::Elastigroup
-      Elastigroup:
-        compute:
-          instanceTypes:
-            ondemand: m3.large
-            spot:
-              - m3.large
-              - m4.large
-              - c3.large
-              - c4.large
-          launchSpecification:
-            SecurityGroups: default # for this to work make sure the default security group allows ingress on TCP/8000
-            ElasticLoadBalancer: AppLoadBalancer
+      InstanceType: m3.large
+      SpotAlternatives:
+          - m3.large
+          - m4.large
+          - c3.large
+          - c4.large
+      SecurityGroups: default # for this to work make sure the default security group allows ingress on TCP/8000
+      ElasticLoadBalancerV2: AppLoadBalancer
       TaupageConfig:
         runtime: Docker
         source: "crccheck/hello-world:latest"
@@ -29,7 +25,7 @@ SenzaComponents:
           8000: 8000
 
   - AppLoadBalancer:
-      Type: Senza::WeightedDnsElasticLoadBalancer
+      Type: Senza::WeightedDnsElasticLoadBalancerV2
       HTTPPort: 8000
       HealthCheckPath: /
       SecurityGroups:

@@ -214,6 +214,9 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
 
 
 def handle_iam_roles(definition, configuration, args):
+    """
+    This function resolves Senza's IAMRoles attribute and creates the CF InstanceProfile resources
+    """
     logical_id = configuration['Name'] + 'InstanceProfile'
     roles = configuration.pop("IamRoles")
     if len(roles) > 1:

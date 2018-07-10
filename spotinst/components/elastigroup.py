@@ -134,6 +134,11 @@ def extract_auto_scaling_rules(configuration, elastigroup_config):
 
 
 def normalize_threshold(metric_type, threshold):
+    """
+    This function returns a tuple with the actual threshold and the respective unit
+    The returned unit is "percent" except when the metric_type is one of the Network metrics, in which case
+    the parsed and normalized unit is returned.
+    """
     if metric_type.startswith("Network"):
         normalized_threshold = normalize_network_threshold(threshold)
         return normalized_threshold[0], normalized_threshold[1]
@@ -141,6 +146,10 @@ def normalize_threshold(metric_type, threshold):
 
 
 def create_scale_rule(auto_scaling, operator, threshold, adjustment, cooldown):
+    """
+    This function creates an Elastigroup scaling rule from Senza definitions
+    :return: an object valid for Spotinst's scaling rules
+    """
     metric_type = auto_scaling.get("MetricType", "CPU")
     valid_metrics = {"CPU": "CPUUtilization", "NetworkIn": "NetworkIn", "NetworkOut": "NetworkOut"}
     ops = {"gt": ">", "gte": ">=", "lt": "<", "lte": "<="}

@@ -33,7 +33,7 @@ def component_elastigroup(definition, configuration, args, info, force, account_
     """
     definition = ensure_keys(ensure_keys(definition, "Resources"), "Mappings", "Senza", "Info")
     if "SpotinstAccessToken" not in definition["Mappings"]["Senza"]["Info"]:
-        raise click.UsageError("You have to specificy your SpotinstAccessToken attribute inside the SenzaInfo "
+        raise click.UsageError("You have to specify your SpotinstAccessToken attribute inside the SenzaInfo "
                                "to be able to use Elastigroups")
     configuration = ensure_keys(configuration, "Elastigroup")
 
@@ -332,6 +332,7 @@ def extract_load_balancer_name(configuration, elastigroup_config: dict):
 
         if "ElasticLoadBalancer" in configuration:
             load_balancer_refs = configuration.pop("ElasticLoadBalancer")
+            health_check_type = "ELB"
             if isinstance(load_balancer_refs, str):
                 load_balancers.append({
                     "name": {"Ref": load_balancer_refs},
@@ -344,6 +345,7 @@ def extract_load_balancer_name(configuration, elastigroup_config: dict):
                         "type": "CLASSIC"
                     })
         if "ElasticLoadBalancerV2" in configuration:
+            health_check_type = "TARGET_GROUP"
             load_balancer_refs = configuration.pop("ElasticLoadBalancerV2")
             if isinstance(load_balancer_refs, str):
                 load_balancers.append({
@@ -358,16 +360,13 @@ def extract_load_balancer_name(configuration, elastigroup_config: dict):
                     })
 
         if len(load_balancers) > 0:
-            # use ELB health check by default when there are LBs
-            health_check_type = "ELB"
             launch_spec_config["loadBalancersConfig"] = {"loadBalancers": load_balancers}
 
-    if "healthCheckType" in launch_spec_config:
-        health_check_type = launch_spec_config["healthCheckType"]
-    elif "HealthCheckType" in configuration:
-        health_check_type = configuration["HealthCheckType"]
+    health_check_type = launch_spec_config.get("healthCheckType",
+                                               configuration.get("HealthCheckType", health_check_type))
+    grace_period = launch_spec_config.get("healthCheckGracePeriod",
+                                          configuration.get('HealthCheckGracePeriod', 300))
     launch_spec_config["healthCheckType"] = health_check_type
-    grace_period = launch_spec_config.get("healthCheckGracePeriod", configuration.get('HealthCheckGracePeriod', 300))
     launch_spec_config["healthCheckGracePeriod"] = grace_period
 
 

@@ -20,7 +20,12 @@ from spotinst import MissingSpotinstAccount
 
 SPOTINST_LAMBDA_FORMATION_ARN = 'arn:aws:lambda:{}:178579023202:function:spotinst-cloudformation'
 SPOTINST_API_URL = 'https://api.spotinst.io'
-ELASTIGROUP_DEFAULT_STRATEGY = {"risk": 100, "availabilityVsCost": "balanced", "utilizeReservedInstances": True}
+ELASTIGROUP_DEFAULT_STRATEGY = {
+    "risk": 100,
+    "availabilityVsCost": "balanced",
+    "utilizeReservedInstances": True,
+    "fallbackToOd": True,
+}
 ELASTIGROUP_DEFAULT_PRODUCT = "Linux/UNIX"
 
 
@@ -432,20 +437,16 @@ def extract_instance_types(configuration, elastigroup_config):
     are no SpotAlternatives the Elastigroup will have the same ondemand type as spot alternative
     If there's already a compute.instanceTypes config it will be left untouched
     """
-    elastigroup_config = ensure_keys(ensure_keys(elastigroup_config, "strategy"), "compute")
+    elastigroup_config = ensure_keys(elastigroup_config, "compute")
     compute_config = elastigroup_config["compute"]
-    instance_type = configuration.pop("InstanceType", None)
+
+    if "InstanceType" not in configuration:
+        raise click.UsageError("You need to specify the InstanceType attribute to be able to use Elastigroups")
+    instance_type = configuration.pop("InstanceType")
     spot_alternatives = configuration.pop("SpotAlternatives", None)
     if "instanceTypes" not in compute_config:
-        if not (instance_type or spot_alternatives):
-            raise click.UsageError("You have to specify one of InstanceType or SpotAlternatives")
         instance_types = {}
-        strategy = elastigroup_config["strategy"]
-        if instance_type:
-            instance_types.update({"ondemand": instance_type})
-            strategy.update({"fallbackToOd": True})
-        else:
-            strategy.update({"fallbackToOd": False})
+        instance_types.update({"ondemand": instance_type})
         if spot_alternatives:
             instance_types.update({"spot": spot_alternatives})
         else:

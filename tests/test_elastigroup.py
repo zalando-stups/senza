@@ -598,9 +598,11 @@ def test_extract_security_group_ids(monkeypatch):
             assert test_case["expected_sgs"] == got["compute"]["launchSpecification"].get("securityGroupIds")
 
 
-def test_missing_instance_types():
+def test_missing_instance_type():
     with pytest.raises(click.UsageError):
         extract_instance_types({}, {})
+    with pytest.raises(click.UsageError):
+        extract_instance_types({"SpotAlternatives": ["foo", "bar", "baz"]}, {})
 
 
 def test_extract_instance_types():
@@ -608,20 +610,12 @@ def test_extract_instance_types():
         {  # minimum accepted behavior, on demand instance type from typical Senza
             "input": {"InstanceType": "foo"},
             "given_config": {},
-            "expected_config": {"compute": {"instanceTypes": {"ondemand": "foo", "spot": ["foo"]}},
-                                "strategy": {"fallbackToOd": True}},
+            "expected_config": {"compute": {"instanceTypes": {"ondemand": "foo", "spot": ["foo"]}}},
         },
         {  # both on demand instance type from typical Senza and spot alternatives specified
             "input": {"InstanceType": "foo", "SpotAlternatives": ["bar", "baz"]},
             "given_config": {},
-            "expected_config": {"compute": {"instanceTypes": {"ondemand": "foo", "spot": ["bar", "baz"]}},
-                                "strategy": {"fallbackToOd": True}},
-        },
-        {  # only spot alternatives specified
-            "input": {"SpotAlternatives": ["foo", "bar"]},
-            "given_config": {},
-            "expected_config": {"compute": {"instanceTypes": {"spot": ["foo", "bar"]}},
-                                "strategy": {"fallbackToOd": False}},
+            "expected_config": {"compute": {"instanceTypes": {"ondemand": "foo", "spot": ["bar", "baz"]}}},
         },
     ]
     for test_case in test_cases:

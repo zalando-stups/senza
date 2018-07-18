@@ -442,7 +442,7 @@ def test_load_balancers():
                 "healthCheckGracePeriod": 300,
             }}},
         },
-        {  # 1 application load balancer from Taupage, healthcheck type set to ELB (default grace period)
+        {  # 1 application load balancer from Taupage, healthcheck type set to TARGET_GROUP (default grace period)
             "input": {"ElasticLoadBalancerV2": "bar"},
             "given_config": {},
             "expected_config": {"compute": {"launchSpecification": {
@@ -451,11 +451,12 @@ def test_load_balancers():
                         {"arn": {"Ref": "barTargetGroup"}, "type": "TARGET_GROUP"},
                     ],
                 },
-                "healthCheckType": "ELB",
+                "healthCheckType": "TARGET_GROUP",
                 "healthCheckGracePeriod": 300,
             }}},
         },
-        {  # multiple application load balancers from Taupage, healthcheck type set to ELB (default grace period)
+        {  # multiple application load balancers from Taupage, healthcheck type set to TARGET_GROUP
+            # (default grace period)
             "input": {"ElasticLoadBalancerV2": ["foo", "bar"]},
             "given_config": {},
             "expected_config": {"compute": {"launchSpecification": {
@@ -465,11 +466,11 @@ def test_load_balancers():
                         {"arn": {"Ref": "barTargetGroup"}, "type": "TARGET_GROUP"},
                     ],
                 },
-                "healthCheckType": "ELB",
+                "healthCheckType": "TARGET_GROUP",
                 "healthCheckGracePeriod": 300,
             }}},
         },
-        {  # mixed load balancers from Taupage, healthcheck type set to ELB and custom Taupage grace period
+        {  # mixed load balancers from Taupage, healthcheck type set to TARGET_GROUP and custom Taupage grace period
             "input": {
                 "ElasticLoadBalancer": "foo",
                 "ElasticLoadBalancerV2": "bar",
@@ -483,7 +484,7 @@ def test_load_balancers():
                         {"arn": {"Ref": "barTargetGroup"}, "type": "TARGET_GROUP"},
                     ],
                 },
-                "healthCheckType": "ELB",
+                "healthCheckType": "TARGET_GROUP",
                 "healthCheckGracePeriod": 42,
             }}},
         },

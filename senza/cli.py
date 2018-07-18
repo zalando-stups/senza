@@ -118,6 +118,12 @@ MAX_COLUMN_WIDTHS = {
 
 SENZA_KMS_PREFIX = 'senza:kms:'
 
+ELASTIGROUP_TYPE = 'Custom::elastigroup'
+
+AUTO_SCALING_GROUP_TYPE = 'AWS::AutoScaling::AutoScalingGroup'
+
+VALID_AUTO_SCALING_GROUPS = [AUTO_SCALING_GROUP_TYPE, ELASTIGROUP_TYPE]
+
 
 def filter_output_columns(output_columns, filter_columns):
     """
@@ -1426,8 +1432,24 @@ def dump(stack_ref, region, output):
         print_json(cfjson, output)
 
 
+def get_auto_scaling_groups_and_elasti_groups(stack_refs, region):
+    cf = BotoClientProxy('cloudformation', region)
+    # TODO :: this calls get_stacks again. make the stacks a parameter instead
+    for stack in get_stacks(stack_refs, region):
+        resources = cf.describe_stack_resources(StackName=stack.StackName)['StackResources']
+
+        for resource in resources:
+            if resource['ResourceType'] in VALID_AUTO_SCALING_GROUPS:
+                # TODO :: uhhhhh.... A yield...
+                # TODO :: a) return a tuple/dict with type and asg_name and whatever else is needed
+                # TODO :: b) return a full dict with all the information. Maybe this yield is premature optimization.
+                # (I mean.... to prevent storing the whole list, we store (stack_refs, region, cf, output of get_stacks, resources and resource
+                yield {'type': resource['ResourceType'], 'resource_id': resource['PhysicalResourceId'], 'stack_name': resource['StackName']}
+
+
 def get_auto_scaling_groups(stack_refs, region):
     cf = BotoClientProxy('cloudformation', region)
+    # TODO :: this calls get_stacks again. make the stacks a parameter instead
     for stack in get_stacks(stack_refs, region):
         resources = cf.describe_stack_resources(StackName=stack.StackName)['StackResources']
 
@@ -1528,22 +1550,67 @@ def scale(stack_ref, region, desired_capacity, force):
         confirm_str = 'Number of stacks to be scaled - {}. Do you want to continue?'.format(stack_count)
         click.confirm(confirm_str, abort=True)
 
-    for asg_name in get_auto_scaling_groups(stack_refs, region):
-        group = get_auto_scaling_group(asg, asg_name)
-        current_capacity = group['DesiredCapacity']
-        with Action('Scaling {} from {} to {} instances..'.format(
-                asg_name, current_capacity, desired_capacity)) as act:
-            if current_capacity == desired_capacity:
-                act.ok('NO CHANGES')
-            else:
-                kwargs = {}
-                if desired_capacity < group['MinSize']:
-                    kwargs['MinSize'] = desired_capacity
-                if desired_capacity > group['MaxSize']:
-                    kwargs['MaxSize'] = desired_capacity
-                asg.update_auto_scaling_group(AutoScalingGroupName=asg_name,
-                                              DesiredCapacity=desired_capacity,
-                                              **kwargs)
+    for group in get_auto_scaling_groups_and_elasti_groups(stack_refs, region):
+        if group['type'] == AUTO_SCALING_GROUP_TYPE:
+            scale_auto_scaling_group(asg, group['resource_id'], desired_capacity)
+        else:
+            if group['type'] == ELASTIGROUP_TYPE:
+                scale_elastigroup(group['resource_id'], group['stack_name'], desired_capacity, region)
+
+
+def scale_elastigroup(elastigroup_id, stack_name, desired_capacity, region):
+
+    cf = boto3.client('cloudformation', region)
+    template = cf.get_template(StackName=stack_name)['TemplateBody']
+
+    spotinst_token = template['Mappings']['Senza']['Info']['SpotinstAccessToken']
+    spotinst_account_id = template['Resources']['AppServerConfig']['Properties']['accountId']
+
+    headers = {
+        "Authorization": "Bearer {}".format(spotinst_token),
+        "Content-Type": "application/json"
+    }
+
+    # TODO :: know the targets for min, max and current
+    # https://api.spotinst.io/aws/ec2/group/:GROUP_ID?accountId=
+    response = requests.get('https://api.spotinst.io/aws/ec2/group/{}?accountId={}'.format(elastigroup_id, spotinst_account_id), headers=headers, timeout=5)
+    response.raise_for_status()
+    data = response.json()
+    groups = data.get("response", {}).get("items", [])
+    capacity = groups[0]['capacity']
+
+    # TODO :: if not equal, then we call the spotinst api to update elastigroup
+    # TODO :: pay attention to readjust the min and max like it's done for ASG
+    # https://api.spotinst.com/elastigroup/amazon-web-services/update/
+    new_capacity = {
+        'target': desired_capacity,
+        'minimum': desired_capacity if capacity['minimum'] > desired_capacity else capacity['minimum'],
+        'maximum': desired_capacity if capacity['maximum'] < desired_capacity else capacity['maximum']
+    }
+
+    body = {'group': {'capacity': new_capacity}}
+    response = requests.put(
+        'https://api.spotinst.io/aws/ec2/group/{}?accountId={}'.format(elastigroup_id, spotinst_account_id),
+        headers=headers, timeout=10, data=json.dumps(body))
+    response.raise_for_status()
+
+
+def scale_auto_scaling_group(asg, asg_name, desired_capacity):
+    group = get_auto_scaling_group(asg, asg_name)
+    current_capacity = group['DesiredCapacity']
+    with Action('Scaling {} from {} to {} instances..'.format(
+            asg_name, current_capacity, desired_capacity)) as act:
+        if current_capacity == desired_capacity:
+            act.ok('NO CHANGES')
+        else:
+            kwargs = {}
+            if desired_capacity < group['MinSize']:
+                kwargs['MinSize'] = desired_capacity
+            if desired_capacity > group['MaxSize']:
+                kwargs['MaxSize'] = desired_capacity
+            asg.update_auto_scaling_group(AutoScalingGroupName=asg_name,
+                                          DesiredCapacity=desired_capacity,
+                                          **kwargs)
 
 
 def failure_event(event: dict):

@@ -12,7 +12,6 @@ import pytest
 import senza.traffic
 import yaml
 import base64
-import responses
 from click.testing import CliRunner
 from senza.aws import SenzaStackSummary
 from senza.cli import (KeyValParamType, StackReference,
@@ -1687,43 +1686,35 @@ def test_scale_elastigroup(monkeypatch):
     }
 
     group = {
-        'response': {
-            'items': [{
-                'capacity': {
-                    'minimum': 1,
-                    'maximum': 2,
-                    'target': 1,
-                    'unit': 'instance'
-                }
-            }]
+        'capacity': {
+            'minimum': 1,
+            'maximum': 2,
+            'target': 1,
+            'unit': 'instance'
         }
     }
+    get_elastigroup = MagicMock()
+    get_elastigroup.return_value = group
+
     update = {
-        'response': {
-            'items': [{
-                'capacity': {
-                    'minimum': 1,
-                    'maximum': 3,
-                    'target': 3,
-                    'unit': 'instance'
-                }
-            }]
+        'capacity': {
+            'minimum': 1,
+            'maximum': 3,
+            'target': 3,
+            'unit': 'instance'
         }
     }
-    with responses.RequestsMock() as rsps:
-        rsps.add(rsps.GET, 'https://api.spotinst.io/aws/ec2/group/{}?accountId={}'.format(elastigroup_id, spotinst_account_id),
-                 status=200,
-                 json=group)
+    update_capacity = MagicMock()
+    update_capacity.return_value = update
 
-        rsps.add(rsps.PUT, 'https://api.spotinst.io/aws/ec2/group/{}?accountId={}'.format(elastigroup_id, spotinst_account_id),
-                 status=200,
-                 json=update)
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+    monkeypatch.setattr('spotinst.components.elastigroup_api.get_elastigroup', get_elastigroup)
+    monkeypatch.setattr('spotinst.components.elastigroup_api.update_capacity', update_capacity)
 
-        monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
-        runner = CliRunner()
-        result = runner.invoke(cli, ['scale', 'myapp', '1', '3', '--region=aa-fakeregion-1'],
-                               catch_exceptions=False)
-        assert 'Scaling ElastiGroup myapp-1 (ID: myelasti) from 1 to 3 instances' in result.output
+    runner = CliRunner()
+    result = runner.invoke(cli, ['scale', 'myapp', '1', '3', '--region=aa-fakeregion-1'],
+                           catch_exceptions=False)
+    assert 'Scaling ElastiGroup myapp-1 (ID: myelasti) from 1 to 3 instances' in result.output
 
 
 def test_scale_with_confirm(monkeypatch):

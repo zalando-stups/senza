@@ -25,6 +25,7 @@ from clickclick import (Action, FloatRange, OutputFormat, choice, error,
                         fatal_error, info, ok)
 from clickclick.console import print_table
 
+import spotinst
 from .arguments import (GLOBAL_OPTIONS, json_output_option, output_option,
                         parameter_file_option, region_option,
                         stacktrace_visible_option, watch_option,
@@ -1432,24 +1433,23 @@ def dump(stack_ref, region, output):
         print_json(cfjson, output)
 
 
-def get_auto_scaling_groups_and_elasti_groups(stack_refs, region):
+def get_auto_scaling_groups_and_elasti_groups(stacks, region):
+    '''
+    Returns data for both AWS Auto Scaling Groups and ElastiGroups
+
+    Note: This method will eventually replace get_auto_scaling_groups when the remaining commands support ElastiGroups
+    '''
     cf = BotoClientProxy('cloudformation', region)
-    # TODO :: this calls get_stacks again. make the stacks a parameter instead
-    for stack in get_stacks(stack_refs, region):
+    for stack in stacks:
         resources = cf.describe_stack_resources(StackName=stack.StackName)['StackResources']
 
         for resource in resources:
             if resource['ResourceType'] in VALID_AUTO_SCALING_GROUPS:
-                # TODO :: uhhhhh.... A yield...
-                # TODO :: a) return a tuple/dict with type and asg_name and whatever else is needed
-                # TODO :: b) return a full dict with all the information. Maybe this yield is premature optimization.
-                # (I mean.... to prevent storing the whole list, we store (stack_refs, region, cf, output of get_stacks, resources and resource
                 yield {'type': resource['ResourceType'], 'resource_id': resource['PhysicalResourceId'], 'stack_name': resource['StackName']}
 
 
 def get_auto_scaling_groups(stack_refs, region):
     cf = BotoClientProxy('cloudformation', region)
-    # TODO :: this calls get_stacks again. make the stacks a parameter instead
     for stack in get_stacks(stack_refs, region):
         resources = cf.describe_stack_resources(StackName=stack.StackName)['StackResources']
 
@@ -1545,12 +1545,13 @@ def scale(stack_ref, region, desired_capacity, force):
 
     asg = BotoClientProxy('autoscaling', region)
 
-    stack_count = len(list(get_stacks(stack_refs, region)))
+    stacks = get_stacks(stack_refs, region)
+    stack_count = len(stacks)
     if not force and stack_count > 1:
         confirm_str = 'Number of stacks to be scaled - {}. Do you want to continue?'.format(stack_count)
         click.confirm(confirm_str, abort=True)
 
-    for group in get_auto_scaling_groups_and_elasti_groups(stack_refs, region):
+    for group in get_auto_scaling_groups_and_elasti_groups(stacks, region):
         if group['type'] == AUTO_SCALING_GROUP_TYPE:
             scale_auto_scaling_group(asg, group['resource_id'], desired_capacity)
         elif group['type'] == ELASTIGROUP_TYPE:
@@ -1565,33 +1566,18 @@ def scale_elastigroup(elastigroup_id, stack_name, desired_capacity, region):
     spotinst_token = template['Mappings']['Senza']['Info']['SpotinstAccessToken']
     spotinst_account_id = template['Resources']['AppServerConfig']['Properties']['accountId']
 
-    headers = {
-        "Authorization": "Bearer {}".format(spotinst_token),
-        "Content-Type": "application/json"
-    }
-
-    response = requests.get('https://api.spotinst.io/aws/ec2/group/{}?accountId={}'.format(elastigroup_id, spotinst_account_id), headers=headers, timeout=5)
-    response.raise_for_status()
-    data = response.json()
-    groups = data.get("response", {}).get("items", [])
-    capacity = groups[0]['capacity']
+    group = spotinst.components.elastigroup_api.get_elastigroup(elastigroup_id, spotinst_account_id, spotinst_token)
+    capacity = group['capacity']
 
     with Action('Scaling ElastiGroup {} (ID: {}) from {} to {} instances..'.format(
             stack_name, elastigroup_id, capacity['target'], desired_capacity)) as act:
         if capacity['target'] == desired_capacity:
             act.ok('NO CHANGES')
         else:
-            new_capacity = {
-                'target': desired_capacity,
-                'minimum': desired_capacity if capacity['minimum'] > desired_capacity else capacity['minimum'],
-                'maximum': desired_capacity if capacity['maximum'] < desired_capacity else capacity['maximum']
-            }
+            minimum = desired_capacity if capacity['minimum'] > desired_capacity else capacity['minimum']
+            maximum = desired_capacity if capacity['maximum'] < desired_capacity else capacity['maximum']
 
-            body = {'group': {'capacity': new_capacity}}
-            response = requests.put(
-                'https://api.spotinst.io/aws/ec2/group/{}?accountId={}'.format(elastigroup_id, spotinst_account_id),
-                headers=headers, timeout=10, data=json.dumps(body))
-            response.raise_for_status()
+            spotinst.components.elastigroup_api.update_capacity(minimum, maximum, desired_capacity, elastigroup_id, spotinst_account_id, spotinst_token)
 
 
 def scale_auto_scaling_group(asg, asg_name, desired_capacity):
@@ -1652,7 +1638,7 @@ def wait(stack_ref, region, deletion, timeout, interval):
         stacks_in_progress = set()
         successful_actions = set()
 
-        stacks_found = list(get_stacks(stack_refs, region, all=True, unique_only=True))
+        stacks_found = get_stacks(stack_refs, region, all=True, unique_only=True)
 
         if not stacks_found:
             raise click.UsageError('No matching stack for "{}" found'.format(' '.join(stack_ref)))

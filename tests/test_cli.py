@@ -5,7 +5,6 @@ import os
 from contextlib import contextmanager
 
 from typing import List, Dict
-from typing import Optional
 from unittest.mock import MagicMock, mock_open
 
 import botocore.exceptions
@@ -13,6 +12,7 @@ import pytest
 import senza.traffic
 import yaml
 import base64
+import responses
 from click.testing import CliRunner
 from senza.aws import SenzaStackSummary
 from senza.cli import (KeyValParamType, StackReference,
@@ -1645,7 +1645,8 @@ def test_scale(monkeypatch):
                                                           'CreationTime': '2016-06-14'}]}
     boto3.describe_stack_resources.return_value = {'StackResources':
                                                        [{'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
-                                                         'PhysicalResourceId': 'myasg'}]}
+                                                         'PhysicalResourceId': 'myasg',
+                                                         'StackName': 'myapp-1'}]}
     # NOTE: we are using invalid MinSize (< capacity) here to get one more line covered ;-)
     group = {'AutoScalingGroupName': 'myasg', 'DesiredCapacity': 1, 'MinSize': 3, 'MaxSize': 1}
     boto3.describe_auto_scaling_groups.return_value = {'AutoScalingGroups': [group]}
@@ -1654,6 +1655,76 @@ def test_scale(monkeypatch):
     result = runner.invoke(cli, ['scale', 'myapp', '1', '2', '--region=aa-fakeregion-1'],
                            catch_exceptions=False)
     assert 'Scaling myasg from 1 to 2 instances' in result.output
+
+
+def test_scale_elastigroup(monkeypatch):
+    spotinst_account_id = 'fakeactid'
+    elastigroup_id = 'myelasti'
+    boto3 = MagicMock()
+    boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',
+                                                          'CreationTime': '2016-06-14'}]}
+    boto3.describe_stack_resources.return_value = {'StackResources':
+                                                       [{'ResourceType': 'Custom::elastigroup',
+                                                         'PhysicalResourceId': elastigroup_id,
+                                                         'StackName': 'myapp-1'}]}
+    boto3.get_template.return_value = {
+        'TemplateBody': {
+            'Mappings': {
+                'Senza': {
+                    'Info': {
+                        'SpotinstAccessToken': 'faketoken'
+                    }
+                }
+            },
+            'Resources': {
+                'AppServerConfig': {
+                    'Properties': {
+                        'accountId': spotinst_account_id
+                    }
+                }
+            }
+        }
+    }
+
+    group = {
+        'response': {
+            'items': [{
+                'capacity': {
+                    'minimum': 1,
+                    'maximum': 2,
+                    'target': 1,
+                    'unit': 'instance'
+                }
+            }]
+        }
+    }
+    update = {
+        'response': {
+            'items': [{
+                'capacity': {
+                    'minimum': 1,
+                    'maximum': 3,
+                    'target': 3,
+                    'unit': 'instance'
+                }
+            }]
+        }
+    }
+    with responses.RequestsMock() as rsps:
+        rsps.add(rsps.GET, 'https://api.spotinst.io/aws/ec2/group/{}?accountId={}'.format(elastigroup_id, spotinst_account_id),
+                 status=200,
+                 json=group)
+
+        rsps.add(rsps.PUT, 'https://api.spotinst.io/aws/ec2/group/{}?accountId={}'.format(elastigroup_id, spotinst_account_id),
+                 status=200,
+                 json=update)
+
+        monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+        runner = CliRunner()
+        result = runner.invoke(cli, ['scale', 'myapp', '1', '3', '--region=aa-fakeregion-1'],
+                               catch_exceptions=False)
+        assert 'Scaling ElastiGroup myapp-1 (ID: myelasti) from 1 to 3 instances' in result.output
+
 
 def test_scale_with_confirm(monkeypatch):
     boto3 = MagicMock()
@@ -1683,7 +1754,8 @@ def test_scale_with_force_confirm(monkeypatch):
     ]}
     boto3.describe_stack_resources.return_value = {'StackResources':
                                                        [{'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
-                                                         'PhysicalResourceId': 'myasg'}]}
+                                                         'PhysicalResourceId': 'myasg',
+                                                         'StackName': 'myapp-1'}]}
     group = {'AutoScalingGroupName': 'myasg', 'DesiredCapacity': 1, 'MinSize': 3, 'MaxSize': 1}
     boto3.describe_auto_scaling_groups.return_value = {'AutoScalingGroups': [group]}
     monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
@@ -1691,7 +1763,6 @@ def test_scale_with_force_confirm(monkeypatch):
     result = runner.invoke(cli, ['scale', 'myapp', '2', '--region=aa-fakeregion-1', '--force'],
                            catch_exceptions=False)
     assert 'Scaling myasg from 1 to 2 instances' in result.output
-
 
 
 def test_wait(monkeypatch):

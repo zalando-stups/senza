@@ -1553,9 +1553,8 @@ def scale(stack_ref, region, desired_capacity, force):
     for group in get_auto_scaling_groups_and_elasti_groups(stack_refs, region):
         if group['type'] == AUTO_SCALING_GROUP_TYPE:
             scale_auto_scaling_group(asg, group['resource_id'], desired_capacity)
-        else:
-            if group['type'] == ELASTIGROUP_TYPE:
-                scale_elastigroup(group['resource_id'], group['stack_name'], desired_capacity, region)
+        elif group['type'] == ELASTIGROUP_TYPE:
+            scale_elastigroup(group['resource_id'], group['stack_name'], desired_capacity, region)
 
 
 def scale_elastigroup(elastigroup_id, stack_name, desired_capacity, region):
@@ -1571,28 +1570,28 @@ def scale_elastigroup(elastigroup_id, stack_name, desired_capacity, region):
         "Content-Type": "application/json"
     }
 
-    # TODO :: know the targets for min, max and current
-    # https://api.spotinst.io/aws/ec2/group/:GROUP_ID?accountId=
     response = requests.get('https://api.spotinst.io/aws/ec2/group/{}?accountId={}'.format(elastigroup_id, spotinst_account_id), headers=headers, timeout=5)
     response.raise_for_status()
     data = response.json()
     groups = data.get("response", {}).get("items", [])
     capacity = groups[0]['capacity']
 
-    # TODO :: if not equal, then we call the spotinst api to update elastigroup
-    # TODO :: pay attention to readjust the min and max like it's done for ASG
-    # https://api.spotinst.com/elastigroup/amazon-web-services/update/
-    new_capacity = {
-        'target': desired_capacity,
-        'minimum': desired_capacity if capacity['minimum'] > desired_capacity else capacity['minimum'],
-        'maximum': desired_capacity if capacity['maximum'] < desired_capacity else capacity['maximum']
-    }
+    with Action('Scaling ElastiGroup {} (ID: {}) from {} to {} instances..'.format(
+            stack_name, elastigroup_id, capacity['target'], desired_capacity)) as act:
+        if capacity['target'] == desired_capacity:
+            act.ok('NO CHANGES')
+        else:
+            new_capacity = {
+                'target': desired_capacity,
+                'minimum': desired_capacity if capacity['minimum'] > desired_capacity else capacity['minimum'],
+                'maximum': desired_capacity if capacity['maximum'] < desired_capacity else capacity['maximum']
+            }
 
-    body = {'group': {'capacity': new_capacity}}
-    response = requests.put(
-        'https://api.spotinst.io/aws/ec2/group/{}?accountId={}'.format(elastigroup_id, spotinst_account_id),
-        headers=headers, timeout=10, data=json.dumps(body))
-    response.raise_for_status()
+            body = {'group': {'capacity': new_capacity}}
+            response = requests.put(
+                'https://api.spotinst.io/aws/ec2/group/{}?accountId={}'.format(elastigroup_id, spotinst_account_id),
+                headers=headers, timeout=10, data=json.dumps(body))
+            response.raise_for_status()
 
 
 def scale_auto_scaling_group(asg, asg_name, desired_capacity):

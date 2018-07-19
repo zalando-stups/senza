@@ -25,7 +25,7 @@ from clickclick import (Action, FloatRange, OutputFormat, choice, error,
                         fatal_error, info, ok)
 from clickclick.console import print_table
 
-import spotinst
+from spotinst.components import elastigroup_api
 from .arguments import (GLOBAL_OPTIONS, json_output_option, output_option,
                         parameter_file_option, region_option,
                         stacktrace_visible_option, watch_option,
@@ -1570,7 +1570,7 @@ def scale_elastigroup(elastigroup_id, stack_name, desired_capacity, region):
     spotinst_token = template['Mappings']['Senza']['Info']['SpotinstAccessToken']
     spotinst_account_id = template['Resources']['AppServerConfig']['Properties']['accountId']
 
-    group = spotinst.components.elastigroup_api.get_elastigroup(elastigroup_id, spotinst_account_id, spotinst_token)
+    group = elastigroup_api.get_elastigroup(elastigroup_id, spotinst_account_id, spotinst_token)
     capacity = group['capacity']
 
     with Action('Scaling ElastiGroup {} (ID: {}) from {} to {} instances..'.format(
@@ -1581,12 +1581,12 @@ def scale_elastigroup(elastigroup_id, stack_name, desired_capacity, region):
             minimum = desired_capacity if capacity['minimum'] > desired_capacity else capacity['minimum']
             maximum = desired_capacity if capacity['maximum'] < desired_capacity else capacity['maximum']
 
-            spotinst.components.elastigroup_api.update_capacity(minimum,
-                                                                maximum,
-                                                                desired_capacity,
-                                                                elastigroup_id,
-                                                                spotinst_account_id,
-                                                                spotinst_token)
+            elastigroup_api.update_capacity(minimum,
+                                            maximum,
+                                            desired_capacity,
+                                            elastigroup_id,
+                                            spotinst_account_id,
+                                            spotinst_token)
 
 
 def scale_auto_scaling_group(asg, asg_name, desired_capacity):

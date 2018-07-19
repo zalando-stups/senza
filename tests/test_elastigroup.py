@@ -442,7 +442,7 @@ def test_load_balancers():
                 "healthCheckGracePeriod": 300,
             }}},
         },
-        {  # 1 application load balancer from Taupage, healthcheck type set to ELB (default grace period)
+        {  # 1 application load balancer from Taupage, healthcheck type set to TARGET_GROUP (default grace period)
             "input": {"ElasticLoadBalancerV2": "bar"},
             "given_config": {},
             "expected_config": {"compute": {"launchSpecification": {
@@ -451,11 +451,12 @@ def test_load_balancers():
                         {"arn": {"Ref": "barTargetGroup"}, "type": "TARGET_GROUP"},
                     ],
                 },
-                "healthCheckType": "ELB",
+                "healthCheckType": "TARGET_GROUP",
                 "healthCheckGracePeriod": 300,
             }}},
         },
-        {  # multiple application load balancers from Taupage, healthcheck type set to ELB (default grace period)
+        {  # multiple application load balancers from Taupage, healthcheck type set to TARGET_GROUP
+            # (default grace period)
             "input": {"ElasticLoadBalancerV2": ["foo", "bar"]},
             "given_config": {},
             "expected_config": {"compute": {"launchSpecification": {
@@ -465,11 +466,11 @@ def test_load_balancers():
                         {"arn": {"Ref": "barTargetGroup"}, "type": "TARGET_GROUP"},
                     ],
                 },
-                "healthCheckType": "ELB",
+                "healthCheckType": "TARGET_GROUP",
                 "healthCheckGracePeriod": 300,
             }}},
         },
-        {  # mixed load balancers from Taupage, healthcheck type set to ELB and custom Taupage grace period
+        {  # mixed load balancers from Taupage, healthcheck type set to TARGET_GROUP and custom Taupage grace period
             "input": {
                 "ElasticLoadBalancer": "foo",
                 "ElasticLoadBalancerV2": "bar",
@@ -483,7 +484,7 @@ def test_load_balancers():
                         {"arn": {"Ref": "barTargetGroup"}, "type": "TARGET_GROUP"},
                     ],
                 },
-                "healthCheckType": "ELB",
+                "healthCheckType": "TARGET_GROUP",
                 "healthCheckGracePeriod": 42,
             }}},
         },
@@ -598,9 +599,11 @@ def test_extract_security_group_ids(monkeypatch):
             assert test_case["expected_sgs"] == got["compute"]["launchSpecification"].get("securityGroupIds")
 
 
-def test_missing_instance_types():
+def test_missing_instance_type():
     with pytest.raises(click.UsageError):
         extract_instance_types({}, {})
+    with pytest.raises(click.UsageError):
+        extract_instance_types({"SpotAlternatives": ["foo", "bar", "baz"]}, {})
 
 
 def test_extract_instance_types():
@@ -608,20 +611,12 @@ def test_extract_instance_types():
         {  # minimum accepted behavior, on demand instance type from typical Senza
             "input": {"InstanceType": "foo"},
             "given_config": {},
-            "expected_config": {"compute": {"instanceTypes": {"ondemand": "foo", "spot": ["foo"]}},
-                                "strategy": {"fallbackToOd": True}},
+            "expected_config": {"compute": {"instanceTypes": {"ondemand": "foo", "spot": ["foo"]}}},
         },
         {  # both on demand instance type from typical Senza and spot alternatives specified
             "input": {"InstanceType": "foo", "SpotAlternatives": ["bar", "baz"]},
             "given_config": {},
-            "expected_config": {"compute": {"instanceTypes": {"ondemand": "foo", "spot": ["bar", "baz"]}},
-                                "strategy": {"fallbackToOd": True}},
-        },
-        {  # only spot alternatives specified
-            "input": {"SpotAlternatives": ["foo", "bar"]},
-            "given_config": {},
-            "expected_config": {"compute": {"instanceTypes": {"spot": ["foo", "bar"]}},
-                                "strategy": {"fallbackToOd": False}},
+            "expected_config": {"compute": {"instanceTypes": {"ondemand": "foo", "spot": ["bar", "baz"]}}},
         },
     ]
     for test_case in test_cases:

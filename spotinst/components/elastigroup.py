@@ -20,7 +20,12 @@ from spotinst import MissingSpotinstAccount
 
 SPOTINST_LAMBDA_FORMATION_ARN = 'arn:aws:lambda:{}:178579023202:function:spotinst-cloudformation'
 SPOTINST_API_URL = 'https://api.spotinst.io'
-ELASTIGROUP_DEFAULT_STRATEGY = {"risk": 100, "availabilityVsCost": "balanced", "utilizeReservedInstances": True}
+ELASTIGROUP_DEFAULT_STRATEGY = {
+    "risk": 100,
+    "availabilityVsCost": "balanced",
+    "utilizeReservedInstances": True,
+    "fallbackToOd": True,
+}
 ELASTIGROUP_DEFAULT_PRODUCT = "Linux/UNIX"
 
 
@@ -33,7 +38,7 @@ def component_elastigroup(definition, configuration, args, info, force, account_
     """
     definition = ensure_keys(ensure_keys(definition, "Resources"), "Mappings", "Senza", "Info")
     if "SpotinstAccessToken" not in definition["Mappings"]["Senza"]["Info"]:
-        raise click.UsageError("You have to specificy your SpotinstAccessToken attribute inside the SenzaInfo "
+        raise click.UsageError("You have to specify your SpotinstAccessToken attribute inside the SenzaInfo "
                                "to be able to use Elastigroups")
     configuration = ensure_keys(configuration, "Elastigroup")
 
@@ -332,6 +337,7 @@ def extract_load_balancer_name(configuration, elastigroup_config: dict):
 
         if "ElasticLoadBalancer" in configuration:
             load_balancer_refs = configuration.pop("ElasticLoadBalancer")
+            health_check_type = "ELB"
             if isinstance(load_balancer_refs, str):
                 load_balancers.append({
                     "name": {"Ref": load_balancer_refs},
@@ -344,6 +350,7 @@ def extract_load_balancer_name(configuration, elastigroup_config: dict):
                         "type": "CLASSIC"
                     })
         if "ElasticLoadBalancerV2" in configuration:
+            health_check_type = "TARGET_GROUP"
             load_balancer_refs = configuration.pop("ElasticLoadBalancerV2")
             if isinstance(load_balancer_refs, str):
                 load_balancers.append({
@@ -358,16 +365,13 @@ def extract_load_balancer_name(configuration, elastigroup_config: dict):
                     })
 
         if len(load_balancers) > 0:
-            # use ELB health check by default when there are LBs
-            health_check_type = "ELB"
             launch_spec_config["loadBalancersConfig"] = {"loadBalancers": load_balancers}
 
-    if "healthCheckType" in launch_spec_config:
-        health_check_type = launch_spec_config["healthCheckType"]
-    elif "HealthCheckType" in configuration:
-        health_check_type = configuration["HealthCheckType"]
+    health_check_type = launch_spec_config.get("healthCheckType",
+                                               configuration.get("HealthCheckType", health_check_type))
+    grace_period = launch_spec_config.get("healthCheckGracePeriod",
+                                          configuration.get('HealthCheckGracePeriod', 300))
     launch_spec_config["healthCheckType"] = health_check_type
-    grace_period = launch_spec_config.get("healthCheckGracePeriod", configuration.get('HealthCheckGracePeriod', 300))
     launch_spec_config["healthCheckGracePeriod"] = grace_period
 
 
@@ -432,20 +436,16 @@ def extract_instance_types(configuration, elastigroup_config):
     are no SpotAlternatives the Elastigroup will have the same ondemand type as spot alternative
     If there's already a compute.instanceTypes config it will be left untouched
     """
-    elastigroup_config = ensure_keys(ensure_keys(elastigroup_config, "strategy"), "compute")
+    elastigroup_config = ensure_keys(elastigroup_config, "compute")
     compute_config = elastigroup_config["compute"]
-    instance_type = configuration.pop("InstanceType", None)
+
+    if "InstanceType" not in configuration:
+        raise click.UsageError("You need to specify the InstanceType attribute to be able to use Elastigroups")
+    instance_type = configuration.pop("InstanceType")
     spot_alternatives = configuration.pop("SpotAlternatives", None)
     if "instanceTypes" not in compute_config:
-        if not (instance_type or spot_alternatives):
-            raise click.UsageError("You have to specify one of InstanceType or SpotAlternatives")
         instance_types = {}
-        strategy = elastigroup_config["strategy"]
-        if instance_type:
-            instance_types.update({"ondemand": instance_type})
-            strategy.update({"fallbackToOd": True})
-        else:
-            strategy.update({"fallbackToOd": False})
+        instance_types.update({"ondemand": instance_type})
         if spot_alternatives:
             instance_types.update({"spot": spot_alternatives})
         else:

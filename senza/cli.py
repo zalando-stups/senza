@@ -1445,7 +1445,9 @@ def get_auto_scaling_groups_and_elasti_groups(stacks, region):
 
         for resource in resources:
             if resource['ResourceType'] in VALID_AUTO_SCALING_GROUPS:
-                yield {'type': resource['ResourceType'], 'resource_id': resource['PhysicalResourceId'], 'stack_name': resource['StackName']}
+                yield {'type': resource['ResourceType'],
+                       'resource_id': resource['PhysicalResourceId'],
+                       'stack_name': resource['StackName']}
 
 
 def get_auto_scaling_groups(stack_refs, region):
@@ -1559,7 +1561,9 @@ def scale(stack_ref, region, desired_capacity, force):
 
 
 def scale_elastigroup(elastigroup_id, stack_name, desired_capacity, region):
-
+    '''
+    Commands to scale an ElastiGroup
+    '''
     cf = boto3.client('cloudformation', region)
     template = cf.get_template(StackName=stack_name)['TemplateBody']
 
@@ -1577,10 +1581,18 @@ def scale_elastigroup(elastigroup_id, stack_name, desired_capacity, region):
             minimum = desired_capacity if capacity['minimum'] > desired_capacity else capacity['minimum']
             maximum = desired_capacity if capacity['maximum'] < desired_capacity else capacity['maximum']
 
-            spotinst.components.elastigroup_api.update_capacity(minimum, maximum, desired_capacity, elastigroup_id, spotinst_account_id, spotinst_token)
+            spotinst.components.elastigroup_api.update_capacity(minimum,
+                                                                maximum,
+                                                                desired_capacity,
+                                                                elastigroup_id,
+                                                                spotinst_account_id,
+                                                                spotinst_token)
 
 
 def scale_auto_scaling_group(asg, asg_name, desired_capacity):
+    '''
+    Commands to scale an AWS Auto Scaling Group
+    '''
     group = get_auto_scaling_group(asg, asg_name)
     current_capacity = group['DesiredCapacity']
     with Action('Scaling {} from {} to {} instances..'.format(

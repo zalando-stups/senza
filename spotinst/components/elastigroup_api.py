@@ -1,3 +1,6 @@
+'''
+Wrapper methods for ElastiGroup's API
+'''
 import requests
 import json
 

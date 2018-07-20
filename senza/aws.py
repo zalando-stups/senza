@@ -301,10 +301,13 @@ def get_stacks(stack_refs: list,
     # stack names that were already yielded to avoid yielding old deleted
     # stacks whose name was reused
     stacks_yielded = set()
+    output_stacks = []
     for stack in stacks:
         if stack['StackName'] not in stacks_yielded or not unique_only:
             stacks_yielded.add(stack['StackName'])
-            yield SenzaStackSummary(stack)
+            output_stacks.append(SenzaStackSummary(stack))
+
+    return output_stacks
 
 
 def matches_any(cf_stack_name: str, stack_refs: list):
@@ -461,7 +464,7 @@ def all_stacks_in_final_state(related_stacks_refs: list, region: str, timeout: O
         while not all_in_final_state and wait_timeout > datetime.datetime.utcnow():
             # assume all stacks are ready
             all_in_final_state = True
-            related_stacks = list(get_stacks(related_stacks_refs, region))
+            related_stacks = get_stacks(related_stacks_refs, region)
 
             if not related_stacks:
                 error("Stack not found!")

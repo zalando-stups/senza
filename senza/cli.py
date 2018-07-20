@@ -25,6 +25,7 @@ from clickclick import (Action, FloatRange, OutputFormat, choice, error,
                         fatal_error, info, ok)
 from clickclick.console import print_table
 
+from spotinst.components import elastigroup_api
 from .arguments import (GLOBAL_OPTIONS, json_output_option, output_option,
                         parameter_file_option, region_option,
                         stacktrace_visible_option, watch_option,
@@ -117,6 +118,12 @@ MAX_COLUMN_WIDTHS = {
 }
 
 SENZA_KMS_PREFIX = 'senza:kms:'
+
+ELASTIGROUP_TYPE = 'Custom::elastigroup'
+
+AUTO_SCALING_GROUP_TYPE = 'AWS::AutoScaling::AutoScalingGroup'
+
+VALID_AUTO_SCALING_GROUPS = [AUTO_SCALING_GROUP_TYPE, ELASTIGROUP_TYPE]
 
 
 def filter_output_columns(output_columns, filter_columns):
@@ -1426,6 +1433,23 @@ def dump(stack_ref, region, output):
         print_json(cfjson, output)
 
 
+def get_auto_scaling_groups_and_elasti_groups(stacks, region):
+    '''
+    Returns data for both AWS Auto Scaling Groups and ElastiGroups
+
+    Note: This method will eventually replace get_auto_scaling_groups when the remaining commands support ElastiGroups
+    '''
+    cf = BotoClientProxy('cloudformation', region)
+    for stack in stacks:
+        resources = cf.describe_stack_resources(StackName=stack.StackName)['StackResources']
+
+        for resource in resources:
+            if resource['ResourceType'] in VALID_AUTO_SCALING_GROUPS:
+                yield {'type': resource['ResourceType'],
+                       'resource_id': resource['PhysicalResourceId'],
+                       'stack_name': resource['StackName']}
+
+
 def get_auto_scaling_groups(stack_refs, region):
     cf = BotoClientProxy('cloudformation', region)
     for stack in get_stacks(stack_refs, region):
@@ -1523,27 +1547,67 @@ def scale(stack_ref, region, desired_capacity, force):
 
     asg = BotoClientProxy('autoscaling', region)
 
-    stack_count = len(list(get_stacks(stack_refs, region)))
+    stacks = get_stacks(stack_refs, region)
+    stack_count = len(stacks)
     if not force and stack_count > 1:
         confirm_str = 'Number of stacks to be scaled - {}. Do you want to continue?'.format(stack_count)
         click.confirm(confirm_str, abort=True)
 
-    for asg_name in get_auto_scaling_groups(stack_refs, region):
-        group = get_auto_scaling_group(asg, asg_name)
-        current_capacity = group['DesiredCapacity']
-        with Action('Scaling {} from {} to {} instances..'.format(
-                asg_name, current_capacity, desired_capacity)) as act:
-            if current_capacity == desired_capacity:
-                act.ok('NO CHANGES')
-            else:
-                kwargs = {}
-                if desired_capacity < group['MinSize']:
-                    kwargs['MinSize'] = desired_capacity
-                if desired_capacity > group['MaxSize']:
-                    kwargs['MaxSize'] = desired_capacity
-                asg.update_auto_scaling_group(AutoScalingGroupName=asg_name,
-                                              DesiredCapacity=desired_capacity,
-                                              **kwargs)
+    for group in get_auto_scaling_groups_and_elasti_groups(stacks, region):
+        if group['type'] == AUTO_SCALING_GROUP_TYPE:
+            scale_auto_scaling_group(asg, group['resource_id'], desired_capacity)
+        elif group['type'] == ELASTIGROUP_TYPE:
+            scale_elastigroup(group['resource_id'], group['stack_name'], desired_capacity, region)
+
+
+def scale_elastigroup(elastigroup_id, stack_name, desired_capacity, region):
+    '''
+    Commands to scale an ElastiGroup
+    '''
+    cf = boto3.client('cloudformation', region)
+    template = cf.get_template(StackName=stack_name)['TemplateBody']
+
+    spotinst_token = template['Mappings']['Senza']['Info']['SpotinstAccessToken']
+    spotinst_account_id = template['Resources']['AppServerConfig']['Properties']['accountId']
+
+    group = elastigroup_api.get_elastigroup(elastigroup_id, spotinst_account_id, spotinst_token)
+    capacity = group['capacity']
+
+    with Action('Scaling ElastiGroup {} (ID: {}) from {} to {} instances..'.format(
+            stack_name, elastigroup_id, capacity['target'], desired_capacity)) as act:
+        if capacity['target'] == desired_capacity:
+            act.ok('NO CHANGES')
+        else:
+            minimum = desired_capacity if capacity['minimum'] > desired_capacity else capacity['minimum']
+            maximum = desired_capacity if capacity['maximum'] < desired_capacity else capacity['maximum']
+
+            elastigroup_api.update_capacity(minimum,
+                                            maximum,
+                                            desired_capacity,
+                                            elastigroup_id,
+                                            spotinst_account_id,
+                                            spotinst_token)
+
+
+def scale_auto_scaling_group(asg, asg_name, desired_capacity):
+    '''
+    Commands to scale an AWS Auto Scaling Group
+    '''
+    group = get_auto_scaling_group(asg, asg_name)
+    current_capacity = group['DesiredCapacity']
+    with Action('Scaling {} from {} to {} instances..'.format(
+            asg_name, current_capacity, desired_capacity)) as act:
+        if current_capacity == desired_capacity:
+            act.ok('NO CHANGES')
+        else:
+            kwargs = {}
+            if desired_capacity < group['MinSize']:
+                kwargs['MinSize'] = desired_capacity
+            if desired_capacity > group['MaxSize']:
+                kwargs['MaxSize'] = desired_capacity
+            asg.update_auto_scaling_group(AutoScalingGroupName=asg_name,
+                                          DesiredCapacity=desired_capacity,
+                                          **kwargs)
 
 
 def failure_event(event: dict):
@@ -1586,7 +1650,7 @@ def wait(stack_ref, region, deletion, timeout, interval):
         stacks_in_progress = set()
         successful_actions = set()
 
-        stacks_found = list(get_stacks(stack_refs, region, all=True, unique_only=True))
+        stacks_found = get_stacks(stack_refs, region, all=True, unique_only=True)
 
         if not stacks_found:
             raise click.UsageError('No matching stack for "{}" found'.format(' '.join(stack_ref)))

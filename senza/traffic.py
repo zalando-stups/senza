@@ -49,8 +49,8 @@ def get_weights(dns_names: list, identifier: str, all_identifiers) -> ({str: int
                     known_record_weights[record.set_identifier] = weight
 
     partial_count, partial_sum = get_partial_sum_partial_count(dns_names,
-                                                              identifier,
-                                                              all_identifiers)
+                                                               identifier,
+                                                               all_identifiers)
     if identifier not in known_record_weights:
         known_record_weights[identifier] = 0
     for ident in all_identifiers:
@@ -77,6 +77,7 @@ def get_partial_sum_partial_count(dns_names: list, identifier: str, all_identifi
             partial_count += 1
 
     return partial_count, partial_sum
+
 
 def calculate_new_weights(delta, identifier, known_record_weights, percentage):
     """

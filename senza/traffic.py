@@ -48,7 +48,7 @@ def get_weights(dns_names: list, identifier: str, all_identifiers) -> ({str: int
                 else:
                     known_record_weights[record.set_identifier] = weight
 
-    partial_count,partial_sum = get_partial_sum_partial_count(dns_names,
+    partial_count, partial_sum = get_partial_sum_partial_count(dns_names,
                                                               identifier,
                                                               all_identifiers)
     if identifier not in known_record_weights:
@@ -60,9 +60,14 @@ def get_weights(dns_names: list, identifier: str, all_identifiers) -> ({str: int
 
 
 def get_partial_sum_partial_count(dns_names: list, identifier: str, all_identifiers) -> ({str: int}, int, int):
-    # we should ignore all versions that do not get any
-    # traffic to not give traffic to disabled versions when
-    # redistributing traffic weights
+    """
+    Get weight and count for all stacks that have traffics
+    excluding the element we are we are working on.
+
+    We should ignore all versions that do not get any
+    traffic to not give traffic to disabled versions when
+    redistributing traffic weights
+    """
     partial_count = 0
     partial_sum = 0
     dns_name = dns_names[0]

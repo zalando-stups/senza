@@ -47,12 +47,10 @@ def get_weights(dns_names: list, identifier: str, all_identifiers) -> ({str: int
                     continue
                 else:
                     known_record_weights[record.set_identifier] = weight
-                    if record.set_identifier != identifier and weight > 0:
-                        # we should ignore all versions that do not get any
-                        # traffic to not give traffic to disabled versions when
-                        # redistributing traffic weights
-                        partial_sum += weight
-                        partial_count += 1
+
+    partial_count,partial_sum = get_partial_sum_partial_count(dns_names,
+                                                              identifier,
+                                                              all_identifiers)
     if identifier not in known_record_weights:
         known_record_weights[identifier] = 0
     for ident in all_identifiers:
@@ -60,6 +58,20 @@ def get_weights(dns_names: list, identifier: str, all_identifiers) -> ({str: int
             known_record_weights[ident] = 0
     return known_record_weights, partial_count, partial_sum
 
+
+def get_partial_sum_partial_count(dns_names: list, identifier: str, all_identifiers) -> ({str: int}, int, int):
+    # we should ignore all versions that do not get any
+    # traffic to not give traffic to disabled versions when
+    # redistributing traffic weights
+    partial_count = 0
+    partial_sum = 0
+    dns_name = dns_names[0]
+    for record in Route53.get_records(name=dns_name):
+        if record.set_identifier != identifier and record.weight > 0:
+            partial_sum += record.weight
+            partial_count += 1
+
+    return partial_count, partial_sum
 
 def calculate_new_weights(delta, identifier, known_record_weights, percentage):
     """

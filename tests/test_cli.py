@@ -1606,7 +1606,8 @@ def test_patch(monkeypatch):
                                                           'CreationTime': '2016-06-14'}]}
     boto3.describe_stack_resources.return_value = {'StackResources':
                                                        [{'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
-                                                         'PhysicalResourceId': 'myasg'}]}
+                                                         'PhysicalResourceId': 'myasg',
+                                                         'StackName': 'myapp-1'}]}
     group = {'AutoScalingGroupName': 'myasg'}
     boto3.describe_auto_scaling_groups.return_value = {'AutoScalingGroups': [group]}
     image = MagicMock()
@@ -1685,31 +1686,31 @@ def test_scale_elastigroup(monkeypatch):
         }
     }
 
-    group = {
+    group = [{
         'capacity': {
             'minimum': 1,
             'maximum': 2,
             'target': 1,
             'unit': 'instance'
         }
-    }
+    }]
     get_elastigroup = MagicMock()
     get_elastigroup.return_value = group
 
-    update = {
+    update = [{
         'capacity': {
             'minimum': 1,
             'maximum': 3,
             'target': 3,
             'unit': 'instance'
         }
-    }
+    }]
     update_capacity = MagicMock()
     update_capacity.return_value = update
 
     monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
-    monkeypatch.setattr('spotinst.components.elastigroup_api.get_elastigroup', get_elastigroup)
-    monkeypatch.setattr('spotinst.components.elastigroup_api.update_capacity', update_capacity)
+    monkeypatch.setattr('senza.spotinst.components.elastigroup_api.get_elastigroup', get_elastigroup)
+    monkeypatch.setattr('senza.spotinst.components.elastigroup_api.update_capacity', update_capacity)
 
     runner = CliRunner()
     result = runner.invoke(cli, ['scale', 'myapp', '1', '3', '--region=aa-fakeregion-1'],

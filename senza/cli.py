@@ -25,7 +25,7 @@ from clickclick import (Action, FloatRange, OutputFormat, choice, error,
                         fatal_error, info, ok)
 from clickclick.console import print_table
 
-from spotinst.components import elastigroup_api
+from .spotinst.components import elastigroup_api
 from .arguments import (GLOBAL_OPTIONS, json_output_option, output_option,
                         parameter_file_option, region_option,
                         stacktrace_visible_option, watch_option,
@@ -42,7 +42,7 @@ from .manaus.cloudformation import CloudFormation
 from .manaus.exceptions import VPCError
 from .manaus.route53 import Route53, Route53Record
 from .manaus.utils import extract_client_error_code
-from .patch import patch_auto_scaling_group
+from .patch import patch_auto_scaling_group, patch_elastigroup
 from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
 from .stups.piu import Piu
 from .subcommands.config import cmd_config
@@ -1476,7 +1476,7 @@ def get_auto_scaling_groups(stack_refs, region):
 def patch(stack_ref, region, image, instance_type, user_data):
     '''Patch specific properties of existing stack.
 
-    Currently only supports patching ASG launch configurations.'''
+    Currently supports patching ASG launch configurations and ElastiGroup groups.'''
 
     stack_refs = get_stack_refs(stack_ref)
     region = get_region(region)
@@ -1499,13 +1499,52 @@ def patch(stack_ref, region, image, instance_type, user_data):
 
     asg = BotoClientProxy('autoscaling', region)
 
-    for asg_name in get_auto_scaling_groups(stack_refs, region):
-        with Action('Patching Auto Scaling Group {}..'.format(asg_name)) as act:
-            result = asg.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
-            groups = result['AutoScalingGroups']
-            for group in groups:
-                if not patch_auto_scaling_group(group, region, properties):
-                    act.ok('NO CHANGES')
+    stacks = get_stacks(stack_refs, region)
+    for group in get_auto_scaling_groups_and_elasti_groups(stacks, region):
+        if group['type'] == ELASTIGROUP_TYPE:
+            patch_spotinst_elastigroup(properties, group['resource_id'], region, group['stack_name'])
+        elif group['type'] == AUTO_SCALING_GROUP_TYPE:
+            patch_aws_asg(properties, region, asg, group['resource_id'])
+
+
+def patch_aws_asg(properties, region, asg, asg_name):
+    '''
+    Patch an AWS Auto Scaling Group
+    '''
+    with Action('Patching Auto Scaling Group {}..'.format(asg_name)) as act:
+        result = asg.describe_auto_scaling_groups(AutoScalingGroupNames=[asg_name])
+        groups = result['AutoScalingGroups']
+        for group in groups:
+            if not patch_auto_scaling_group(group, region, properties):
+                act.ok('NO CHANGES')
+
+
+def get_spotinst_account_data(region, stack_name):
+    '''
+    Extracts required parameters required to access SpotInst API
+    '''
+    cf = boto3.client('cloudformation', region)
+    template = cf.get_template(StackName=stack_name)['TemplateBody']
+
+    spotinst_token = template['Mappings']['Senza']['Info']['SpotinstAccessToken']
+    spotinst_account_id = template['Resources']['AppServerConfig']['Properties']['accountId']
+
+    return elastigroup_api.SpotInstAccountData(spotinst_account_id, spotinst_token)
+
+
+def patch_spotinst_elastigroup(properties, elastigroup_id, region, stack_name):
+    '''
+    Patch specific properties of an existing ElastiGroup
+    '''
+
+    spotinst_account_data = get_spotinst_account_data(region, stack_name)
+
+    with Action('Patching ElastiGroup {} (ID: {})..'.format(stack_name, elastigroup_id)) as act:
+        groups = elastigroup_api.get_elastigroup(elastigroup_id, spotinst_account_data)
+
+        for group in groups:
+            if not patch_elastigroup(group, properties, elastigroup_id, spotinst_account_data):
+                act.ok('NO CHANGES')
 
 
 @cli.command('respawn-instances')
@@ -1545,14 +1584,13 @@ def scale(stack_ref, region, desired_capacity, force):
     region = get_region(region)
     check_credentials(region)
 
-    asg = BotoClientProxy('autoscaling', region)
-
     stacks = get_stacks(stack_refs, region)
     stack_count = len(stacks)
     if not force and stack_count > 1:
         confirm_str = 'Number of stacks to be scaled - {}. Do you want to continue?'.format(stack_count)
         click.confirm(confirm_str, abort=True)
 
+    asg = BotoClientProxy('autoscaling', region)
     for group in get_auto_scaling_groups_and_elasti_groups(stacks, region):
         if group['type'] == AUTO_SCALING_GROUP_TYPE:
             scale_auto_scaling_group(asg, group['resource_id'], desired_capacity)
@@ -1564,29 +1602,22 @@ def scale_elastigroup(elastigroup_id, stack_name, desired_capacity, region):
     '''
     Commands to scale an ElastiGroup
     '''
-    cf = boto3.client('cloudformation', region)
-    template = cf.get_template(StackName=stack_name)['TemplateBody']
+    spotinst_account_data = get_spotinst_account_data(region, stack_name)
 
-    spotinst_token = template['Mappings']['Senza']['Info']['SpotinstAccessToken']
-    spotinst_account_id = template['Resources']['AppServerConfig']['Properties']['accountId']
+    groups = elastigroup_api.get_elastigroup(elastigroup_id, spotinst_account_data)
 
-    group = elastigroup_api.get_elastigroup(elastigroup_id, spotinst_account_id, spotinst_token)
-    capacity = group['capacity']
+    for group in groups:
+        capacity = group['capacity']
 
-    with Action('Scaling ElastiGroup {} (ID: {}) from {} to {} instances..'.format(
-            stack_name, elastigroup_id, capacity['target'], desired_capacity)) as act:
-        if capacity['target'] == desired_capacity:
-            act.ok('NO CHANGES')
-        else:
-            minimum = desired_capacity if capacity['minimum'] > desired_capacity else capacity['minimum']
-            maximum = desired_capacity if capacity['maximum'] < desired_capacity else capacity['maximum']
+        with Action('Scaling ElastiGroup {} (ID: {}) from {} to {} instances..'.format(
+                stack_name, elastigroup_id, capacity['target'], desired_capacity)) as act:
+            if capacity['target'] == desired_capacity:
+                act.ok('NO CHANGES')
+            else:
+                minimum = desired_capacity if capacity['minimum'] > desired_capacity else capacity['minimum']
+                maximum = desired_capacity if capacity['maximum'] < desired_capacity else capacity['maximum']
 
-            elastigroup_api.update_capacity(minimum,
-                                            maximum,
-                                            desired_capacity,
-                                            elastigroup_id,
-                                            spotinst_account_id,
-                                            spotinst_token)
+                elastigroup_api.update_capacity(minimum, maximum, desired_capacity, elastigroup_id, spotinst_account_data)
 
 
 def scale_auto_scaling_group(asg, asg_name, desired_capacity):

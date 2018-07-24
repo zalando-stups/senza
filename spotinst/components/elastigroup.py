@@ -3,14 +3,13 @@ Functions to create Spotinst Elastigroups
 """
 
 import base64
-import re
 import sys
 
 import click
 import pierone
 import requests
-import senza
 
+import senza
 from senza.aws import resolve_security_groups
 from senza.components.auto_scaling_group import normalize_network_threshold
 from senza.components.taupage_auto_scaling_group import check_application_id, check_application_version, \

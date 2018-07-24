@@ -35,11 +35,15 @@ def test_component_elastigroup_defaults(monkeypatch):
     mock_sg.return_value = "sg1"
     monkeypatch.setattr('senza.aws.resolve_security_group', mock_sg)
 
-    resolve_account_id = MagicMock()
-    resolve_account_id.return_value = 'act-12345abcdef'
-    monkeypatch.setattr('spotinst.components.elastigroup.resolve_account_id', resolve_account_id)
+    mock_resolve_account_id = MagicMock()
+    mock_resolve_account_id.return_value = 'act-12345abcdef'
+    monkeypatch.setattr('spotinst.components.elastigroup.resolve_account_id', mock_resolve_account_id)
 
-    result = component_elastigroup(definition, configuration, args, info, False, AccountArguments('reg1'))
+    mock_account_info = MagicMock()
+    mock_account_info.Region = "reg1"
+    mock_account_info.AccountID = "12345"
+
+    result = component_elastigroup(definition, configuration, args, info, False, mock_account_info)
 
     properties = result["Resources"]["eg1Config"]["Properties"]
     assert properties["accountId"] == 'act-12345abcdef'

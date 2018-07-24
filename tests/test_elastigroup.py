@@ -70,35 +70,28 @@ def test_missing_access_token():
 
 
 def test_spotinst_account_resolution():
-    mock_info = MagicMock()
-    mock_info.AccountID = "12345"
     with responses.RequestsMock() as rsps:
-        rsps.add(rsps.GET, '{}/setup/account/'.format(SPOTINST_API_URL), status=200,
+        rsps.add(rsps.GET, '{}/setup/account?awsAccountId=12345'.format(SPOTINST_API_URL), status=200,
                  json={"response": {
                      "items": [
-                         {"accountId": "act-1234abcd", "name": "aws:" + mock_info.AccountID},
-                         {"accountId": "act-xyz", "name": "aws:54321"}
+                         {"accountId": "act-1234abcd", "name": "expected-match"},
+                         {"accountId": "act-xyz", "name": "second-match"}
                      ],
                  }})
 
-        account_id = resolve_account_id("fake-token", mock_info)
+        account_id = resolve_account_id("fake-token", "12345")
         assert account_id == "act-1234abcd"
 
 
 def test_spotinst_account_resolution_failure():
-    mock_info = MagicMock()
-    mock_info.AccountID = "12345"
     with responses.RequestsMock() as rsps:
-        rsps.add(rsps.GET, '{}/setup/account/'.format(SPOTINST_API_URL), status=200,
+        rsps.add(rsps.GET, '{}/setup/account?awsAccountId=12345'.format(SPOTINST_API_URL), status=200,
                  json={"response": {
-                     "items": [
-                         {"accountId": "act-foo", "name": "aws:xyz"},
-                         {"accountId": "act-bar", "name": "aws:zbr"}
-                     ],
+                     "items": [],
                  }})
 
         with pytest.raises(MissingSpotinstAccount):
-            resolve_account_id("fake-token", mock_info)
+            resolve_account_id("fake-token", "12345")
 
 
 def test_block_mappings():

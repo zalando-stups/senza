@@ -498,31 +498,29 @@ def extract_spotinst_account_id(access_token: str, definition: dict, account_inf
     """
     template_account_id = definition["Mappings"]["Senza"]["Info"].get("SpotinstAccountId")
     if not template_account_id:
-        template_account_id = resolve_account_id(access_token, account_info)
+        template_account_id = resolve_account_id(access_token, account_info.AccountID)
     return template_account_id
 
 
-def resolve_account_id(access_token, account_info):
+def resolve_account_id(access_token, account_id):
     """
-    This function will call the remote Spotinst API using the provided Token and obtain the list of registered
-    cloud accounts. The cloud accounts are expected to have their name with the pattern "aws:123" where 123 is
-    the official AWS account ID.
-    The first match to the provided info.AccountID is used to return the Spotinst accountId
+    This function will call the remote Spotinst API using the provided Token and query the
+    cloud account which matches the provided AWS Account ID. In case there are multiple matches,
+    the first one is returned
     :param access_token: The Spotinst access token that can be created using the console
-    :param account_info: The AccountInfo object containing the target AWS account ID
+    :param account_id: The target AWS account ID
     :return: The Spotinst accountId that matched the target AWS account ID
     """
     headers = {
         "Authorization": "Bearer {}".format(access_token),
         "Content-Type": "application/json"
     }
-    response = requests.get('{}/setup/account/'.format(SPOTINST_API_URL), headers=headers, timeout=5)
+    response = requests.get('{}/setup/account?awsAccountId={}'.format(SPOTINST_API_URL, account_id),
+                            headers=headers, timeout=5)
     response.raise_for_status()
     data = response.json()
     accounts = data.get("response", {}).get("items", [])
-    for account in accounts:
-        # acounts are expected to be named with the pattern aws:123 where 123 is the actual accountId
-        account_id = re.sub(r"(?i)^aws:", "", account["name"])
-        if account_info.AccountID == account_id:
-            return account["accountId"]
-    raise MissingSpotinstAccount(account_info.AccountID)
+    if not accounts:
+        raise MissingSpotinstAccount(account_id)
+    cloud_account = next(iter(accounts))
+    return cloud_account["accountId"]

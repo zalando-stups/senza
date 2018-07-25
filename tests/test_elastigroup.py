@@ -3,7 +3,6 @@ import pytest
 import responses
 from mock import MagicMock
 
-from senza.definitions import AccountArguments
 from senza.spotinst import MissingSpotinstAccount
 from senza.spotinst.components.elastigroup import (component_elastigroup, ELASTIGROUP_DEFAULT_PRODUCT,
     ELASTIGROUP_DEFAULT_STRATEGY, resolve_account_id, SPOTINST_API_URL, extract_block_mappings,
@@ -37,7 +36,7 @@ def test_component_elastigroup_defaults(monkeypatch):
 
     mock_resolve_account_id = MagicMock()
     mock_resolve_account_id.return_value = 'act-12345abcdef'
-    monkeypatch.setattr('spotinst.components.elastigroup.resolve_account_id', mock_resolve_account_id)
+    monkeypatch.setattr('senza.spotinst.components.elastigroup.resolve_account_id', mock_resolve_account_id)
 
     mock_account_info = MagicMock()
     mock_account_info.Region = "reg1"

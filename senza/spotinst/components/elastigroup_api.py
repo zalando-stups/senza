@@ -88,16 +88,17 @@ def patch_elastigroup(properties, elastigroup_id, spotinst_account_data):
     '''
     Patch specific properties of the ElastiGroup.
     '''
-    body = {'compute': {}}
+    compute = {}
     if 'InstanceType' in properties:
-        body['compute']['instanceTypes'] = {
+        compute['instanceTypes'] = {
             'ondemand': properties['InstanceType'],
         }
 
     if 'ImageId' in properties:
-        body['compute'].setdefault('launchSpecification', {})['imageId'] = properties['ImageId']
+        compute.setdefault('launchSpecification', {})['imageId'] = properties['ImageId']
 
-    if 'userData' in properties:
-        body['compute'].setdefault('launchSpecification', {})['userData'] = properties['UserData']
+    if 'UserData' in properties:
+        compute.setdefault('launchSpecification', {})['userData'] = properties['UserData']
 
+    body = {'group': {'compute': compute}}
     return update_elastigroup(body, elastigroup_id, spotinst_account_data)

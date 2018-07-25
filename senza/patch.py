@@ -107,8 +107,8 @@ def patch_elastigroup(group, properties, elastigroup_id, spotinst_account_data):
             if key == 'UserData':
                 if should_patch_user_data(val, current_properties[key]):
                     patched_user_data = patch_user_data(current_properties[key], val)
-                    encrypted_user_data = base64.urlsafe_b64encode(patched_user_data.encode('utf-8')).decode('utf-8')
-                    properties_to_patch[key] = encrypted_user_data
+                    encoded_user_data = base64.urlsafe_b64encode(patched_user_data.encode('utf-8')).decode('utf-8')
+                    properties_to_patch[key] = encoded_user_data
             else:
                 if current_properties[key] != val:
                     properties_to_patch[key] = val

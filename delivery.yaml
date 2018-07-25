@@ -28,7 +28,8 @@ pipeline:
 
         if [[ -z "${CDP_PULL_REQUEST_NUMBER}" ]]; then
             docker push "$DOCKER_IMAGE"
-            git gh-tag "$VERSION"
+            # As the release process is currently broken don't create a tag
+            # git gh-tag "$VERSION"
         fi
   - id: release
     type: process

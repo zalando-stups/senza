@@ -9,7 +9,7 @@ pipeline:
     overlay: ci/python
     commands:
     - desc: "Install dependencies"
-      cmd: pip install -r requirements.txt
+      cmd: pip install -r requirements.txt pex
     - desc: "Run Tests"
       cmd: python3 setup.py test
     - desc: "Check code style"
@@ -17,6 +17,8 @@ pipeline:
     - desc: "Build docker image that will upload package"
       cmd: |
         VERSION=$(./next-version)
+
+        sed -i "s/__version__ = '.*/__version__ = '${VERSION}='/" */__init__.py
 
         if [[ -z "${CDP_PULL_REQUEST_NUMBER}" ]]; then
           DOCKER_IMAGE="pierone.stups.zalan.do/automata/senza-release:${CDP_TARGET_REPOSITORY_COUNTER}"
@@ -31,6 +33,10 @@ pipeline:
             # As the release process is currently broken don't create a tag
             # git gh-tag "$VERSION"
         fi
+    - desc: "Create and Release Pex"
+      cmd: |
+        pex . -c senza -o senza.pex
+        ./senza.pex -V
   - id: release
     type: process
     desc: Release to TestPyPI

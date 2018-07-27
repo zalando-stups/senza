@@ -7,6 +7,9 @@ import json
 
 SPOTINST_API_URL = 'https://api.spotinst.io'
 
+DEPLOY_STRATEGY_RESTART = 'RESTART_SERVER'
+DEPLOY_STRATEGY_REPLACE = 'REPLACE_SERVER'
+
 
 class SpotInstAccountData:
     '''
@@ -75,7 +78,7 @@ def get_elastigroup(elastigroup_id, spotinst_account_data):
     }
 
     response = requests.get(
-        'https://api.spotinst.io/aws/ec2/group/{}?accountId={}'.format(elastigroup_id, spotinst_account_data.account_id),
+        '{}/aws/ec2/group/{}?accountId={}'.format(SPOTINST_API_URL, elastigroup_id, spotinst_account_data.account_id),
         headers=headers, timeout=5)
     response.raise_for_status()
     data = response.json()
@@ -102,3 +105,32 @@ def patch_elastigroup(properties, elastigroup_id, spotinst_account_data):
 
     body = {'group': {'compute': compute}}
     return update_elastigroup(body, elastigroup_id, spotinst_account_data)
+
+
+def deploy(batch_size=20, grace_period=300, strategy=DEPLOY_STRATEGY_REPLACE, elastigroup_id=None, spotinst_account_data=None):
+    '''
+    Triggers Blue/Green Deployment that replaces the existing instances in the Elastigroup
+
+    For more details see https://api.spotinst.com/elastigroup/amazon-web-services/deploy/
+    '''
+    headers = {
+        "Authorization": "Bearer {}".format(spotinst_account_data.access_token),
+        "Content-Type": "application/json"
+    }
+
+    body = {
+        'batchSizePercentage': batch_size,
+        'gracePeriod': grace_period,
+        'strategy': {
+            'action': strategy
+        }
+    }
+
+    response = requests.put(
+        '{}/aws/ec2/group/{}/roll?accountId={}'.format(SPOTINST_API_URL, elastigroup_id, spotinst_account_data.account_id),
+        headers=headers, timeout=10, data=json.dumps(body))
+    response.raise_for_status()
+    data = response.json()
+    deploys = data.get("response", {}).get("items", [])
+
+    return deploys

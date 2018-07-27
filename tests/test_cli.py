@@ -1632,8 +1632,32 @@ def test_patch(monkeypatch):
 def test_respawn(monkeypatch):
     boto3 = MagicMock()
     monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
-    monkeypatch.setattr('senza.cli.get_auto_scaling_groups', lambda *args: 'myasg')
-    monkeypatch.setattr('senza.cli.respawn_auto_scaling_group', lambda *args, **kwargs: None)
+    boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',
+                                                          'CreationTime': '2016-06-14'}]}
+    boto3.describe_stack_resources.return_value = {'StackResources': [
+                                                       {
+                                                           'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
+                                                           'PhysicalResourceId': 'myasg',
+                                                           'StackName': 'myapp-1'
+                                                       }]}
+    monkeypatch.setattr('senza.respawn.respawn_auto_scaling_group', lambda *args, **kwargs: None)
+    runner = CliRunner()
+    runner.invoke(cli, ['respawn', 'myapp', '1', '--region=aa-fakeregion-1'],
+                  catch_exceptions=False)
+
+
+def test_respawn_elastigroup(monkeypatch):
+    boto3 = MagicMock()
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+    boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',
+                                                          'CreationTime': '2016-06-14'}]}
+
+    elastigroup_id = 'myelasti'
+    boto3.describe_stack_resources.return_value = {'StackResources':
+                                                       [{'ResourceType': 'Custom::elastigroup',
+                                                         'PhysicalResourceId': elastigroup_id,
+                                                         'StackName': 'myapp-1'}]}
+    monkeypatch.setattr('senza.respawn.respawn_elastigroup', lambda *args, **kwargs: None)
     runner = CliRunner()
     runner.invoke(cli, ['respawn', 'myapp', '1', '--region=aa-fakeregion-1'],
                   catch_exceptions=False)
@@ -1643,10 +1667,10 @@ def test_scale(monkeypatch):
     boto3 = MagicMock()
     boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',
                                                           'CreationTime': '2016-06-14'}]}
-    boto3.describe_stack_resources.return_value = {'StackResources':
-                                                       [{'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
-                                                         'PhysicalResourceId': 'myasg',
-                                                         'StackName': 'myapp-1'}]}
+    boto3.describe_stack_resources.return_value = {'StackResources': [
+                                                       {'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
+                                                        'PhysicalResourceId': 'myasg',
+                                                        'StackName': 'myapp-1'}]}
     # NOTE: we are using invalid MinSize (< capacity) here to get one more line covered ;-)
     group = {'AutoScalingGroupName': 'myasg', 'DesiredCapacity': 1, 'MinSize': 3, 'MaxSize': 1}
     boto3.describe_auto_scaling_groups.return_value = {'AutoScalingGroups': [group]}

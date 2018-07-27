@@ -1,5 +1,6 @@
 import responses
-from senza.spotinst.components.elastigroup_api import update_capacity, get_elastigroup, patch_elastigroup, SPOTINST_API_URL, SpotInstAccountData
+from senza.spotinst.components.elastigroup_api import update_capacity, get_elastigroup, patch_elastigroup, deploy, \
+    SPOTINST_API_URL, SpotInstAccountData
 
 
 def test_update_capacity(monkeypatch):
@@ -22,7 +23,8 @@ def test_update_capacity(monkeypatch):
     spotinst_account_data = SpotInstAccountData('act-zwk', 'fake-token')
     with responses.RequestsMock() as rsps:
         rsps.add(rsps.PUT,
-                 '{}/aws/ec2/group/{}?accountId={}'.format(SPOTINST_API_URL, elastigroup_id, spotinst_account_data.account_id),
+                 '{}/aws/ec2/group/{}?accountId={}'.format(SPOTINST_API_URL, elastigroup_id,
+                                                           spotinst_account_data.account_id),
                  status=200,
                  json=update)
 
@@ -48,7 +50,8 @@ def test_get_elastigroup(monkeypatch):
     elastigroup_id = 'sig-xfy'
     spotinst_account_data = SpotInstAccountData('act-zwk', 'fake-token')
     with responses.RequestsMock() as rsps:
-        rsps.add(rsps.GET, 'https://api.spotinst.io/aws/ec2/group/{}?accountId={}'.format(elastigroup_id, spotinst_account_data.account_id),
+        rsps.add(rsps.GET, '{}/aws/ec2/group/{}?accountId={}'.format(SPOTINST_API_URL, elastigroup_id,
+                                                                     spotinst_account_data.account_id),
                  status=200,
                  json=group)
 
@@ -85,7 +88,8 @@ def test_patch_elastigroup(monkeypatch):
     with responses.RequestsMock() as rsps:
         spotinst_account_data = SpotInstAccountData('act-zwk', 'fake-token')
         elastigroup_id = 'sig-xfy'
-        rsps.add(rsps.PUT, 'https://api.spotinst.io/aws/ec2/group/{}?accountId={}'.format(elastigroup_id, spotinst_account_data.account_id),
+        rsps.add(rsps.PUT, '{}/aws/ec2/group/{}?accountId={}'.format(SPOTINST_API_URL, elastigroup_id,
+                                                                     spotinst_account_data.account_id),
                  status=200,
                  json=update_response)
 
@@ -93,3 +97,37 @@ def test_patch_elastigroup(monkeypatch):
         assert patch_response['compute']['launchSpecification']['imageId'] == 'image-foo'
         assert patch_response['compute']['instanceTypes']['ondemand'] == 'm1.micro'
         assert patch_response['compute']['launchSpecification']['userData'] == 'user-data-value'
+
+
+def test_deploy(monkeypatch):
+    response_json = {
+        "response": {
+            "items": [
+                {
+                    'id': 'deploy-id',
+                    'status': 'STARTING',
+                    'currentBatch': 1,
+                    'numOfBatches': 1,
+                    'progress': {
+                        'unit': 'percentage',
+                        'value': 0
+                    }
+                }
+            ]
+        }
+    }
+    with responses.RequestsMock() as rsps:
+        spotinst_account_data = SpotInstAccountData('act-zwk', 'fake-token')
+        elastigroup_id = 'sig-xfy'
+
+        rsps.add(rsps.PUT, '{}/aws/ec2/group/{}/roll?accountId={}'.format(SPOTINST_API_URL, elastigroup_id,
+                                                                          spotinst_account_data.account_id),
+                 status=200,
+                 json=response_json)
+
+        deploy_response = deploy(batch_size=35, grace_period=50, elastigroup_id=elastigroup_id,
+                                 spotinst_account_data=spotinst_account_data)[0]
+
+        assert deploy_response['id'] == 'deploy-id'
+        assert deploy_response['status'] == 'STARTING'
+        assert deploy_response['numOfBatches'] == 1

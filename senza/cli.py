@@ -43,7 +43,7 @@ from .manaus.exceptions import VPCError
 from .manaus.route53 import Route53, Route53Record
 from .manaus.utils import extract_client_error_code
 from .patch import patch_auto_scaling_group, patch_elastigroup
-from .respawn import get_auto_scaling_group, respawn_auto_scaling_group
+from .respawn import get_auto_scaling_group, respawn_auto_scaling_group, respawn_elastigroup
 from .stups.piu import Piu
 from .subcommands.config import cmd_config
 from .subcommands.root import cli
@@ -1550,13 +1550,17 @@ def patch_spotinst_elastigroup(properties, elastigroup_id, region, stack_name):
 @cli.command('respawn-instances')
 @click.argument('stack_ref', nargs=-1)
 @click.option('--inplace',
-              is_flag=True, help='Perform inplace update, do not scale out')
+              is_flag=True, help='Perform inplace update, do not scale out. Ignored for ElastiGroups.')
 @click.option('-f', '--force',
               is_flag=True,
-              help='Force respawn even if Launch Configuration is unchanged')
+              help='Force respawn even if Launch Configuration is unchanged. Ignored for ElastiGroups.')
+@click.option('--batch_size_percentage',
+              metavar='PERCENTAGE',
+              help='Percentage (int value) of the ElastiGroup cluster that is respawned in each step.'
+                   ' Valid only for ElastiGroups. The default value for this of 20.')
 @region_option
 @stacktrace_visible_option
-def respawn_instances(stack_ref, inplace, force, region):
+def respawn_instances(stack_ref, inplace, force, batch_size_percentage, region):
     '''Replace all EC2 instances in Auto Scaling Group(s)
 
     Performs a rolling update to prevent downtimes.'''
@@ -1565,8 +1569,12 @@ def respawn_instances(stack_ref, inplace, force, region):
     region = get_region(region)
     check_credentials(region)
 
-    for asg_name in get_auto_scaling_groups(stack_refs, region):
-        respawn_auto_scaling_group(asg_name, region, inplace=inplace, force=force)
+    stacks = get_stacks(stack_refs, region)
+    for group in get_auto_scaling_groups_and_elasti_groups(stacks, region):
+        if group['type'] == AUTO_SCALING_GROUP_TYPE:
+            respawn_auto_scaling_group(group['resource_id'], region, inplace=inplace, force=force)
+        elif group['type'] == AUTO_SCALING_GROUP_TYPE:
+            respawn_elastigroup(batch_size=batch_size_percentage)
 
 
 @cli.command()
@@ -1617,7 +1625,8 @@ def scale_elastigroup(elastigroup_id, stack_name, desired_capacity, region):
                 minimum = desired_capacity if capacity['minimum'] > desired_capacity else capacity['minimum']
                 maximum = desired_capacity if capacity['maximum'] < desired_capacity else capacity['maximum']
 
-                elastigroup_api.update_capacity(minimum, maximum, desired_capacity, elastigroup_id, spotinst_account_data)
+                elastigroup_api.update_capacity(minimum, maximum, desired_capacity, elastigroup_id,
+                                                spotinst_account_data)
 
 
 def scale_auto_scaling_group(asg, asg_name, desired_capacity):

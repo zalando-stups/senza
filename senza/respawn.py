@@ -6,9 +6,12 @@ import time
 from clickclick import Action, info
 
 from .manaus.boto_proxy import BotoClientProxy
+from .spotinst.components import elastigroup_api
 
 SCALING_PROCESSES_TO_SUSPEND = ['AZRebalance', 'AlarmNotification', 'ScheduledActions']
 RUNNING_LIFECYCLE_STATES = set(['Pending', 'InService', 'Rebooting'])
+
+DEFAULT_BATCH_SIZE = 20
 
 
 def get_auto_scaling_group(asg, asg_name: str):
@@ -151,3 +154,17 @@ def respawn_auto_scaling_group(asg_name: str, region: str, inplace: bool=False, 
                                       inplace)
     else:
         info('Nothing to do')
+
+
+def respawn_elastigroup(batch_size: int):
+    '''
+    Respawn all instances in the ElastiGroup.
+    '''
+
+    if batch_size is None or batch_size < 1:
+        batch_size = DEFAULT_BATCH_SIZE
+
+    # TODO : call deploy with proper parameters
+    elastigroup_api.deploy(batch_size=batch_size)
+
+    pass

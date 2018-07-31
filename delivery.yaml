@@ -21,7 +21,7 @@ pipeline:
         if [[ -z "${CDP_PULL_REQUEST_NUMBER}" ]]; then
           DOCKER_IMAGE="pierone.stups.zalan.do/automata/senza-release:${CDP_TARGET_REPOSITORY_COUNTER}"
         else
-          DOCKER_IMAGE="pierone.stups.zalan.do/automata/senza-release:${CDP_TARGET_REPOSITORY_COUNTER}-snapshot"
+          DOCKER_IMAGE="pierone.stups.zalan.do/automata/senza-release-pr:snapshot"
         fi
 
         docker build --build-arg VERSION="$VERSION" -t "$DOCKER_IMAGE" .

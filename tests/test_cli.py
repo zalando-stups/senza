@@ -1630,7 +1630,6 @@ def test_patch(monkeypatch):
 
 
 def test_respawn(monkeypatch):
-    #TODO : broken test
     boto3 = MagicMock()
     monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
     boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',
@@ -1641,7 +1640,6 @@ def test_respawn(monkeypatch):
                                                            'PhysicalResourceId': 'myasg',
                                                            'StackName': 'myapp-1'
                                                        }]}
-    # TODO : this mocking is not working
     monkeypatch.setattr('senza.respawn.respawn_auto_scaling_group', lambda *args, **kwargs: None)
     runner = CliRunner()
     runner.invoke(cli, ['respawn', 'myapp', '1', '--region=aa-fakeregion-1'],
@@ -1649,7 +1647,6 @@ def test_respawn(monkeypatch):
 
 
 def test_respawn_elastigroup(monkeypatch):
-    # TODO : broken test
     boto3 = MagicMock()
     monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
     boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',

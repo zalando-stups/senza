@@ -121,7 +121,8 @@ def patch_elastigroup(properties, elastigroup_id, spotinst_account_data):
     return update_elastigroup(body, elastigroup_id, spotinst_account_data)
 
 
-def deploy(batch_size=20, grace_period=300, strategy=DEPLOY_STRATEGY_REPLACE, elastigroup_id=None, spotinst_account_data=None):
+def deploy(batch_size=20, grace_period=300, strategy=DEPLOY_STRATEGY_REPLACE,
+           elastigroup_id=None, spotinst_account_data=None):
     '''
     Triggers Blue/Green Deployment that replaces the existing instances in the Elastigroup
 
@@ -141,7 +142,8 @@ def deploy(batch_size=20, grace_period=300, strategy=DEPLOY_STRATEGY_REPLACE, el
     }
 
     response = requests.put(
-        '{}/aws/ec2/group/{}/roll?accountId={}'.format(SPOTINST_API_URL, elastigroup_id, spotinst_account_data.account_id),
+        '{}/aws/ec2/group/{}/roll?accountId={}'.format(SPOTINST_API_URL, elastigroup_id,
+                                                       spotinst_account_data.account_id),
         headers=headers, timeout=10, data=json.dumps(body))
     response.raise_for_status()
     data = response.json()

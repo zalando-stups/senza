@@ -11,6 +11,8 @@ from .spotinst.components import elastigroup_api
 SCALING_PROCESSES_TO_SUSPEND = ['AZRebalance', 'AlarmNotification', 'ScheduledActions']
 RUNNING_LIFECYCLE_STATES = set(['Pending', 'InService', 'Rebooting'])
 
+ELASTIGROUP_TERMINATED_DEPLOY_STATUS = ['stopped', 'failed']
+
 DEFAULT_BATCH_SIZE = 20
 
 
@@ -156,7 +158,7 @@ def respawn_auto_scaling_group(asg_name: str, region: str, inplace: bool=False, 
         info('Nothing to do')
 
 
-def respawn_elastigroup(batch_size: int):
+def respawn_elastigroup(elastigroup_id: str, stack_name: str, region: str, batch_size: int):
     '''
     Respawn all instances in the ElastiGroup.
     '''
@@ -164,7 +166,27 @@ def respawn_elastigroup(batch_size: int):
     if batch_size is None or batch_size < 1:
         batch_size = DEFAULT_BATCH_SIZE
 
-    # TODO : call deploy with proper parameters
-    elastigroup_api.deploy(batch_size=batch_size)
+    spotinst_account = elastigroup_api.get_spotinst_account_data(region, stack_name)
 
-    pass
+    info('Redeploying the cluster for ElastiGroup {} (ID {})'.format(stack_name, elastigroup_id))
+
+    deploy_output = elastigroup_api.deploy(batch_size=batch_size, grace_period=600, elastigroup_id=elastigroup_id,
+                                           spotinst_account_data=spotinst_account)
+
+    deploy_count = len(deploy_output)
+    deploys_finished = 0
+    with Action('Waiting for deploy to complete. Total of {} deploys'.format(deploy_count)) as act:
+        while True:
+            for deploy in deploy_output:
+                deploy_status = elastigroup_api.deploy_status(deploy['id'], elastigroup_id, spotinst_account)
+                for ds in deploy_status:
+                    if ds['id'] == deploy['id']:
+                        if ds['progress']['value'] >= 100\
+                                or ds['status'].lower() in ELASTIGROUP_TERMINATED_DEPLOY_STATUS:
+                            deploys_finished += 1
+                            info('Deploy {} finished with status {}'.format(ds['id'], ds['status']))
+
+            if deploys_finished == deploy_count:
+                break
+            time.sleep(2)
+            act.progress()

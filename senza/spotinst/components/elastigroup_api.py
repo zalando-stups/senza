@@ -3,6 +3,7 @@ Wrapper methods for ElastiGroup's API
 '''
 import requests
 import json
+import boto3
 
 
 SPOTINST_API_URL = 'https://api.spotinst.io'
@@ -18,6 +19,19 @@ class SpotInstAccountData:
     def __init__(self, account_id, access_token):
         self.account_id = account_id
         self.access_token = access_token
+
+
+def get_spotinst_account_data(region, stack_name):
+    '''
+    Extracts required parameters required to access SpotInst API
+    '''
+    cf = boto3.client('cloudformation', region)
+    template = cf.get_template(StackName=stack_name)['TemplateBody']
+
+    spotinst_token = template['Mappings']['Senza']['Info']['SpotinstAccessToken']
+    spotinst_account_id = template['Resources']['AppServerConfig']['Properties']['accountId']
+
+    return SpotInstAccountData(spotinst_account_id, spotinst_token)
 
 
 def update_elastigroup(body, elastigroup_id, spotinst_account_data):
@@ -129,6 +143,28 @@ def deploy(batch_size=20, grace_period=300, strategy=DEPLOY_STRATEGY_REPLACE, el
     response = requests.put(
         '{}/aws/ec2/group/{}/roll?accountId={}'.format(SPOTINST_API_URL, elastigroup_id, spotinst_account_data.account_id),
         headers=headers, timeout=10, data=json.dumps(body))
+    response.raise_for_status()
+    data = response.json()
+    deploys = data.get("response", {}).get("items", [])
+
+    return deploys
+
+
+def deploy_status(deploy_id, elastigroup_id, spotinst_account_data):
+    '''
+    Obtains the current status of a deployment.
+
+    For more details see https://api.spotinst.com/elastigroup/amazon-web-services/deploy-status/
+    '''
+    headers = {
+        "Authorization": "Bearer {}".format(spotinst_account_data.access_token),
+        "Content-Type": "application/json"
+    }
+
+    response = requests.get(
+        '{}/aws/ec2/group/{}/roll/{}?accountId={}'.format(SPOTINST_API_URL, elastigroup_id, deploy_id,
+                                                          spotinst_account_data.account_id),
+        headers=headers, timeout=5)
     response.raise_for_status()
     data = response.json()
     deploys = data.get("response", {}).get("items", [])

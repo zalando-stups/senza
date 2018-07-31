@@ -19,6 +19,7 @@ import click
 import senza.stups.taupage as taupage
 import requests
 import yaml
+import senza.respawn as respawn
 
 from botocore.exceptions import ClientError
 from clickclick import (Action, FloatRange, OutputFormat, choice, error,
@@ -43,7 +44,6 @@ from .manaus.exceptions import VPCError
 from .manaus.route53 import Route53, Route53Record
 from .manaus.utils import extract_client_error_code
 from .patch import patch_auto_scaling_group, patch_elastigroup
-from .respawn import get_auto_scaling_group, respawn_auto_scaling_group, respawn_elastigroup
 from .stups.piu import Piu
 from .subcommands.config import cmd_config
 from .subcommands.root import cli
@@ -1519,25 +1519,12 @@ def patch_aws_asg(properties, region, asg, asg_name):
                 act.ok('NO CHANGES')
 
 
-def get_spotinst_account_data(region, stack_name):
-    '''
-    Extracts required parameters required to access SpotInst API
-    '''
-    cf = boto3.client('cloudformation', region)
-    template = cf.get_template(StackName=stack_name)['TemplateBody']
-
-    spotinst_token = template['Mappings']['Senza']['Info']['SpotinstAccessToken']
-    spotinst_account_id = template['Resources']['AppServerConfig']['Properties']['accountId']
-
-    return elastigroup_api.SpotInstAccountData(spotinst_account_id, spotinst_token)
-
-
 def patch_spotinst_elastigroup(properties, elastigroup_id, region, stack_name):
     '''
     Patch specific properties of an existing ElastiGroup
     '''
 
-    spotinst_account_data = get_spotinst_account_data(region, stack_name)
+    spotinst_account_data = elastigroup_api.get_spotinst_account_data(region, stack_name)
 
     with Action('Patching ElastiGroup {} (ID: {})..'.format(stack_name, elastigroup_id)) as act:
         groups = elastigroup_api.get_elastigroup(elastigroup_id, spotinst_account_data)
@@ -1572,9 +1559,9 @@ def respawn_instances(stack_ref, inplace, force, batch_size_percentage, region):
     stacks = get_stacks(stack_refs, region)
     for group in get_auto_scaling_groups_and_elasti_groups(stacks, region):
         if group['type'] == AUTO_SCALING_GROUP_TYPE:
-            respawn_auto_scaling_group(group['resource_id'], region, inplace=inplace, force=force)
-        elif group['type'] == AUTO_SCALING_GROUP_TYPE:
-            respawn_elastigroup(batch_size=batch_size_percentage)
+            respawn.respawn_auto_scaling_group(group['resource_id'], region, inplace=inplace, force=force)
+        elif group['type'] == ELASTIGROUP_TYPE:
+            respawn.respawn_elastigroup(group['resource_id'], group['stack_name'], region, batch_size_percentage)
 
 
 @cli.command()
@@ -1610,7 +1597,7 @@ def scale_elastigroup(elastigroup_id, stack_name, desired_capacity, region):
     '''
     Commands to scale an ElastiGroup
     '''
-    spotinst_account_data = get_spotinst_account_data(region, stack_name)
+    spotinst_account_data = elastigroup_api.get_spotinst_account_data(region, stack_name)
 
     groups = elastigroup_api.get_elastigroup(elastigroup_id, spotinst_account_data)
 
@@ -1633,7 +1620,7 @@ def scale_auto_scaling_group(asg, asg_name, desired_capacity):
     '''
     Commands to scale an AWS Auto Scaling Group
     '''
-    group = get_auto_scaling_group(asg, asg_name)
+    group = respawn.get_auto_scaling_group(asg, asg_name)
     current_capacity = group['DesiredCapacity']
     with Action('Scaling {} from {} to {} instances..'.format(
             asg_name, current_capacity, desired_capacity)) as act:

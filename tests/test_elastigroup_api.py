@@ -1,6 +1,6 @@
 import responses
 from senza.spotinst.components.elastigroup_api import update_capacity, get_elastigroup, patch_elastigroup, deploy, \
-    SPOTINST_API_URL, SpotInstAccountData
+    deploy_status, SPOTINST_API_URL, SpotInstAccountData
 
 
 def test_update_capacity(monkeypatch):
@@ -131,3 +131,40 @@ def test_deploy(monkeypatch):
         assert deploy_response['id'] == 'deploy-id'
         assert deploy_response['status'] == 'STARTING'
         assert deploy_response['numOfBatches'] == 1
+
+
+def test_deploy_status(monkeypatch):
+    deploy_id = 'deploy-id-x'
+    response_json = {
+        "response": {
+            "items": [
+                {
+                    'id': deploy_id,
+                    'status': 'STARTING',
+                    'currentBatch': 13,
+                    'numOfBatches': 20,
+                    'progress': {
+                        'unit': 'percentage',
+                        'value': 65
+                    }
+                }
+            ]
+        }
+    }
+    with responses.RequestsMock() as rsps:
+        spotinst_account_data = SpotInstAccountData('act-zwk', 'fake-token')
+        elastigroup_id = 'sig-xfy'
+
+        rsps.add(rsps.GET, '{}/aws/ec2/group/{}/roll/{}?accountId={}'.format(SPOTINST_API_URL,
+                                                                             elastigroup_id,
+                                                                             deploy_id,
+                                                                             spotinst_account_data.account_id),
+                 status=200,
+                 json=response_json)
+
+        deploy_status_response = deploy_status(deploy_id, elastigroup_id, spotinst_account_data)[0]
+
+        assert deploy_status_response['id'] == deploy_id
+        assert deploy_status_response['numOfBatches'] == 20
+        assert deploy_status_response['progress']['value'] == 65
+

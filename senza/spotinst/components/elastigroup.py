@@ -15,7 +15,7 @@ from senza.components.auto_scaling_group import normalize_network_threshold
 from senza.components.taupage_auto_scaling_group import check_application_id, check_application_version, \
     check_docker_image_exists, generate_user_data
 from senza.utils import ensure_keys
-from spotinst import MissingSpotinstAccount
+from senza.spotinst import MissingSpotinstAccount
 
 SPOTINST_LAMBDA_FORMATION_ARN = 'arn:aws:lambda:{}:178579023202:function:spotinst-cloudformation'
 SPOTINST_API_URL = 'https://api.spotinst.io'

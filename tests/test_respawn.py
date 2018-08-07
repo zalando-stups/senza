@@ -1,6 +1,8 @@
 
 from unittest.mock import MagicMock
-from senza.respawn import respawn_auto_scaling_group
+from senza.respawn import respawn_auto_scaling_group, respawn_elastigroup
+from senza.spotinst.components.elastigroup_api import SpotInstAccountData
+
 
 def test_respawn_auto_scaling_group(monkeypatch):
 
@@ -23,6 +25,7 @@ def test_respawn_auto_scaling_group(monkeypatch):
     elb = MagicMock()
     elb.describe_instance_health.return_value = {'InstanceStates': instance_states}
     services = {'autoscaling': asg, 'elb': elb}
+
     def client(service, region):
         assert region == 'myregion'
         return services[service]
@@ -60,3 +63,48 @@ def test_respawn_auto_scaling_group_without_elb(monkeypatch):
     monkeypatch.setattr('time.sleep', lambda s: s)
     respawn_auto_scaling_group('myasg', 'myregion')
 
+
+def test_respawn_elastigroup(monkeypatch):
+    elastigroup_id = 'sig-xfy'
+    stack_name = 'my-app-stack'
+    region = 'my-region'
+    batch_size = 35
+
+    spotinst_account = SpotInstAccountData('act-zwk', 'fake-token')
+    spotinst_account_mock = MagicMock()
+    spotinst_account_mock.return_value = spotinst_account
+
+    monkeypatch.setattr('senza.spotinst.components.elastigroup_api.get_spotinst_account_data', spotinst_account_mock)
+
+    deploy_output = [{
+        'id': 'deploy-1'
+    }]
+    deploy_output_mock = MagicMock()
+    deploy_output_mock.return_value = deploy_output
+    monkeypatch.setattr('senza.spotinst.components.elastigroup_api.deploy', deploy_output_mock)
+
+    execution_data = {
+        'percentage': 0,
+        'runs': 0,
+        'status': 'starting'
+    }
+
+    def deploy_status(*args):
+        execution_data['runs'] += 1
+        execution_data['percentage'] += 50
+        if execution_data['percentage'] == 100:
+            execution_data['status'] = 'finished'
+        else:
+            execution_data['status'] = 'in_progress'
+        return [{
+            'id': args[0],
+            'status': execution_data['status'],
+            'progress': {
+                'value': execution_data['percentage']
+            }
+        }]
+    monkeypatch.setattr('senza.spotinst.components.elastigroup_api.deploy_status', deploy_status)
+    respawn_elastigroup(elastigroup_id, stack_name, region, batch_size)
+
+    assert execution_data['runs'] == 2
+    assert execution_data['percentage'] == 100

@@ -28,25 +28,8 @@ pipeline:
 
         if [[ -z "${CDP_PULL_REQUEST_NUMBER}" ]]; then
             docker push "$DOCKER_IMAGE"
-            # As the release process is currently broken don't create a tag
-            # git gh-tag "$VERSION"
+            git log -1 --pretty=%B > CHANGELOG
+            # TODO upload the wheel package
+            git gh-release --message-from-file CHANGELOG $VERSION
         fi
-  - id: release
-    type: process
-    desc: Release to TestPyPI
-    target: stups
-    process: microservice_standard_deployment
-    config:
-      apply_permanent_resources:
-        image: pierone.stups.zalan.do/automata/senza-release:#{CDP_TARGET_REPOSITORY_COUNTER}
-        env:
-          - name: USERNAME
-            valueFrom:
-              secretKeyRef:
-                name: teapot-pypi-credentials
-                key: username
-          - name: PASSWORD
-            valueFrom:
-              secretKeyRef:
-                name: teapot-pypi-credentials
-                key: password
+        # The actual release is done by a pipeline in Zalando's Internal Github Enterprise

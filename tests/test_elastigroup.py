@@ -44,7 +44,7 @@ def test_component_elastigroup_defaults(monkeypatch):
 
     result = component_elastigroup(definition, configuration, args, info, False, mock_account_info)
 
-    properties = result["Resources"]["eg1Config"]["Properties"]
+    properties = result["Resources"]["eg1"]["Properties"]
     assert properties["accountId"] == 'act-12345abcdef'
     assert properties["group"]["capacity"] == {"target": 1, "minimum": 1, "maximum": 1}
     instance_types = properties["group"]["compute"]["instanceTypes"]

@@ -64,7 +64,7 @@ def component_elastigroup(definition, configuration, args, info, force, account_
     extract_instance_profile(args, definition, configuration, elastigroup_config)
     # cfn definition
     access_token = _extract_spotinst_access_token(definition)
-    config_name = configuration["Name"] + "Config"
+    config_name = configuration["Name"]
     definition["Resources"][config_name] = {
         "Type": "Custom::elastigroup",
         "Properties": {

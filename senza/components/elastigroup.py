@@ -351,17 +351,25 @@ def extract_load_balancer_name(configuration, elastigroup_config: dict):
         if "ElasticLoadBalancerV2" in configuration:
             health_check_type = "TARGET_GROUP"
             load_balancer_refs = configuration.pop("ElasticLoadBalancerV2")
-            if isinstance(load_balancer_refs, str):
-                load_balancers.append({
-                    "arn": {"Ref": load_balancer_refs + 'TargetGroup'},
-                    "type": "TARGET_GROUP"
-                })
-            elif isinstance(load_balancer_refs, list):
-                for load_balancer_ref in load_balancer_refs:
+            custom_target_groups = configuration.pop("TargetGroupARNs", None)
+            if custom_target_groups:
+                for custom_target_group in custom_target_groups:
                     load_balancers.append({
-                        "arn": {"Ref": load_balancer_ref + "TargetGroup"},
+                        "arn": custom_target_group,
                         "type": "TARGET_GROUP"
                     })
+            else:
+                if isinstance(load_balancer_refs, str):
+                    load_balancers.append({
+                        "arn": {"Ref": load_balancer_refs + 'TargetGroup'},
+                        "type": "TARGET_GROUP"
+                    })
+                elif isinstance(load_balancer_refs, list):
+                    for load_balancer_ref in load_balancer_refs:
+                        load_balancers.append({
+                            "arn": {"Ref": load_balancer_ref + "TargetGroup"},
+                            "type": "TARGET_GROUP"
+                        })
 
         if len(load_balancers) > 0:
             launch_spec_config["loadBalancersConfig"] = {"loadBalancers": load_balancers}

@@ -508,6 +508,66 @@ def test_load_balancers():
         assert test_case["expected_config"] == got
 
 
+def test_multiple_target_groups():
+    test_cases = [
+        {  # multiple target groups in raw ARN form, ignore ALB TG
+            "input": {"ElasticLoadBalancerV2": "foo", "TargetGroupARNs": ["bar", "baz"]},
+            "given_config": {},
+            "expected_config": {"compute": {"launchSpecification": {
+                "loadBalancersConfig": {
+                    "loadBalancers": [
+                        {"arn": "bar", "type": "TARGET_GROUP"},
+                        {"arn": "baz", "type": "TARGET_GROUP"},
+                    ],
+                },
+                "healthCheckType": "TARGET_GROUP",
+                "healthCheckGracePeriod": 300,
+            }}},
+        },
+        {  # multiple target groups with Ref, ignore ALB TG
+            "input": {"ElasticLoadBalancerV2": "foo", "TargetGroupARNs": [{"Ref": "bar"}, {"Ref": "baz"}]},
+            "given_config": {},
+            "expected_config": {"compute": {"launchSpecification": {
+                "loadBalancersConfig": {
+                    "loadBalancers": [
+                        {"arn": {"Ref": "bar"}, "type": "TARGET_GROUP"},
+                        {"arn": {"Ref": "baz"}, "type": "TARGET_GROUP"},
+                    ],
+                },
+                "healthCheckType": "TARGET_GROUP",
+                "healthCheckGracePeriod": 300,
+            }}},
+        },
+        {  # ignore Taupage target groups, leave Elatigroup untouched
+            "input": {"ElasticLoadBalancerV2": "foo", "TargetGroupARNs": [{"Ref": "bar"}, {"Ref": "baz"}]},
+            "given_config": {"compute": {
+                "launchSpecification": {
+                    "loadBalancersConfig": {
+                        "loadBalancers": [
+                            {"arn": "givenTargetGroup", "type": "TARGET_GROUP"},
+                        ],
+                    },
+                    "healthCheckType": "TARGET_GROUP",
+                    "healthCheckGracePeriod": 300,
+                }
+            }},
+            "expected_config": {"compute": {"launchSpecification": {
+                "loadBalancersConfig": {
+                    "loadBalancers": [
+                        {"arn": "givenTargetGroup", "type": "TARGET_GROUP"},
+                    ],
+                },
+                "healthCheckType": "TARGET_GROUP",
+                "healthCheckGracePeriod": 300,
+            }}},
+        },
+    ]
+    for test_case in test_cases:
+        got = test_case["given_config"]
+        extract_load_balancer_name(test_case["input"], got)
+        assert test_case["expected_config"] == got
+
+
 def test_public_ips():
     test_cases = [
         {  # default behavior - no public IPs, leave untouched

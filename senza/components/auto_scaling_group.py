@@ -276,7 +276,7 @@ def normalize_asg_success(success):
     duration = "PT15M"
 
     # if it's falsy, return defaults
-    if not success:
+    if success is None:
         return [count, duration]
 
     # if it's int, use as instance count

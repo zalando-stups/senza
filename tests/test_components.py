@@ -762,7 +762,9 @@ def test_to_iso8601_duration():
 
 def test_normalize_asg_success():
     default = "PT15M"
+    assert normalize_asg_success(0) == ["0", default]
     assert normalize_asg_success(10) == ["10", default]
+    assert normalize_asg_success("0") == ["0", default]
     assert normalize_asg_success("10") == ["10", default]
     assert normalize_asg_success("1 within 4h5s") == ["1", "PT4H5S"]
     assert normalize_asg_success("4 within 30m") == ["4", "PT30M"]

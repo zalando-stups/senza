@@ -26,6 +26,7 @@ from clickclick import (Action, FloatRange, OutputFormat, choice, error,
                         fatal_error, info, ok)
 from clickclick.console import print_table
 
+from components.elastigroup import ELASTIGROUP_RESOURCE_TYPE
 from .spotinst.components import elastigroup_api
 from .arguments import (GLOBAL_OPTIONS, json_output_option, output_option,
                         parameter_file_option, region_option,
@@ -119,11 +120,9 @@ MAX_COLUMN_WIDTHS = {
 
 SENZA_KMS_PREFIX = 'senza:kms:'
 
-ELASTIGROUP_TYPE = 'Custom::elastigroup'
-
 AUTO_SCALING_GROUP_TYPE = 'AWS::AutoScaling::AutoScalingGroup'
 
-VALID_AUTO_SCALING_GROUPS = [AUTO_SCALING_GROUP_TYPE, ELASTIGROUP_TYPE]
+VALID_AUTO_SCALING_GROUPS = [AUTO_SCALING_GROUP_TYPE, ELASTIGROUP_RESOURCE_TYPE]
 
 
 def filter_output_columns(output_columns, filter_columns):
@@ -1501,7 +1500,7 @@ def patch(stack_ref, region, image, instance_type, user_data):
 
     stacks = get_stacks(stack_refs, region)
     for group in get_auto_scaling_groups_and_elasti_groups(stacks, region):
-        if group['type'] == ELASTIGROUP_TYPE:
+        if group['type'] == ELASTIGROUP_RESOURCE_TYPE:
             patch_spotinst_elastigroup(properties, group['resource_id'], region, group['stack_name'])
         elif group['type'] == AUTO_SCALING_GROUP_TYPE:
             patch_aws_asg(properties, region, asg, group['resource_id'])
@@ -1560,7 +1559,7 @@ def respawn_instances(stack_ref, inplace, force, batch_size_percentage, region):
     for group in get_auto_scaling_groups_and_elasti_groups(stacks, region):
         if group['type'] == AUTO_SCALING_GROUP_TYPE:
             respawn.respawn_auto_scaling_group(group['resource_id'], region, inplace=inplace, force=force)
-        elif group['type'] == ELASTIGROUP_TYPE:
+        elif group['type'] == ELASTIGROUP_RESOURCE_TYPE:
             respawn.respawn_elastigroup(group['resource_id'], group['stack_name'], region, batch_size_percentage)
 
 
@@ -1589,7 +1588,7 @@ def scale(stack_ref, region, desired_capacity, force):
     for group in get_auto_scaling_groups_and_elasti_groups(stacks, region):
         if group['type'] == AUTO_SCALING_GROUP_TYPE:
             scale_auto_scaling_group(asg, group['resource_id'], desired_capacity)
-        elif group['type'] == ELASTIGROUP_TYPE:
+        elif group['type'] == ELASTIGROUP_RESOURCE_TYPE:
             scale_elastigroup(group['resource_id'], group['stack_name'], desired_capacity, region)
 
 

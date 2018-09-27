@@ -6,7 +6,7 @@ import requests
 import json
 import boto3
 
-from components.elastigroup import ELASTIGROUP_RESOURCE_TYPE
+from senza.components.elastigroup import ELASTIGROUP_RESOURCE_TYPE
 
 SPOTINST_API_URL = 'https://api.spotinst.io'
 

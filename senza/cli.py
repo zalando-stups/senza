@@ -26,7 +26,7 @@ from clickclick import (Action, FloatRange, OutputFormat, choice, error,
                         fatal_error, info, ok)
 from clickclick.console import print_table
 
-from components.elastigroup import ELASTIGROUP_RESOURCE_TYPE
+from senza.components.elastigroup import ELASTIGROUP_RESOURCE_TYPE
 from .spotinst.components import elastigroup_api
 from .arguments import (GLOBAL_OPTIONS, json_output_option, output_option,
                         parameter_file_option, region_option,

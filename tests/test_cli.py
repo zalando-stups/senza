@@ -14,7 +14,7 @@ import yaml
 import base64
 from click.testing import CliRunner
 
-from components.elastigroup import ELASTIGROUP_RESOURCE_TYPE
+from senza.components.elastigroup import ELASTIGROUP_RESOURCE_TYPE
 from senza.aws import SenzaStackSummary
 from senza.cli import (KeyValParamType, StackReference,
                        all_with_version, create_cf_template, failure_event,

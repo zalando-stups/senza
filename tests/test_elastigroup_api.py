@@ -3,7 +3,7 @@ import responses
 from mock import mock
 from pytest import raises
 
-from components.elastigroup import ELASTIGROUP_RESOURCE_TYPE
+from senza.components.elastigroup import ELASTIGROUP_RESOURCE_TYPE
 from senza.spotinst.components.elastigroup_api import update_capacity, get_elastigroup, patch_elastigroup, deploy, \
     deploy_status, SPOTINST_API_URL, SpotInstAccountData, get_spotinst_account_data
 

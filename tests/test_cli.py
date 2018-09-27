@@ -43,7 +43,7 @@ def test_invalid_definition():
 
         result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=aa-fakeregion-1', '123'], catch_exceptions=False)
 
-    assert 'Error: Invalid value for "definition"' in result.output
+    assert 'Error: Invalid value for "DEFINITION"' in result.output
 
 
 def test_file_not_found():

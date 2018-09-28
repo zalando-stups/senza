@@ -25,8 +25,8 @@ class SpotInstAccountData:
 
 def get_spotinst_account_data(region, stack_name):
     """
-    Extracts the Spotinst API access token and cloud accoint ID required to use the SpotInst API
-    It returns those parameters from the first resource of Type Customer::elastigroup
+    Extracts the Spotinst API access token and cloud account ID required to use the SpotInst API
+    It returns those parameters from the first resource of Type ``Custom::elastigroup``
     found in the stack with the name and region provided as arguments
     """
     cf = boto3.client('cloudformation', region)

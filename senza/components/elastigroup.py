@@ -17,6 +17,7 @@ from senza.components.taupage_auto_scaling_group import check_application_id, ch
 from senza.utils import ensure_keys
 from senza.spotinst import MissingSpotinstAccount
 
+ELASTIGROUP_RESOURCE_TYPE = 'Custom::elastigroup'
 SPOTINST_LAMBDA_FORMATION_ARN = 'arn:aws:lambda:{}:178579023202:function:spotinst-cloudformation'
 SPOTINST_API_URL = 'https://api.spotinst.io'
 ELASTIGROUP_DEFAULT_STRATEGY = {
@@ -66,7 +67,7 @@ def component_elastigroup(definition, configuration, args, info, force, account_
     access_token = _extract_spotinst_access_token(definition)
     config_name = configuration["Name"]
     definition["Resources"][config_name] = {
-        "Type": "Custom::elastigroup",
+        "Type": ELASTIGROUP_RESOURCE_TYPE,
         "Properties": {
             "ServiceToken": create_service_token(args.region),
             "accessToken": access_token,
@@ -76,7 +77,7 @@ def component_elastigroup(definition, configuration, args, info, force, account_
     }
 
     if "SpotPrice" in configuration:
-        print("warning: SpotPrice is ignored when using Spotinst::Elastigroup", file=sys.stderr)
+        print("warning: SpotPrice is ignored when using Senza::Elastigroup", file=sys.stderr)
     return definition
 
 
@@ -495,7 +496,7 @@ def _extract_spotinst_access_token(definition: dict):
     """
     extract the provided access token
     """
-    return definition["Mappings"]["Senza"]["Info"]["SpotinstAccessToken"]
+    return definition["Mappings"]["Senza"]["Info"].pop("SpotinstAccessToken")
 
 
 def extract_spotinst_account_id(access_token: str, definition: dict, account_info):

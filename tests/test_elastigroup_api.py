@@ -1,9 +1,14 @@
+import click
 import responses
+from mock import mock
+from pytest import raises
+
+from senza.components.elastigroup import ELASTIGROUP_RESOURCE_TYPE
 from senza.spotinst.components.elastigroup_api import update_capacity, get_elastigroup, patch_elastigroup, deploy, \
-    deploy_status, SPOTINST_API_URL, SpotInstAccountData
+    deploy_status, SPOTINST_API_URL, SpotInstAccountData, get_spotinst_account_data
 
 
-def test_update_capacity(monkeypatch):
+def test_update_capacity():
     update = {
         'response': {
             'items': [{
@@ -36,7 +41,7 @@ def test_update_capacity(monkeypatch):
         assert update_response['capacity']['target'] == 3
 
 
-def test_get_elastigroup(monkeypatch):
+def test_get_elastigroup():
     group = {
         'response': {
             'items': [{
@@ -60,7 +65,7 @@ def test_get_elastigroup(monkeypatch):
         assert group['name'] == 'my-app-1'
 
 
-def test_patch_elastigroup(monkeypatch):
+def test_patch_elastigroup():
     patch = {
         'ImageId': 'image-foo',
         'InstanceType': 'm1.micro',
@@ -99,7 +104,7 @@ def test_patch_elastigroup(monkeypatch):
         assert patch_response['compute']['launchSpecification']['userData'] == 'user-data-value'
 
 
-def test_deploy(monkeypatch):
+def test_deploy():
     response_json = {
         "response": {
             "items": [
@@ -133,7 +138,7 @@ def test_deploy(monkeypatch):
         assert deploy_response['numOfBatches'] == 1
 
 
-def test_deploy_status(monkeypatch):
+def test_deploy_status():
     deploy_id = 'deploy-id-x'
     response_json = {
         "response": {
@@ -168,3 +173,45 @@ def test_deploy_status(monkeypatch):
         assert deploy_status_response['numOfBatches'] == 20
         assert deploy_status_response['progress']['value'] == 65
 
+
+def test_get_spotinst_account_data():
+    template = {
+        "TemplateBody": {
+            "Mappings": {"Senza": {"Info": {"dont": "care"}}},
+            "Resources": {
+                "FakeResource1": {"Type": "Fake"},
+                "TheOneWeCare": {
+                    "Properties": {
+                        "accessToken": "fake-token",
+                        "accountId": "act-1234",
+                        "group": {"dont": "care"}
+                    },
+                    "Type": ELASTIGROUP_RESOURCE_TYPE
+                },
+                "FakeResource2": {"Type": "Fake"},
+            }
+        }
+    }
+
+    with mock.patch('boto3.client') as MockHelper:
+        MockHelper.return_value.get_template.return_value = template
+        account_data = get_spotinst_account_data('fake-region', 'fake-stack-name')
+        assert account_data.account_id == 'act-1234'
+        assert account_data.access_token == 'fake-token'
+
+
+def test_get_spotinst_account_data_failure():
+    template = {
+        "TemplateBody": {
+            "Mappings": {"Senza": {"Info": {"dont": "care"}}},
+            "Resources": {
+                "FakeResource1": {"Type": "Fake"},
+                "FakeResource2": {"Type": "Fake"},
+            }
+        }
+    }
+
+    with mock.patch('boto3.client') as MockHelper:
+        MockHelper.return_value.get_template.return_value = template
+        with raises(click.Abort, message="Expecting click.Abort error"):
+            get_spotinst_account_data('fake-region', 'fake-stack-name')

@@ -1,10 +1,12 @@
 '''
 Wrapper methods for ElastiGroup's API
 '''
+import click
 import requests
 import json
 import boto3
 
+from senza.components.elastigroup import ELASTIGROUP_RESOURCE_TYPE
 
 SPOTINST_API_URL = 'https://api.spotinst.io'
 
@@ -22,16 +24,22 @@ class SpotInstAccountData:
 
 
 def get_spotinst_account_data(region, stack_name):
-    '''
-    Extracts required parameters required to access SpotInst API
-    '''
+    """
+    Extracts the Spotinst API access token and cloud account ID required to use the SpotInst API
+    It returns those parameters from the first resource of Type ``Custom::elastigroup``
+    found in the stack with the name and region provided as arguments
+    """
     cf = boto3.client('cloudformation', region)
     template = cf.get_template(StackName=stack_name)['TemplateBody']
 
-    spotinst_token = template['Mappings']['Senza']['Info']['SpotinstAccessToken']
-    spotinst_account_id = template['Resources']['AppServerConfig']['Properties']['accountId']
+    resources = template.get('Resources', [])
+    for name, resource in resources.items():
+        if resource.get("Type", None) == ELASTIGROUP_RESOURCE_TYPE:
+            spotinst_token = resource['Properties']['accessToken']
+            spotinst_account_id = resource['Properties']['accountId']
+            return SpotInstAccountData(spotinst_account_id, spotinst_token)
 
-    return SpotInstAccountData(spotinst_account_id, spotinst_token)
+    raise click.Abort()
 
 
 def update_elastigroup(body, elastigroup_id, spotinst_account_data):

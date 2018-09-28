@@ -8,7 +8,7 @@ SenzaComponents:
         Type: Senza::StupsAutoConfiguration # auto-detect network setup
 
   - AppServerElastigroup:
-      Type: Spotinst::Elastigroup
+      Type: Senza::Elastigroup
       InstanceType: m3.large
       SpotAlternatives:
           - m3.large

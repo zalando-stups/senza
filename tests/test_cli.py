@@ -13,6 +13,8 @@ import senza.traffic
 import yaml
 import base64
 from click.testing import CliRunner
+
+from senza.components.elastigroup import ELASTIGROUP_RESOURCE_TYPE
 from senza.aws import SenzaStackSummary
 from senza.cli import (KeyValParamType, StackReference,
                        all_with_version, create_cf_template, failure_event,
@@ -41,7 +43,7 @@ def test_invalid_definition():
 
         result = runner.invoke(cli, ['print', 'myapp.yaml', '--region=aa-fakeregion-1', '123'], catch_exceptions=False)
 
-    assert 'Error: Invalid value for "definition"' in result.output
+    assert 'Error: Invalid value for "DEFINITION"' in result.output
 
 
 def test_file_not_found():
@@ -910,6 +912,7 @@ def test_list(monkeypatch):
 
     assert 'test-stack 1' in result.output
 
+
 def test_list_version(monkeypatch):
     def my_resource(rtype, *args):
         return MagicMock()
@@ -937,6 +940,7 @@ def test_list_version(monkeypatch):
 
     assert '1' in result.output
     assert 'test-stack' not in result.output
+
 
 def test_images(monkeypatch):
     def my_resource(rtype, *args):
@@ -1635,11 +1639,11 @@ def test_respawn(monkeypatch):
     boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',
                                                           'CreationTime': '2016-06-14'}]}
     boto3.describe_stack_resources.return_value = {'StackResources': [
-                                                       {
-                                                           'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
-                                                           'PhysicalResourceId': 'myasg',
-                                                           'StackName': 'myapp-1'
-                                                       }]}
+        {
+            'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
+            'PhysicalResourceId': 'myasg',
+            'StackName': 'myapp-1'
+        }]}
     monkeypatch.setattr('senza.respawn.respawn_auto_scaling_group', lambda *args, **kwargs: None)
     runner = CliRunner()
     runner.invoke(cli, ['respawn', 'myapp', '1', '--region=aa-fakeregion-1'],
@@ -1654,7 +1658,7 @@ def test_respawn_elastigroup(monkeypatch):
 
     elastigroup_id = 'myelasti'
     boto3.describe_stack_resources.return_value = {'StackResources':
-                                                       [{'ResourceType': 'Custom::elastigroup',
+                                                       [{'ResourceType': ELASTIGROUP_RESOURCE_TYPE,
                                                          'PhysicalResourceId': elastigroup_id,
                                                          'StackName': 'myapp-1'}]}
 
@@ -1676,9 +1680,9 @@ def test_scale(monkeypatch):
     boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',
                                                           'CreationTime': '2016-06-14'}]}
     boto3.describe_stack_resources.return_value = {'StackResources': [
-                                                       {'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
-                                                        'PhysicalResourceId': 'myasg',
-                                                        'StackName': 'myapp-1'}]}
+        {'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
+         'PhysicalResourceId': 'myasg',
+         'StackName': 'myapp-1'}]}
     # NOTE: we are using invalid MinSize (< capacity) here to get one more line covered ;-)
     group = {'AutoScalingGroupName': 'myasg', 'DesiredCapacity': 1, 'MinSize': 3, 'MaxSize': 1}
     boto3.describe_auto_scaling_groups.return_value = {'AutoScalingGroups': [group]}
@@ -1696,22 +1700,18 @@ def test_scale_elastigroup(monkeypatch):
     boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',
                                                           'CreationTime': '2016-06-14'}]}
     boto3.describe_stack_resources.return_value = {'StackResources':
-                                                       [{'ResourceType': 'Custom::elastigroup',
+                                                       [{'ResourceType': ELASTIGROUP_RESOURCE_TYPE,
                                                          'PhysicalResourceId': elastigroup_id,
                                                          'StackName': 'myapp-1'}]}
     boto3.get_template.return_value = {
         'TemplateBody': {
-            'Mappings': {
-                'Senza': {
-                    'Info': {
-                        'SpotinstAccessToken': 'faketoken'
-                    }
-                }
-            },
+            'Mappings': {'Senza': {'Info': {}}},
             'Resources': {
                 'AppServerConfig': {
+                    'Type': ELASTIGROUP_RESOURCE_TYPE,
                     'Properties': {
-                        'accountId': spotinst_account_id
+                        'accountId': spotinst_account_id,
+                        'accessToken': 'faketoken',
                     }
                 }
             }
@@ -2067,7 +2067,7 @@ def test_traffic_fallback_route53api(monkeypatch, boto_client, boto_resource):  
     referenced_stacks = [
         SenzaStackSummary({'StackName': s.name, 'StackStatus': 'UPDATE_COMPLETE'})
         for s in stacks
-        ]
+    ]
     monkeypatch.setattr('senza.cli.get_stacks', MagicMock(name="fake_get_stacks", return_value=referenced_stacks))
 
     def _record(dns_identifier, weight):

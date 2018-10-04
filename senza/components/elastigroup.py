@@ -315,8 +315,8 @@ def extract_user_data(configuration, elastigroup_config, info: dict, force, acco
         if not force and docker_image.registry:
             check_docker_image_exists(docker_image)
 
-        user_data = base64.urlsafe_b64encode(generate_user_data(taupage_config, account_info.Region).encode('utf-8'))
-        elastigroup_config["compute"]["launchSpecification"]["userData"] = user_data.decode('utf-8')
+        elastigroup_config["compute"]["launchSpecification"]["userData"] = \
+            {"Fn::Base64": generate_user_data(taupage_config, account_info.Region)}
 
 
 def extract_load_balancer_name(configuration, elastigroup_config: dict):

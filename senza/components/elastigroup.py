@@ -2,7 +2,6 @@
 Functions to create Spotinst Elastigroups
 """
 
-import base64
 import sys
 
 import click

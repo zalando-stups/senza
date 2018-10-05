@@ -5,10 +5,14 @@ from mock import MagicMock
 
 from senza.spotinst import MissingSpotinstAccount
 from senza.components.elastigroup import (component_elastigroup, ELASTIGROUP_DEFAULT_PRODUCT,
-                                          ELASTIGROUP_DEFAULT_STRATEGY, resolve_account_id, SPOTINST_API_URL, extract_block_mappings,
-                                          extract_auto_scaling_rules, ensure_instance_monitoring, ensure_default_strategy, extract_autoscaling_capacity,
-                                          ensure_default_product, fill_standard_tags, extract_subnets, extract_load_balancer_name, extract_public_ips,
-                                          extract_image_id, extract_security_group_ids, extract_instance_types, extract_instance_profile)
+                                          ELASTIGROUP_DEFAULT_STRATEGY, resolve_account_id, SPOTINST_API_URL,
+                                          extract_block_mappings,
+                                          extract_auto_scaling_rules, ensure_instance_monitoring,
+                                          ensure_default_strategy, extract_autoscaling_capacity,
+                                          ensure_default_product, fill_standard_tags, extract_subnets,
+                                          extract_load_balancer_name, extract_public_ips,
+                                          extract_image_id, extract_security_group_ids, extract_instance_types,
+                                          extract_instance_profile)
 
 
 def test_component_elastigroup_defaults(monkeypatch):
@@ -65,6 +69,32 @@ def test_component_elastigroup_defaults(monkeypatch):
     assert "scaling" in properties["group"]
     assert "scheduling" in properties["group"]
     assert "thirdPartiesIntegration" in properties["group"]
+
+
+def test_raw_user_data_and_base64_encoding_cf_function_used(monkeypatch):
+    configuration = {
+        "Name": "eg1",
+        "SecurityGroups": {"Ref": "sg1"},
+        "InstanceType": "big",
+        "TaupageConfig": {
+            "runtime": "Docker",
+            "source": "some/fake/artifact:test"
+        }
+    }
+    args = MagicMock()
+    args.region = "reg1"
+    info = {'StackName': 'foobar', 'StackVersion': '0.1', 'SpotinstAccessToken': 'token1'}
+    definition = {"Resources": {},
+                  "Mappings": {"Senza": {"Info": info}, "ServerSubnets": {"reg1": {"Subnets": ["sn1", "sn2", "sn3"]}}}}
+
+    mock_resolve_account_id = MagicMock()
+    mock_resolve_account_id.return_value = 'act-12345abcdef'
+    monkeypatch.setattr('senza.components.elastigroup.resolve_account_id', mock_resolve_account_id)
+
+    result = component_elastigroup(definition, configuration, args, info, True, MagicMock())
+
+    launch_specification = result["Resources"]["eg1"]["Properties"]["group"]["compute"]["launchSpecification"]
+    assert "some/fake/artifact:test" in launch_specification["userData"]["Fn::Base64"]
 
 
 def test_missing_access_token():

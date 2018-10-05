@@ -43,10 +43,10 @@ def test_patch_elastigroup(monkeypatch):
 
     monkeypatch.setattr('senza.spotinst.components.elastigroup_api.patch_elastigroup', create_lc)
 
-    properties = {'ImageId': 'mynewimage', 'InstanceType': 'mynewinstancetyoe', 'UserData': {'source': 'newsource'}}
+    properties = {'ImageId': 'mynewimage', 'InstanceType': 'mynewinstancetyoe', 'UserData': {'source': 'newsource >'}}
     group = {'compute': {
             'launchSpecification': {
-                'userData': codecs.encode(b'#firstline\nsource: oldsource', 'base64').decode('utf-8'),
+                'userData': base64.b64encode('#firstline\nsource: oldsource\n'.encode('utf-8')).decode('utf-8'),
                 'imageId': 'myoldimage'
             },
             'instanceTypes': {
@@ -58,7 +58,7 @@ def test_patch_elastigroup(monkeypatch):
 
     assert changed
     assert new_lc['ImageId'] == 'mynewimage'
-    assert new_lc['UserData'] == base64.urlsafe_b64encode('#firstline\nsource: newsource\n'.encode('utf-8')).decode('utf-8')
+    assert new_lc['UserData'] == base64.b64encode('#firstline\nsource: newsource >\n'.encode('utf-8')).decode('utf-8')
     assert new_lc['InstanceType'] == 'mynewinstancetyoe'
 
 

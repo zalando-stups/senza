@@ -62,7 +62,7 @@ def test_component_elastigroup_defaults(monkeypatch):
     assert {'tagKey': 'StackName', 'tagValue': 'foobar'} in tags
     assert {'tagKey': 'StackVersion', 'tagValue': '0.1'} in tags
     assert properties["group"]["compute"]["product"] == ELASTIGROUP_DEFAULT_PRODUCT
-    assert properties["group"]["compute"]["subnetIds"] == subnets
+    assert properties["group"]["compute"]["subnetIds"] == {"Fn::FindInMap": ["ServerSubnets", {"Ref": "AWS::Region"}, "Subnets"]}
     assert properties["group"]["region"] == "reg1"
     assert properties["group"]["strategy"] == ELASTIGROUP_DEFAULT_STRATEGY
 
@@ -381,21 +381,22 @@ def test_standard_tags():
 
 def test_extract_subnets():
     test_cases = [
-        {  # use auto discovered subnets from auto-discovered region
-            "definition": {"Mappings": {"ServerSubnets": {"reg1": {"Subnets": ["sn1", "sn2"]}}}},
+        {  # use auto discovered server subnets
+            "component_config": {},
             "given_config": {},
-            "expected_config": {"compute": {"subnetIds": ["sn1", "sn2"]}, "region": "reg1"},
+            "expected_config": {
+                "compute": {"subnetIds": {"Fn::FindInMap": ["ServerSubnets", {"Ref": "AWS::Region"}, "Subnets"]}},
+                "region": "reg1"},
         },
-        {  # use auto discovered subnets from specified region
-            "definition": {"Mappings": {"ServerSubnets": {
-                "reg1": {"Subnets": ["sn1", "sn2"]},
-                "reg2": {"Subnets": ["n1", "n2"]}
-            }}},
-            "given_config": {"region": "reg2"},
-            "expected_config": {"compute": {"subnetIds": ["n1", "n2"]}, "region": "reg2"},
+        {  # use auto discovered DMZ subnets
+            "component_config": {"AssociatePublicIpAddress": True},
+            "given_config": {},
+            "expected_config": {
+                "compute": {"subnetIds": {"Fn::FindInMap": ["LoadBalancerSubnets", {"Ref": "AWS::Region"}, "Subnets"]}},
+                "region": "reg1"},
         },
         {  # leave subnetIds untouched
-            "definition": {"Mappings": {"ServerSubnets": {"reg1": {"Subnets": ["sn1", "sn2"]}}}},
+            "component_config": {},
             "given_config": {"compute": {"subnetIds": ["subnet01"]}},
             "expected_config": {"compute": {"subnetIds": ["subnet01"]}, "region": "reg1"},
         },
@@ -403,9 +404,10 @@ def test_extract_subnets():
     account_info = MagicMock()
     account_info.Region = "reg1"
     for test_case in test_cases:
-        got = test_case["given_config"]
-        extract_subnets(test_case["definition"], got, account_info)
-        assert test_case["expected_config"] == got
+        input = test_case["given_config"]
+        config = test_case["component_config"]
+        extract_subnets(config, input, account_info)
+        assert test_case["expected_config"] == input
 
 
 def test_load_balancers():

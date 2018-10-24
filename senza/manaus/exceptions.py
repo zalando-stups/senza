@@ -16,7 +16,7 @@ class InvalidState(ManausException):
     """
 
     def __init__(self, reason: str):
-        super().__init__('Invalid State: {}'.format(reason))
+        super().__init__("Invalid State: {}".format(reason))
 
 
 class ELBNotFound(ManausException):
@@ -25,7 +25,7 @@ class ELBNotFound(ManausException):
     """
 
     def __init__(self, domain_name: str):
-        super().__init__('ELB not found: {}'.format(domain_name))
+        super().__init__("ELB not found: {}".format(domain_name))
 
 
 class HostedZoneNotFound(ManausException):
@@ -34,7 +34,7 @@ class HostedZoneNotFound(ManausException):
     """
 
     def __init__(self, name: str):
-        super().__init__('Hosted Zone not found: {}'.format(name))
+        super().__init__("Hosted Zone not found: {}".format(name))
 
 
 class RecordNotFound(ManausException):
@@ -43,7 +43,7 @@ class RecordNotFound(ManausException):
     """
 
     def __init__(self, name: str):
-        super().__init__('Route 53 Record not found: {}'.format(name))
+        super().__init__("Route 53 Record not found: {}".format(name))
 
 
 class StackNotFound(ManausException):
@@ -52,7 +52,7 @@ class StackNotFound(ManausException):
     """
 
     def __init__(self, name: str):
-        super().__init__('CloudFormation Stack not found: {}'.format(name))
+        super().__init__("CloudFormation Stack not found: {}".format(name))
 
 
 class StackNotUpdated(ManausException):
@@ -62,7 +62,7 @@ class StackNotUpdated(ManausException):
     """
 
     def __init__(self, name: str):
-        super().__init__('CloudFormation Stack not updated: {}'.format(name))
+        super().__init__("CloudFormation Stack not updated: {}".format(name))
 
 
 class VPCError(ManausException, AttributeError):
@@ -70,6 +70,6 @@ class VPCError(ManausException, AttributeError):
     Error raised when there are issues with VPCs configuration
     """
 
-    def __init__(self, message: str, number_of_vpcs: int=None):
+    def __init__(self, message: str, number_of_vpcs: int = None):
         super().__init__(message)
         self.number_of_vpcs = number_of_vpcs

@@ -24,24 +24,27 @@ class ACMCertificate:
     http://boto3.readthedocs.io/en/latest/reference/services/acm.html#ACM.Client.list_certificates
     http://boto3.readthedocs.io/en/latest/reference/services/acm.html#ACM.Client.describe_certificate
     """
-    def __init__(self,
-                 domain_name: str,
-                 arn: str,
-                 subject_alternative_name: List[str],
-                 domain_validation_options: List[Dict],
-                 serial: str,
-                 subject: str,
-                 issuer: str,
-                 created_at: datetime,
-                 imported_at: datetime,
-                 issued_at: datetime,
-                 status: str,
-                 not_before: datetime,
-                 not_after: datetime,
-                 signature_algorithm: str,
-                 in_use_by: List[str],
-                 revoked_at: Optional[datetime],
-                 revocation_reason: Optional[str]):
+
+    def __init__(
+        self,
+        domain_name: str,
+        arn: str,
+        subject_alternative_name: List[str],
+        domain_validation_options: List[Dict],
+        serial: str,
+        subject: str,
+        issuer: str,
+        created_at: datetime,
+        imported_at: datetime,
+        issued_at: datetime,
+        status: str,
+        not_before: datetime,
+        not_after: datetime,
+        signature_algorithm: str,
+        in_use_by: List[str],
+        revoked_at: Optional[datetime],
+        revocation_reason: Optional[str],
+    ):
         self.domain_name = domain_name
         self.arn = arn
         self.subject_alternative_name = subject_alternative_name
@@ -73,56 +76,68 @@ class ACMCertificate:
         return "<ACMCertificate:{domain_name} ({arn})>".format_map(vars(self))
 
     @classmethod
-    def from_boto_dict(cls,
-                       certificate: Dict[str, Any]) -> "ACMCertificate":
+    def from_boto_dict(cls, certificate: Dict[str, Any]) -> "ACMCertificate":
         """
         Creates an ACMCertificate based on the dictionary returned by
         describe_certificate
         """
 
-        domain_name = certificate['DomainName']
-        arn = certificate['CertificateArn']
-        subject_alternative_name = certificate['SubjectAlternativeNames']
-        domain_validation_options = certificate['DomainValidationOptions']
-        subject = certificate['Subject']
-        created_at = certificate.get('CreatedAt')
-        imported_at = certificate.get('ImportedAt')
-        status = certificate['Status']
-        signature_algorithm = certificate['SignatureAlgorithm']
-        in_use_by = certificate['InUseBy']
-        serial = certificate.get('Serial')
-        issuer = certificate.get('Issuer')
-        issued_at = certificate.get('IssuedAt')
-        not_before = certificate.get('NotBefore')
-        not_after = certificate.get('NotAfter')
+        domain_name = certificate["DomainName"]
+        arn = certificate["CertificateArn"]
+        subject_alternative_name = certificate["SubjectAlternativeNames"]
+        domain_validation_options = certificate["DomainValidationOptions"]
+        subject = certificate["Subject"]
+        created_at = certificate.get("CreatedAt")
+        imported_at = certificate.get("ImportedAt")
+        status = certificate["Status"]
+        signature_algorithm = certificate["SignatureAlgorithm"]
+        in_use_by = certificate["InUseBy"]
+        serial = certificate.get("Serial")
+        issuer = certificate.get("Issuer")
+        issued_at = certificate.get("IssuedAt")
+        not_before = certificate.get("NotBefore")
+        not_after = certificate.get("NotAfter")
 
-        revoked_at = certificate.get('RevokedAt')
-        revocation_reason = certificate.get('RevocationReason')
+        revoked_at = certificate.get("RevokedAt")
+        revocation_reason = certificate.get("RevocationReason")
 
-        return cls(domain_name, arn, subject_alternative_name,
-                   domain_validation_options, serial, subject, issuer,
-                   created_at, imported_at,
-                   issued_at, status, not_before, not_after,
-                   signature_algorithm, in_use_by,
-                   revoked_at, revocation_reason)
+        return cls(
+            domain_name,
+            arn,
+            subject_alternative_name,
+            domain_validation_options,
+            serial,
+            subject,
+            issuer,
+            created_at,
+            imported_at,
+            issued_at,
+            status,
+            not_before,
+            not_after,
+            signature_algorithm,
+            in_use_by,
+            revoked_at,
+            revocation_reason,
+        )
 
     @classmethod
     def get_by_arn(cls, region: str, arn: str) -> "ACMCertificate":
         """
         Gets a ACMCertificate based on ARN alone
         """
-        client = BotoClientProxy('acm', region)
-        certificate = client.describe_certificate(CertificateArn=arn)['Certificate']
+        client = BotoClientProxy("acm", region)
+        certificate = client.describe_certificate(CertificateArn=arn)["Certificate"]
         return cls.from_boto_dict(certificate)
 
     @staticmethod
-    def arn_is_acm_certificate(arn: Optional[str]=None) -> bool:
+    def arn_is_acm_certificate(arn: Optional[str] = None) -> bool:
         if arn is None:
             return False
         else:
             return arn.startswith("arn:aws:acm:")
 
-    def is_valid(self, when: Optional[datetime]=None) -> bool:
+    def is_valid(self, when: Optional[datetime] = None) -> bool:
         """
         Checks if the certificate is still valid
         """
@@ -138,10 +153,9 @@ class ACMCertificate:
         Checks if certificate subject or alt names match the domain name.
         """
         # python ssl friendly certificate:
-        subject = ((('commonName', self.domain_name),),)
-        alt_name = [('DNS', name) for name in self.subject_alternative_name]
-        certificate = {'subject': subject,
-                       'subjectAltName': alt_name}
+        subject = ((("commonName", self.domain_name),),)
+        alt_name = [("DNS", name) for name in self.subject_alternative_name]
+        certificate = {"subject": subject, "subjectAltName": alt_name}
 
         try:
             match_hostname(certificate, domain_name)
@@ -165,10 +179,9 @@ class ACM:
     def __init__(self, region=str):
         self.region = region
 
-    def get_certificates(self,
-                         *,
-                         valid_only: bool=True,
-                         domain_name: Optional[str]=None) -> Iterator[ACMCertificate]:
+    def get_certificates(
+        self, *, valid_only: bool = True, domain_name: Optional[str] = None
+    ) -> Iterator[ACMCertificate]:
         """
         Gets certificates from ACM. By default it returns all valid certificates
 
@@ -177,10 +190,10 @@ class ACM:
         :param domain_name: Return only certificates that match the domain
         """
         # TODO implement pagination
-        client = BotoClientProxy('acm', self.region)
-        certificates = client.list_certificates()['CertificateSummaryList']
+        client = BotoClientProxy("acm", self.region)
+        certificates = client.list_certificates()["CertificateSummaryList"]
         for summary in certificates:
-            arn = summary['CertificateArn']
+            arn = summary["CertificateArn"]
             certificate = ACMCertificate.get_by_arn(self.region, arn)
             if valid_only and not certificate.is_valid():
                 pass

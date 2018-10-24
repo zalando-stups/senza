@@ -27,7 +27,8 @@ class ResourceType(str, Enum):
     """
     Possible AWS resource types (still incomplete)
     """
-    route53_record_set = 'AWS::Route53::RecordSet'
+
+    route53_record_set = "AWS::Route53::RecordSet"
 
 
 class CloudFormationStack:
@@ -39,23 +40,25 @@ class CloudFormationStack:
     http://boto3.readthedocs.io/en/latest/reference/services/cloudformation.html
     """
 
-    def __init__(self,
-                 stack_id: str,
-                 name: str,
-                 description: Optional[str],
-                 parameters: Dict[str, str],
-                 creation_time: datetime,
-                 last_updated_time: Optional[datetime],
-                 status: str,
-                 stack_status_reason: Optional[str],
-                 disable_rollback: bool,
-                 notification_arns: List[str],
-                 timeout_in_minutes: Optional[int],
-                 capabilities: Optional[List[str]],
-                 outputs: Optional[List[Dict]],
-                 tags: Dict[str, str],
-                 *,
-                 region: Optional[str]):
+    def __init__(
+        self,
+        stack_id: str,
+        name: str,
+        description: Optional[str],
+        parameters: Dict[str, str],
+        creation_time: datetime,
+        last_updated_time: Optional[datetime],
+        status: str,
+        stack_status_reason: Optional[str],
+        disable_rollback: bool,
+        notification_arns: List[str],
+        timeout_in_minutes: Optional[int],
+        capabilities: Optional[List[str]],
+        outputs: Optional[List[Dict]],
+        tags: Dict[str, str],
+        *,
+        region: Optional[str]
+    ):
         self.stack_id = stack_id
         self.name = name
         self.description = description
@@ -79,59 +82,75 @@ class CloudFormationStack:
         return "<CloudFormationStack: {name}>".format_map(vars(self))
 
     @classmethod
-    def from_boto_dict(cls,
-                       stack: Dict,
-                       region: Optional[str]=None) -> "CloudFormationStack":
+    def from_boto_dict(
+        cls, stack: Dict, region: Optional[str] = None
+    ) -> "CloudFormationStack":
         """
         Converts the dict returned by ``boto3.client.describe_stacks`` to a
         ``CloudFormationStack`` instance.
         """
-        stack_id = stack['StackId']
-        name = stack['StackName']
-        description = stack.get('Description')
-        parameters = OrderedDict([(p['ParameterKey'], p['ParameterValue'])
-                                  for p in stack.get('Parameters', [])
-                                  if not p.get('UsePreviousValue')])
-        creation_time = stack['CreationTime']
-        last_updated_time = stack.get('LastUpdatedTime')
-        status = stack['StackStatus']
-        stack_status_reason = stack.get('StackStatusReason')
-        disable_rollback = stack['DisableRollback']
-        notification_arns = stack['NotificationARNs']
-        timeout_in_minutes = stack.get('TimeoutInMinutes')
-        capabilities = stack.get('Capabilities')
-        outputs = stack.get('Outputs')
-        tags = OrderedDict([(t['Key'], t['Value']) for t in stack['Tags']])
+        stack_id = stack["StackId"]
+        name = stack["StackName"]
+        description = stack.get("Description")
+        parameters = OrderedDict(
+            [
+                (p["ParameterKey"], p["ParameterValue"])
+                for p in stack.get("Parameters", [])
+                if not p.get("UsePreviousValue")
+            ]
+        )
+        creation_time = stack["CreationTime"]
+        last_updated_time = stack.get("LastUpdatedTime")
+        status = stack["StackStatus"]
+        stack_status_reason = stack.get("StackStatusReason")
+        disable_rollback = stack["DisableRollback"]
+        notification_arns = stack["NotificationARNs"]
+        timeout_in_minutes = stack.get("TimeoutInMinutes")
+        capabilities = stack.get("Capabilities")
+        outputs = stack.get("Outputs")
+        tags = OrderedDict([(t["Key"], t["Value"]) for t in stack["Tags"]])
 
-        return cls(stack_id, name, description, parameters,
-                   creation_time, last_updated_time, status,
-                   stack_status_reason, disable_rollback, notification_arns,
-                   timeout_in_minutes, capabilities, outputs, tags,
-                   region=region)
+        return cls(
+            stack_id,
+            name,
+            description,
+            parameters,
+            creation_time,
+            last_updated_time,
+            status,
+            stack_status_reason,
+            disable_rollback,
+            notification_arns,
+            timeout_in_minutes,
+            capabilities,
+            outputs,
+            tags,
+            region=region,
+        )
 
     @classmethod
-    def get_by_stack_name(cls,
-                          name: str,
-                          region: Optional[str]=None) -> "CloudFormationStack":
+    def get_by_stack_name(
+        cls, name: str, region: Optional[str] = None
+    ) -> "CloudFormationStack":
         """
         See:
         http://boto3.readthedocs.io/en/latest/reference/services/cloudformation.html#CloudFormation.Client.describe_stacks
         """
-        client = BotoClientProxy('cloudformation', region)
+        client = BotoClientProxy("cloudformation", region)
 
         try:
             stacks = client.describe_stacks(StackName=name)
         except ClientError as err:
             response = err.response
-            error_info = response['Error']
-            error_message = error_info['Message']
+            error_info = response["Error"]
+            error_message = error_info["Message"]
             # This is not very resilient way to do this but boto API doesn't
             # provide a better way.
-            if error_message == 'Stack with id {name} does not exist'.format(name=name):
+            if error_message == "Stack with id {name} does not exist".format(name=name):
                 raise StackNotFound(name)
             else:
                 raise
-        stack = stacks['Stacks'][0]  # type: dict
+        stack = stacks["Stacks"][0]  # type: dict
 
         return cls.from_boto_dict(stack, region)
 
@@ -140,21 +159,23 @@ class CloudFormationStack:
         """
         Returns the stack resources as Manaus Objects
         """
-        client = BotoClientProxy('cloudformation', self.region)
+        client = BotoClientProxy("cloudformation", self.region)
         response = client.list_stack_resources(StackName=self.stack_id)
-        resources = response['StackResourceSummaries']  # type: List[Dict]
+        resources = response["StackResourceSummaries"]  # type: List[Dict]
         for resource in resources:
             resource_type = resource["ResourceType"]
             if resource_type == ResourceType.route53_record_set:
-                physical_resource_id = resource.get('PhysicalResourceId')
+                physical_resource_id = resource.get("PhysicalResourceId")
                 if physical_resource_id is None:
                     # if there is no Physical Resource Id we can't fetch the
                     # record
                     continue
-                records = Route53.get_records(name=resource['PhysicalResourceId'])
+                records = Route53.get_records(name=resource["PhysicalResourceId"])
                 for record in records:
-                    if (record.set_identifier is None or
-                            record.set_identifier == self.name):
+                    if (
+                        record.set_identifier is None
+                        or record.set_identifier == self.name
+                    ):
                         yield record
             else:  # pragma: no cover
                 # TODO implement the other resource types
@@ -168,9 +189,9 @@ class CloudFormationStack:
         with CloudFormationStack.reset().
         """
         if self.__template is None:
-            client = BotoClientProxy('cloudformation', self.region)
+            client = BotoClientProxy("cloudformation", self.region)
             response = client.get_template(StackName=self.name)
-            self.__template = response['TemplateBody']
+            self.__template = response["TemplateBody"]
         return self.__template
 
     def reset(self):
@@ -184,19 +205,23 @@ class CloudFormationStack:
         """
         Sends the current template to CloudFormation to update the stack
         """
-        client = BotoClientProxy('cloudformation', self.region)
-        parameters = [{'ParameterKey': key, 'ParameterValue': value}
-                      for key, value in self.parameters.items()]
+        client = BotoClientProxy("cloudformation", self.region)
+        parameters = [
+            {"ParameterKey": key, "ParameterValue": value}
+            for key, value in self.parameters.items()
+        ]
         try:
-            client.update_stack(StackName=self.name,
-                                TemplateBody=json.dumps(self.template),
-                                Parameters=parameters,
-                                Capabilities=self.capabilities or [])
+            client.update_stack(
+                StackName=self.name,
+                TemplateBody=json.dumps(self.template),
+                Parameters=parameters,
+                Capabilities=self.capabilities or [],
+            )
         except ClientError as err:
             response = err.response
-            error_info = response['Error']
-            error_message = error_info['Message']
-            if error_message == 'No updates are to be performed.':
+            error_info = response["Error"]
+            error_message = error_info["Message"]
+            if error_message == "No updates are to be performed.":
                 raise StackNotUpdated(self.name)
             else:
                 raise
@@ -205,7 +230,7 @@ class CloudFormationStack:
         """
         Delete the CloudFormation stack
         """
-        client = BotoClientProxy('cloudformation', self.region)
+        client = BotoClientProxy("cloudformation", self.region)
         client.delete_stack(StackName=self.stack_id)
 
 
@@ -216,16 +241,16 @@ class CloudFormation:
     See:
     http://boto3.readthedocs.io/en/latest/reference/services/cloudformation.html
     """
-    def __init__(self, region: Optional[str]=None):
+
+    def __init__(self, region: Optional[str] = None):
         self.region = region
 
-    def get_stacks(self,
-                   all_stacks: bool=False) -> Iterator[CloudFormationStack]:
+    def get_stacks(self, all_stacks: bool = False) -> Iterator[CloudFormationStack]:
         """
         Gets CloudFormation stacks from aws. If all_stacks is ``True`` it will
         also include deleted stacks
         """
-        client = BotoClientProxy('cloudformation', self.region)
+        client = BotoClientProxy("cloudformation", self.region)
         if all_stacks:
             status_filter = []
         else:
@@ -245,14 +270,15 @@ class CloudFormation:
                 "UPDATE_ROLLBACK_IN_PROGRESS",
                 "UPDATE_ROLLBACK_FAILED",
                 "UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS",
-                "UPDATE_ROLLBACK_COMPLETE"
+                "UPDATE_ROLLBACK_COMPLETE",
             ]
 
-        kwargs = {'StackStatusFilter': status_filter}
-        while 'NextToken' not in kwargs or kwargs['NextToken']:
+        kwargs = {"StackStatusFilter": status_filter}
+        while "NextToken" not in kwargs or kwargs["NextToken"]:
             results = client.list_stacks(**kwargs)
-            for stack in results['StackSummaries']:
-                stack_id = stack['StackId']
-                yield CloudFormationStack.get_by_stack_name(stack_id,
-                                                            region=self.region)
-            kwargs['NextToken'] = results.get('NextToken')
+            for stack in results["StackSummaries"]:
+                stack_id = stack["StackId"]
+                yield CloudFormationStack.get_by_stack_name(
+                    stack_id, region=self.region
+                )
+            kwargs["NextToken"] = results.get("NextToken")

@@ -2,24 +2,36 @@ import re
 
 import click
 
-from senza.aws import (resolve_security_groups, resolve_topic_arn,
-                       resolve_referenced_resource)
+from senza.aws import (
+    resolve_security_groups,
+    resolve_topic_arn,
+    resolve_referenced_resource,
+)
 from senza.components.iam_role import get_merged_policies
 from senza.utils import ensure_keys
 
 # properties evaluated by Senza
-SENZA_PROPERTIES = frozenset(['SecurityGroups', 'Tags'])
+SENZA_PROPERTIES = frozenset(["SecurityGroups", "Tags"])
 
 # additional CF properties which can be overwritten
 ADDITIONAL_PROPERTIES = {
-    'AWS::AutoScaling::LaunchConfiguration': frozenset(['BlockDeviceMappings', 'IamInstanceProfile',
-                                                        'SpotPrice', 'InstanceMonitoring']),
-    'AWS::AutoScaling::AutoScalingGroup': frozenset(['MetricsCollection', 'TargetGroupARNs',
-                                                     'TerminationPolicies', 'PlacementGroup'])
+    "AWS::AutoScaling::LaunchConfiguration": frozenset(
+        ["BlockDeviceMappings", "IamInstanceProfile", "SpotPrice", "InstanceMonitoring"]
+    ),
+    "AWS::AutoScaling::AutoScalingGroup": frozenset(
+        [
+            "MetricsCollection",
+            "TargetGroupARNs",
+            "TerminationPolicies",
+            "PlacementGroup",
+        ]
+    ),
 }
 
 
-def create_autoscaling_policy(asg_name, asg_scale_name, asg_scale_adjustment, asg_scale_cooldown, definition):
+def create_autoscaling_policy(
+    asg_name, asg_scale_name, asg_scale_adjustment, asg_scale_cooldown, definition
+):
     if asg_scale_name not in definition["Resources"]:
         scaling_policy_def = {
             "Type": "AWS::AutoScaling::ScalingPolicy",
@@ -27,21 +39,26 @@ def create_autoscaling_policy(asg_name, asg_scale_name, asg_scale_adjustment, as
                 "AdjustmentType": "ChangeInCapacity",
                 "ScalingAdjustment": str(asg_scale_adjustment),
                 "Cooldown": str(asg_scale_cooldown),
-                "AutoScalingGroupName": {
-                    "Ref": asg_name
-                }
-            }
+                "AutoScalingGroupName": {"Ref": asg_name},
+            },
         }
     else:
         scaling_policy_def = definition["Resources"][asg_scale_name]
-        if not scaling_policy_def["Properties"]["AutoScalingGroupName"]["Ref"] == asg_name:
-            raise click.UsageError('Specified ScalingPolicy {} does not reference the '
-                                   'autoscaling group {}'.format(asg_scale_name, asg_name))
+        if (
+            not scaling_policy_def["Properties"]["AutoScalingGroupName"]["Ref"]
+            == asg_name
+        ):
+            raise click.UsageError(
+                "Specified ScalingPolicy {} does not reference the "
+                "autoscaling group {}".format(asg_scale_name, asg_name)
+            )
 
     return scaling_policy_def
 
 
-def component_auto_scaling_group(definition, configuration, args, info, force, account_info):
+def component_auto_scaling_group(
+    definition, configuration, args, info, force, account_info
+):
     definition = ensure_keys(definition, "Resources")
 
     # launch configuration
@@ -50,19 +67,30 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         "Type": "AWS::AutoScaling::LaunchConfiguration",
         "Properties": {
             "InstanceType": configuration["InstanceType"],
-            "ImageId": {"Fn::FindInMap": ["Images", {"Ref": "AWS::Region"}, configuration["Image"]]},
-            "AssociatePublicIpAddress": configuration.get('AssociatePublicIpAddress', False),
-            "EbsOptimized": configuration.get('EbsOptimized', False)
-        }
+            "ImageId": {
+                "Fn::FindInMap": [
+                    "Images",
+                    {"Ref": "AWS::Region"},
+                    configuration["Image"],
+                ]
+            },
+            "AssociatePublicIpAddress": configuration.get(
+                "AssociatePublicIpAddress", False
+            ),
+            "EbsOptimized": configuration.get("EbsOptimized", False),
+        },
     }
 
-    if 'IamRoles' in configuration:
+    if "IamRoles" in configuration:
         logical_id = handle_iam_roles(definition, configuration, args)
-        definition["Resources"][config_name]["Properties"]["IamInstanceProfile"] = {'Ref': logical_id}
+        definition["Resources"][config_name]["Properties"]["IamInstanceProfile"] = {
+            "Ref": logical_id
+        }
 
     if "SecurityGroups" in configuration:
-        definition["Resources"][config_name]["Properties"]["SecurityGroups"] = \
-            resolve_security_groups(configuration["SecurityGroups"], args.region)
+        definition["Resources"][config_name]["Properties"][
+            "SecurityGroups"
+        ] = resolve_security_groups(configuration["SecurityGroups"], args.region)
 
     if "UserData" in configuration:
         definition["Resources"][config_name]["Properties"]["UserData"] = {
@@ -74,52 +102,47 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
     asg_success = ["1", "PT15M"]
     if "AutoScaling" in configuration:
         if "SuccessRequires" in configuration["AutoScaling"]:
-            asg_success = normalize_asg_success(configuration["AutoScaling"]["SuccessRequires"])
+            asg_success = normalize_asg_success(
+                configuration["AutoScaling"]["SuccessRequires"]
+            )
 
     tags = [
         # Tag "Name"
         {
             "Key": "Name",
             "PropagateAtLaunch": True,
-            "Value": "{0}-{1}".format(info["StackName"], info["StackVersion"])
+            "Value": "{0}-{1}".format(info["StackName"], info["StackVersion"]),
         },
         # Tag "StackName"
-        {
-            "Key": "StackName",
-            "PropagateAtLaunch": True,
-            "Value": info["StackName"],
-        },
+        {"Key": "StackName", "PropagateAtLaunch": True, "Value": info["StackName"]},
         # Tag "StackVersion"
         {
             "Key": "StackVersion",
             "PropagateAtLaunch": True,
-            "Value": info["StackVersion"]
-        }
+            "Value": info["StackVersion"],
+        },
     ]
 
     if "Tags" in configuration:
         for tag in configuration["Tags"]:
-            tags.append({
-                "Key": tag["Key"],
-                "PropagateAtLaunch": True,
-                "Value": tag["Value"]
-            })
+            tags.append(
+                {"Key": tag["Key"], "PropagateAtLaunch": True, "Value": tag["Value"]}
+            )
 
     definition["Resources"][asg_name] = {
         "Type": "AWS::AutoScaling::AutoScalingGroup",
         # wait to get a signal from an amount of servers to signal that it booted
         "CreationPolicy": {
-            "ResourceSignal": {
-                "Count": asg_success[0],
-                "Timeout": asg_success[1]
-            }
+            "ResourceSignal": {"Count": asg_success[0], "Timeout": asg_success[1]}
         },
         "Properties": {
             # for our operator some notifications
             "LaunchConfigurationName": {"Ref": config_name},
-            "VPCZoneIdentifier": {"Fn::FindInMap": ["ServerSubnets", {"Ref": "AWS::Region"}, "Subnets"]},
-            "Tags": tags
-        }
+            "VPCZoneIdentifier": {
+                "Fn::FindInMap": ["ServerSubnets", {"Ref": "AWS::Region"}, "Subnets"]
+            },
+            "Tags": tags,
+        },
     }
 
     asg_properties = definition["Resources"][asg_name]["Properties"]
@@ -130,38 +153,51 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
                 "autoscaling:EC2_INSTANCE_LAUNCH",
                 "autoscaling:EC2_INSTANCE_LAUNCH_ERROR",
                 "autoscaling:EC2_INSTANCE_TERMINATE",
-                "autoscaling:EC2_INSTANCE_TERMINATE_ERROR"
+                "autoscaling:EC2_INSTANCE_TERMINATE_ERROR",
             ],
-            "TopicARN": resolve_topic_arn(args.region, info["OperatorTopicId"])
+            "TopicARN": resolve_topic_arn(args.region, info["OperatorTopicId"]),
         }
 
-    default_health_check_type = 'EC2'
+    default_health_check_type = "EC2"
 
     if "ElasticLoadBalancer" in configuration:
         if isinstance(configuration["ElasticLoadBalancer"], str):
-            asg_properties["LoadBalancerNames"] = [{"Ref": configuration["ElasticLoadBalancer"]}]
+            asg_properties["LoadBalancerNames"] = [
+                {"Ref": configuration["ElasticLoadBalancer"]}
+            ]
         elif isinstance(configuration["ElasticLoadBalancer"], list):
-            asg_properties["LoadBalancerNames"] = [{'Ref': ref} for ref in configuration["ElasticLoadBalancer"]]
-        # use ELB health check by default
-        default_health_check_type = 'ELB'
-    if "ElasticLoadBalancerV2" in configuration:
-        if isinstance(configuration["ElasticLoadBalancerV2"], str):
-            asg_properties["TargetGroupARNs"] = [{"Ref": configuration["ElasticLoadBalancerV2"] + 'TargetGroup'}]
-        elif isinstance(configuration["ElasticLoadBalancerV2"], list):
-            asg_properties["TargetGroupARNs"] = [
-                {'Ref': ref + 'TargetGroup'} for ref in configuration["ElasticLoadBalancerV2"]
+            asg_properties["LoadBalancerNames"] = [
+                {"Ref": ref} for ref in configuration["ElasticLoadBalancer"]
             ]
         # use ELB health check by default
-        default_health_check_type = 'ELB'
+        default_health_check_type = "ELB"
+    if "ElasticLoadBalancerV2" in configuration:
+        if isinstance(configuration["ElasticLoadBalancerV2"], str):
+            asg_properties["TargetGroupARNs"] = [
+                {"Ref": configuration["ElasticLoadBalancerV2"] + "TargetGroup"}
+            ]
+        elif isinstance(configuration["ElasticLoadBalancerV2"], list):
+            asg_properties["TargetGroupARNs"] = [
+                {"Ref": ref + "TargetGroup"}
+                for ref in configuration["ElasticLoadBalancerV2"]
+            ]
+        # use ELB health check by default
+        default_health_check_type = "ELB"
 
-    asg_properties['HealthCheckType'] = configuration.get('HealthCheckType', default_health_check_type)
-    asg_properties['HealthCheckGracePeriod'] = configuration.get('HealthCheckGracePeriod', 300)
+    asg_properties["HealthCheckType"] = configuration.get(
+        "HealthCheckType", default_health_check_type
+    )
+    asg_properties["HealthCheckGracePeriod"] = configuration.get(
+        "HealthCheckGracePeriod", 300
+    )
 
     if "AutoScaling" in configuration:
         as_conf = configuration["AutoScaling"]
         asg_properties["MaxSize"] = as_conf["Maximum"]
         asg_properties["MinSize"] = as_conf["Minimum"]
-        asg_properties["DesiredCapacity"] = max(int(as_conf["Minimum"]), int(as_conf.get('DesiredCapacity', 1)))
+        asg_properties["DesiredCapacity"] = max(
+            int(as_conf["Minimum"]), int(as_conf.get("DesiredCapacity", 1))
+        )
 
         default_scaling_adjustment = as_conf.get("ScalingAdjustment", 1)
         default_cooldown = as_conf.get("Cooldown", "60")
@@ -169,33 +205,41 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         # ScaleUp policy
         scale_up_name = asg_name + "ScaleUp"
         scale_up_adjustment = int(
-            as_conf.get("ScaleUpAdjustment", default_scaling_adjustment))
-        scale_up_cooldown = as_conf.get(
-            "ScaleUpCooldown", default_cooldown)
+            as_conf.get("ScaleUpAdjustment", default_scaling_adjustment)
+        )
+        scale_up_cooldown = as_conf.get("ScaleUpCooldown", default_cooldown)
 
         definition["Resources"][scale_up_name] = create_autoscaling_policy(
-            asg_name, scale_up_name, scale_up_adjustment, scale_up_cooldown, definition)
+            asg_name, scale_up_name, scale_up_adjustment, scale_up_cooldown, definition
+        )
 
         # ScaleDown policy
         scale_down_name = asg_name + "ScaleDown"
         scale_down_adjustment = (-1) * int(
-            as_conf.get("ScaleDownAdjustment", default_scaling_adjustment))
-        scale_down_cooldown = as_conf.get(
-            "ScaleDownCooldown", default_cooldown)
+            as_conf.get("ScaleDownAdjustment", default_scaling_adjustment)
+        )
+        scale_down_cooldown = as_conf.get("ScaleDownCooldown", default_cooldown)
 
         definition["Resources"][scale_down_name] = create_autoscaling_policy(
-            asg_name, scale_down_name, scale_down_adjustment, scale_down_cooldown, definition)
+            asg_name,
+            scale_down_name,
+            scale_down_adjustment,
+            scale_down_cooldown,
+            definition,
+        )
 
         if "MetricType" in as_conf:
             metric_type = as_conf["MetricType"]
             metricfns = {
                 "CPU": metric_cpu,
                 "NetworkIn": metric_network,
-                "NetworkOut": metric_network
+                "NetworkOut": metric_network,
             }
             # lowercase cpu is an acceptable metric, be compatible
             if metric_type.lower() not in map(lambda t: t.lower(), metricfns.keys()):
-                raise click.UsageError('Auto scaling MetricType "{}" not supported.'.format(metric_type))
+                raise click.UsageError(
+                    'Auto scaling MetricType "{}" not supported.'.format(metric_type)
+                )
             metricfn = metricfns[metric_type]
             definition = metricfn(asg_name, definition, as_conf, args, info, force)
     else:
@@ -203,9 +247,13 @@ def component_auto_scaling_group(definition, configuration, args, info, force, a
         asg_properties["MinSize"] = 1
 
     for res in (config_name, asg_name):
-        props = definition['Resources'][res]['Properties']
-        additional_cf_properties = ADDITIONAL_PROPERTIES.get(definition['Resources'][res]['Type'])
-        properties_allowed_to_overwrite = (set(props.keys()) - SENZA_PROPERTIES) | additional_cf_properties
+        props = definition["Resources"][res]["Properties"]
+        additional_cf_properties = ADDITIONAL_PROPERTIES.get(
+            definition["Resources"][res]["Type"]
+        )
+        properties_allowed_to_overwrite = (
+            set(props.keys()) - SENZA_PROPERTIES
+        ) | additional_cf_properties
         for key in properties_allowed_to_overwrite:
             if key in configuration:
                 props[key] = configuration[key]
@@ -217,50 +265,47 @@ def handle_iam_roles(definition, configuration, args):
     """
     This function resolves Senza's IAMRoles attribute and creates the CF InstanceProfile resources
     """
-    logical_id = configuration['Name'] + 'InstanceProfile'
+    logical_id = configuration["Name"] + "InstanceProfile"
     roles = configuration.pop("IamRoles")
     if len(roles) > 1:
         for role in roles:
             if isinstance(role, dict):
-                raise click.UsageError('Cannot merge policies of Cloud Formation references ({"Ref": ".."}): ' +
-                                       'You can use at most one IAM role with "Ref".')
-        logical_role_id = configuration['Name'] + 'Role'
-        definition['Resources'][logical_role_id] = {
-            'Type': 'AWS::IAM::Role',
-            'Properties': {
+                raise click.UsageError(
+                    'Cannot merge policies of Cloud Formation references ({"Ref": ".."}): '
+                    + 'You can use at most one IAM role with "Ref".'
+                )
+        logical_role_id = configuration["Name"] + "Role"
+        definition["Resources"][logical_role_id] = {
+            "Type": "AWS::IAM::Role",
+            "Properties": {
                 "AssumeRolePolicyDocument": {
                     "Version": "2012-10-17",
                     "Statement": [
                         {
                             "Effect": "Allow",
-                            "Principal": {
-                                "Service": ["ec2.amazonaws.com"]
-                            },
-                            "Action": ["sts:AssumeRole"]
+                            "Principal": {"Service": ["ec2.amazonaws.com"]},
+                            "Action": ["sts:AssumeRole"],
                         }
-                    ]
+                    ],
                 },
-                'Path': '/',
-                'Policies': get_merged_policies(roles)
-            }
+                "Path": "/",
+                "Policies": get_merged_policies(roles),
+            },
         }
-        instance_profile_roles = [{'Ref': logical_role_id}]
+        instance_profile_roles = [{"Ref": logical_role_id}]
     elif isinstance(roles[0], dict):
         instance_profile_roles = [resolve_referenced_resource(roles[0], args.region)]
     else:
         instance_profile_roles = roles
-    definition['Resources'][logical_id] = {
-        'Type': 'AWS::IAM::InstanceProfile',
-        'Properties': {
-            'Path': '/',
-            'Roles': instance_profile_roles
-        }
+    definition["Resources"][logical_id] = {
+        "Type": "AWS::IAM::InstanceProfile",
+        "Properties": {"Path": "/", "Roles": instance_profile_roles},
     }
     return logical_id
 
 
-duration_regex = r'^(?:\d+[hH])?(?:\d+[mM])?(?:\d+[sS])?$'
-duration_split_regex = r'(\d+[hHmMsS])'
+duration_regex = r"^(?:\d+[hH])?(?:\d+[mM])?(?:\d+[sS])?$"
+duration_split_regex = r"(\d+[hHmMsS])"
 
 
 def to_iso8601_duration(duration):
@@ -268,7 +313,9 @@ def to_iso8601_duration(duration):
         durations = [d.upper() for d in re.split(duration_split_regex, duration)]
         return "PT" + "".join(durations)
     else:
-        raise click.UsageError("Unknown duration {}. Use something like 15m.".format(duration))
+        raise click.UsageError(
+            "Unknown duration {}. Use something like 15m.".format(duration)
+        )
 
 
 def normalize_asg_success(success):
@@ -310,7 +357,7 @@ def normalize_network_threshold(threshold):
         "KB": "Kilobytes",
         "MB": "Megabytes",
         "GB": "Gigabytes",
-        "TB": "Terabytes"
+        "TB": "Terabytes",
     }
     try:
         # if someone write just Threshold: 10
@@ -325,9 +372,17 @@ def normalize_network_threshold(threshold):
                 unit = shortcuts[unit]
             allowed_units = shortcuts.values()
             if unit not in allowed_units:
-                raise click.UsageError("Network threshold unit must be one of {}".format(list(allowed_units)))
+                raise click.UsageError(
+                    "Network threshold unit must be one of {}".format(
+                        list(allowed_units)
+                    )
+                )
         else:
-            raise click.UsageError('Unknown network threshold "{}". Use something like "20 GB".'.format(threshold))
+            raise click.UsageError(
+                'Unknown network threshold "{}". Use something like "20 GB".'.format(
+                    threshold
+                )
+            )
     return [amount, unit]
 
 
@@ -336,7 +391,9 @@ def metric_network(asg_name, definition, configuration, args, info, force):
     evaluation_periods = int(configuration.get("EvaluationPeriods", 2))
     statistic = configuration.get("Statistic", "Average")
     scale_up_threshold = normalize_network_threshold(configuration["ScaleUpThreshold"])
-    scale_down_threshold = normalize_network_threshold(configuration["ScaleDownThreshold"])
+    scale_down_threshold = normalize_network_threshold(
+        configuration["ScaleDownThreshold"]
+    )
 
     if "ScaleUpThreshold" in configuration:
         definition["Resources"][asg_name + "NetworkAlarmHigh"] = {
@@ -351,22 +408,17 @@ def metric_network(asg_name, definition, configuration, args, info, force):
                 "Statistic": statistic,
                 "ComparisonOperator": "GreaterThanThreshold",
                 "Dimensions": [
-                    {
-                        "Name": "AutoScalingGroupName",
-                        "Value": {"Ref": asg_name}
-                    }
+                    {"Name": "AutoScalingGroupName", "Value": {"Ref": asg_name}}
                 ],
                 "AlarmDescription": "Scale-up if {} > {} {} for {} minutes ({})".format(
                     configuration["MetricType"],
                     scale_up_threshold[0],
                     scale_up_threshold[1],
                     (period / 60) * evaluation_periods,
-                    statistic
+                    statistic,
                 ),
-                "AlarmActions": [
-                    {"Ref": asg_name + "ScaleUp"}
-                ]
-            }
+                "AlarmActions": [{"Ref": asg_name + "ScaleUp"}],
+            },
         }
 
     if "ScaleDownThreshold" in configuration:
@@ -382,22 +434,17 @@ def metric_network(asg_name, definition, configuration, args, info, force):
                 "Statistic": statistic,
                 "ComparisonOperator": "LessThanThreshold",
                 "Dimensions": [
-                    {
-                        "Name": "AutoScalingGroupName",
-                        "Value": {"Ref": asg_name}
-                    }
+                    {"Name": "AutoScalingGroupName", "Value": {"Ref": asg_name}}
                 ],
                 "AlarmDescription": "Scale-down if {} < {} {} for {} minutes ({})".format(
                     configuration["MetricType"],
                     scale_down_threshold[0],
                     scale_down_threshold[1],
                     (period / 60) * evaluation_periods,
-                    statistic
+                    statistic,
                 ),
-                "AlarmActions": [
-                    {"Ref": asg_name + "ScaleDown"}
-                ]
-            }
+                "AlarmActions": [{"Ref": asg_name + "ScaleDown"}],
+            },
         }
 
     return definition
@@ -419,20 +466,15 @@ def metric_cpu(asg_name, definition, configuration, args, info, force):
                 "Threshold": configuration["ScaleUpThreshold"],
                 "ComparisonOperator": "GreaterThanThreshold",
                 "Dimensions": [
-                    {
-                        "Name": "AutoScalingGroupName",
-                        "Value": {"Ref": asg_name}
-                    }
+                    {"Name": "AutoScalingGroupName", "Value": {"Ref": asg_name}}
                 ],
                 "AlarmDescription": "Scale-up if CPU > {}% for {} minutes ({})".format(
                     configuration["ScaleUpThreshold"],
                     (period / 60) * evaluation_periods,
-                    statistic
+                    statistic,
                 ),
-                "AlarmActions": [
-                    {"Ref": asg_name + "ScaleUp"}
-                ]
-            }
+                "AlarmActions": [{"Ref": asg_name + "ScaleUp"}],
+            },
         }
 
     if "ScaleDownThreshold" in configuration:
@@ -447,20 +489,15 @@ def metric_cpu(asg_name, definition, configuration, args, info, force):
                 "Threshold": configuration["ScaleDownThreshold"],
                 "ComparisonOperator": "LessThanThreshold",
                 "Dimensions": [
-                    {
-                        "Name": "AutoScalingGroupName",
-                        "Value": {"Ref": asg_name}
-                    }
+                    {"Name": "AutoScalingGroupName", "Value": {"Ref": asg_name}}
                 ],
                 "AlarmDescription": "Scale-down if CPU < {}% for {} minutes ({})".format(
                     configuration["ScaleDownThreshold"],
                     (period / 60) * evaluation_periods,
-                    statistic
+                    statistic,
                 ),
-                "AlarmActions": [
-                    {"Ref": asg_name + "ScaleDown"}
-                ]
-            }
+                "AlarmActions": [{"Ref": asg_name + "ScaleDown"}],
+            },
         }
 
     return definition

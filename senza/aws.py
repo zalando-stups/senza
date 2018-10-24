@@ -410,7 +410,7 @@ class StackReference(collections.namedtuple("StackReference", "name version")):
                 assert data["SenzaInfo"]["StackName"]
             except (OSError, IOError) as error:
                 raise FileError(self.name, error.strerror)
-            except KeyError as error:
+            except KeyError:
                 raise ValueError("SenzaInfo.StackName missing from definition file")
 
     def matches(self, name: str, version: str):

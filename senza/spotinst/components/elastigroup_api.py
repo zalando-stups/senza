@@ -12,12 +12,15 @@ SPOTINST_API_URL = 'https://api.spotinst.io'
 
 DEPLOY_STRATEGY_RESTART = 'RESTART_SERVER'
 DEPLOY_STRATEGY_REPLACE = 'REPLACE_SERVER'
+DEFAULT_CONNECT_TIMEOUT = 9
+DEFAULT_READ_TIMEOUT = 30
 
 
 class SpotInstAccountData:
     '''
     Data required to access SpotInst API
     '''
+
     def __init__(self, account_id, access_token):
         self.account_id = account_id
         self.access_token = access_token
@@ -58,7 +61,7 @@ def update_elastigroup(body, elastigroup_id, spotinst_account_data):
 
     response = requests.put(
         '{}/aws/ec2/group/{}?accountId={}'.format(SPOTINST_API_URL, elastigroup_id, spotinst_account_data.account_id),
-        headers=headers, timeout=10, data=json.dumps(body))
+        headers=headers, timeout=(DEFAULT_CONNECT_TIMEOUT, DEFAULT_READ_TIMEOUT), data=json.dumps(body))
     response.raise_for_status()
     data = response.json()
     groups = data.get("response", {}).get("items", [])
@@ -101,7 +104,7 @@ def get_elastigroup(elastigroup_id, spotinst_account_data):
 
     response = requests.get(
         '{}/aws/ec2/group/{}?accountId={}'.format(SPOTINST_API_URL, elastigroup_id, spotinst_account_data.account_id),
-        headers=headers, timeout=5)
+        headers=headers, timeout=(DEFAULT_CONNECT_TIMEOUT, DEFAULT_READ_TIMEOUT))
     response.raise_for_status()
     data = response.json()
     groups = data.get("response", {}).get("items", [])
@@ -152,7 +155,7 @@ def deploy(batch_size=20, grace_period=300, strategy=DEPLOY_STRATEGY_REPLACE,
     response = requests.put(
         '{}/aws/ec2/group/{}/roll?accountId={}'.format(SPOTINST_API_URL, elastigroup_id,
                                                        spotinst_account_data.account_id),
-        headers=headers, timeout=10, data=json.dumps(body))
+        headers=headers, timeout=(DEFAULT_CONNECT_TIMEOUT, DEFAULT_READ_TIMEOUT), data=json.dumps(body))
     response.raise_for_status()
     data = response.json()
     deploys = data.get("response", {}).get("items", [])
@@ -174,7 +177,7 @@ def deploy_status(deploy_id, elastigroup_id, spotinst_account_data):
     response = requests.get(
         '{}/aws/ec2/group/{}/roll/{}?accountId={}'.format(SPOTINST_API_URL, elastigroup_id, deploy_id,
                                                           spotinst_account_data.account_id),
-        headers=headers, timeout=5)
+        headers=headers, timeout=(DEFAULT_CONNECT_TIMEOUT, DEFAULT_READ_TIMEOUT))
     response.raise_for_status()
     data = response.json()
     deploys = data.get("response", {}).get("items", [])

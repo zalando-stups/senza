@@ -51,7 +51,7 @@ def component_elastigroup(definition, configuration, args, info, force, account_
     ensure_default_product(elastigroup_config)
     ensure_instance_monitoring(elastigroup_config)
 
-    extract_subnets(definition, elastigroup_config, account_info)
+    extract_subnets(configuration, elastigroup_config, account_info)
     extract_user_data(configuration, elastigroup_config, info, force, account_info)
     extract_load_balancer_name(configuration, elastigroup_config)
     extract_public_ips(configuration, elastigroup_config)
@@ -264,7 +264,7 @@ def fill_standard_tags(definition, elastigroup_config):
         elastigroup_config["name"] = full_name
 
 
-def extract_subnets(definition, elastigroup_config, account_info):
+def extract_subnets(configuration, elastigroup_config, account_info):
     """
     This fills in the subnetIds and region attributes of the Spotinst elastigroup, in case they're not defined already
     The subnetIds are discovered by Senza::StupsAutoConfiguration and the region is provided by the AccountInfo object
@@ -273,9 +273,9 @@ def extract_subnets(definition, elastigroup_config, account_info):
     subnet_ids = elastigroup_config["compute"].get("subnetIds", [])
     target_region = elastigroup_config.get("region", account_info.Region)
     if not subnet_ids:
-        subnet_ids = definition["Mappings"]["ServerSubnets"].get(target_region, {}).get("Subnets", [])
+        subnet_set = "LoadBalancerSubnets" if configuration.get("AssociatePublicIpAddress", False) else "ServerSubnets"
+        elastigroup_config["compute"]["subnetIds"] = {"Fn::FindInMap": [subnet_set, {"Ref": "AWS::Region"}, "Subnets"]}
     elastigroup_config["region"] = target_region
-    elastigroup_config["compute"]["subnetIds"] = subnet_ids
 
 
 def extract_user_data(configuration, elastigroup_config, info: dict, force, account_info):

@@ -619,7 +619,7 @@ def test_instances(monkeypatch):
             instance.public_ip_address = '8.8.8.8'
             instance.private_ip_address = '10.0.0.1'
             instance.state = {'Name': 'Test-instance'}
-            instance.tags = [{'Key': 'aws:cloudformation:stack-name', 'Value': 'test-1'},
+            instance.tags = [{'Key': 'Name', 'Value': 'test-1'},
                              {'Key': 'aws:cloudformation:logical-id', 'Value': 'local-id-123'},
                              {'Key': 'StackName', 'Value': 'test'},
                              {'Key': 'StackVersion', 'Value': '1'}]

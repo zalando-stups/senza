@@ -1271,8 +1271,13 @@ def instances(
     if all:
         filters = []
     else:
-        # filter out instances not part of any stack
-        filters = [{"Name": "tag-key", "Values": ["aws:cloudformation:stack-name"]}]
+        # filter out instances without a Name tag
+        filters = [{"Name": "tag-key", "Values": ["Name"]}]
+
+    # Semantically equivalent to the less efficient client side filtering on != TERMINATED
+    if not terminated:
+        filters.append(
+            {"Name": "instance-state-name", "Values": ["pending", "running", "shutting-down", "stopping", "stopped"]})
 
     opt_docker_column = " docker_source" if docker_image else ""
 
@@ -1280,34 +1285,34 @@ def instances(
         rows = []
 
         for instance in ec2.instances.filter(Filters=filters):
-            cf_stack_name = get_tag(instance.tags, "aws:cloudformation:stack-name")
+            cf_stack_name = get_tag(instance.tags, "Name")
             stack_name = get_tag(instance.tags, "StackName")
             stack_version = get_tag(instance.tags, "StackVersion")
             if not stack_refs or matches_any(cf_stack_name, stack_refs):
                 instance_health = get_instance_health(cf_stack_name, region)
-                if instance.state["Name"].upper() != "TERMINATED" or terminated:
-                    docker_source = (
-                        get_instance_docker_image_source(instance)
-                        if docker_image
-                        else ""
-                    )
 
-                    rows.append(
-                        {
-                            "stack_name": stack_name or "",
-                            "version": stack_version or "",
-                            "resource_id": get_tag(
-                                instance.tags, "aws:cloudformation:logical-id"
-                            ),
-                            "instance_id": instance.id,
-                            "public_ip": instance.public_ip_address,
-                            "private_ip": instance.private_ip_address,
-                            "state": instance.state["Name"].upper().replace("-", "_"),
-                            "lb_status": instance_health.get(instance.id),
-                            "docker_source": docker_source,
-                            "launch_time": instance.launch_time.timestamp(),
-                        }
-                    )
+                docker_source = (
+                    get_instance_docker_image_source(instance)
+                    if docker_image
+                    else ""
+                )
+
+                rows.append(
+                    {
+                        "stack_name": stack_name or "",
+                        "version": stack_version or "",
+                        "resource_id": get_tag(
+                            instance.tags, "aws:cloudformation:logical-id"
+                        ),
+                        "instance_id": instance.id,
+                        "public_ip": instance.public_ip_address,
+                        "private_ip": instance.private_ip_address,
+                        "state": instance.state["Name"].upper().replace("-", "_"),
+                        "lb_status": instance_health.get(instance.id),
+                        "docker_source": docker_source,
+                        "launch_time": instance.launch_time.timestamp()
+                    }
+                )
 
         rows.sort(key=lambda r: (r["stack_name"], r["version"], r["instance_id"]))
 

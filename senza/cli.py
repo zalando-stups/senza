@@ -1931,6 +1931,7 @@ def patch_spotinst_elastigroup(properties, elastigroup_id, region, stack_name):
 @click.option(
     "--batch_size_percentage",
     metavar="PERCENTAGE",
+    type=click.IntRange(0, 100, clamp=True),
     help="Percentage (int value) of the ElastiGroup cluster that is respawned in each step."
     " Valid only for ElastiGroups. The default value for this of 20.",
 )

@@ -249,17 +249,29 @@ def fill_standard_tags(definition, elastigroup_config):
     Elastigroup name attribute to the same value as the EC2 Name tag if found empty.
     The default STUPS EC2 Tags are Name, StackName and StackVersion
     """
+    # Tag keys are case-sensitive: https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/Using_Tags.html
+    standard_tags = {"Name", "StackName", "StackVersion"}
     elastigroup_config = ensure_keys(elastigroup_config, "compute", "launchSpecification")
     name = definition["Mappings"]["Senza"]["Info"]["StackName"]
     version = definition["Mappings"]["Senza"]["Info"]["StackVersion"]
     full_name = "{}-{}".format(name, version)
 
-    if "tags" not in elastigroup_config["compute"]["launchSpecification"]:
-        elastigroup_config["compute"]["launchSpecification"]["tags"] = [
-            {"tagKey": "Name", "tagValue": full_name},
-            {"tagKey": "StackName", "tagValue": name},
-            {"tagKey": "StackVersion", "tagValue": version}
-        ]
+    tags = []
+    if "tags" in elastigroup_config["compute"]["launchSpecification"]:
+        tags = elastigroup_config["compute"]["launchSpecification"]["tags"]
+
+    # Remove any standard tags specified in ElastiGroup configuration
+    tags = list(filter(lambda tag: tag["tagKey"] not in standard_tags, tags))
+
+    # Add standard tags from Senza definition
+    tags.extend([
+        {"tagKey": "Name", "tagValue": full_name},
+        {"tagKey": "StackName", "tagValue": name},
+        {"tagKey": "StackVersion", "tagValue": version}
+    ])
+
+    elastigroup_config["compute"]["launchSpecification"]["tags"] = tags
+
     if elastigroup_config.get("name", "") == "":
         elastigroup_config["name"] = full_name
 

@@ -340,18 +340,53 @@ def test_standard_tags():
                             {"tagKey": "Name", "tagValue": "foo-bar"},
                             {"tagKey": "StackName", "tagValue": "foo"},
                             {"tagKey": "StackVersion", "tagValue": "bar"},
-                        ]},
+                        ]
+                    },
                 },
                 "name": "foo-bar",
             },
         },
-        {  # leave tags untouched
+        {  # add standard tags if custom tags specified
             "definition": {"Mappings": {"Senza": {"Info": {"StackName": "foo", "StackVersion": "bar"}}}},
-            "given_config": {"compute": {"launchSpecification": {"tags": "fake"}}},
+            "given_config": {"compute": {"launchSpecification": {
+                "tags": [{"tagKey": "some-key", "tagValue": "some-value"}]}}
+            },
             "expected_config": {
                 "compute": {
                     "launchSpecification": {
-                        "tags": "fake"},
+                        "tags": [
+                            {"tagKey": "some-key", "tagValue": "some-value"},
+                            {"tagKey": "Name", "tagValue": "foo-bar"},
+                            {"tagKey": "StackName", "tagValue": "foo"},
+                            {"tagKey": "StackVersion", "tagValue": "bar"},
+                        ]
+                    },
+                },
+                "name": "foo-bar",
+            },
+        },
+        {  # should not override standard tags
+            "definition": {"Mappings": {"Senza": {"Info": {"StackName": "foo", "StackVersion": "bar"}}}},
+            "given_config": {
+                "compute": {
+                    "launchSpecification": {
+                        "tags": [
+                            {"tagKey": "Name", "tagValue": "some-name"},
+                            {"tagKey": "StackName", "tagValue": "some-stack-version"},
+                            {"tagKey": "StackVersion", "tagValue": "some-stack-version"}
+                        ]
+                    }
+                }
+            },
+            "expected_config": {
+                "compute": {
+                    "launchSpecification": {
+                        "tags": [
+                            {"tagKey": "Name", "tagValue": "foo-bar"},
+                            {"tagKey": "StackName", "tagValue": "foo"},
+                            {"tagKey": "StackVersion", "tagValue": "bar"},
+                        ]
+                    },
                 },
                 "name": "foo-bar",
             },

@@ -1399,8 +1399,8 @@ def status(stack_ref, region, output, field, w, watch):
                 ec2.instances.filter(
                     Filters=[
                         {
-                            "Name": "tag:aws:cloudformation:stack-id",
-                            "Values": [stack.StackId],
+                            "Name": "tag:Name",
+                            "Values": [stack.StackName],
                         }
                     ]
                 )

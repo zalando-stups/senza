@@ -1,7 +1,7 @@
 =====
 Senza
 =====
-
+ 
 .. image:: https://travis-ci.org/zalando-stups/senza.svg?branch=master
    :target: https://travis-ci.org/zalando-stups/senza
    :alt: Build Status

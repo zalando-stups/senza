@@ -114,6 +114,41 @@ def test_component_load_balancer_healthcheck(monkeypatch):
         assert False, "check for supported protocols failed"
 
 
+def test_component_load_balancer_healthcheck_params(monkeypatch):
+    configuration = {
+        "Name": "test_lb",
+        "SecurityGroups": "",
+        "HTTPPort": "9999",
+        "HealthCheckPath": "/healthcheck",
+        "UnHealthyThresholdCount": "3",
+        "HealthCheckIntervalSeconds": "20", 
+        "HealthCheckTimeoutSeconds": "6",
+        "HealthyThresholdCount": "3"
+    }
+    info = {'StackName': 'foobar', 'StackVersion': '0.1'}
+    definition = {"Resources": {}}
+
+    args = MagicMock()
+    args.region = "foo"
+
+    mock_string_result = MagicMock()
+    mock_string_result.return_value = "foo"
+    monkeypatch.setattr('senza.components.elastic_load_balancer.resolve_security_groups', mock_string_result)
+
+    m_acm = MagicMock()
+    m_acm_certificate = MagicMock()
+    m_acm_certificate.arn = "foo"
+    m_acm.get_certificates.return_value = iter([m_acm_certificate])
+    monkeypatch.setattr('senza.components.elastic_load_balancer.ACM', m_acm)
+
+    result = component_elastic_load_balancer(definition, configuration, args, info, False, MagicMock())
+    assert "3" == result["Resources"]["test_lb"]["Properties"]["HealthCheck"]["HealthyThreshold"]
+    assert "20" == result["Resources"]["test_lb"]["Properties"]["HealthCheck"]["Interval"]
+    configuration["HealthCheckIntervalSeconds"] = "100"
+    result = component_elastic_load_balancer_v2(definition, configuration, args, info, False, MagicMock())
+    assert "3" == result["Resources"]["test_lbTargetGroup"]["Properties"]["HealthyThresholdCount"]
+    assert "100" == result["Resources"]["test_lbTargetGroup"]["Properties"]["HealthCheckIntervalSeconds"]
+
 def test_component_load_balancer_idletimeout(monkeypatch):
     configuration = {
         "Name": "test_lb",

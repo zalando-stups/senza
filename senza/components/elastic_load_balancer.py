@@ -21,6 +21,10 @@ SENZA_PROPERTIES = frozenset(
         "SecurityGroups",
         "SSLCertificateId",
         "Type",
+        'UnHealthyThresholdCount',
+        'HealthCheckIntervalSeconds',
+        'HealthCheckTimeoutSeconds',
+        'HealthyThresholdCount'
     ]
 )
 ALLOWED_HEALTH_CHECK_PROTOCOLS = frozenset(["HTTP", "HTTPS", "TCP", "UDP", "SSL"])
@@ -160,6 +164,11 @@ def component_elastic_load_balancer(
     else:
         health_check_path = ""
 
+    health_check_interval = configuration.get("HealthCheckIntervalSeconds") or '10'
+    health_check_timeout = configuration.get("HealthCheckTimeoutSeconds") or '5'
+    healthy_threshold_count = configuration.get("HealthyThresholdCount") or '2'
+    unhealthy_threshold_count = configuration.get("UnhealthyThresholdCount") or healthy_threshold_count
+
     health_check_port = (
         configuration.get("HealthCheckPort") or configuration["HTTPPort"]
     )
@@ -211,10 +220,10 @@ def component_elastic_load_balancer(
                 ]
             },
             "HealthCheck": {
-                "HealthyThreshold": "2",
-                "UnhealthyThreshold": "2",
-                "Interval": "10",
-                "Timeout": "5",
+                "HealthyThreshold": healthy_threshold_count,
+                "UnhealthyThreshold": unhealthy_threshold_count,
+                "Interval": health_check_interval,
+                "Timeout": health_check_timeout,
                 "Target": health_check_target,
             },
             "Listeners": listeners,

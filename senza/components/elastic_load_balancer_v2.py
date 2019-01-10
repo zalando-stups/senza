@@ -9,8 +9,23 @@ from senza.definitions import AccountArguments
 from ..cli import TemplateArguments
 from ..manaus.route53 import convert_cname_records_to_alias
 
-SENZA_PROPERTIES = frozenset(['Domains', 'HealthCheckPath', 'HealthCheckPort', 'HealthCheckProtocol',
-                              'HTTPPort', 'Name', 'SecurityGroups', 'SSLCertificateId', 'Type'])
+SENZA_PROPERTIES = frozenset(
+    [
+        'Domains',
+        'HealthCheckPath',
+        'HealthCheckPort',
+        'HealthCheckProtocol',
+        'HTTPPort',
+        'Name',
+        'SecurityGroups',
+        'SSLCertificateId',
+        'Type',
+        'UnHealthyThresholdCount',
+        'HealthCheckIntervalSeconds',
+        'HealthCheckTimeoutSeconds',
+        'HealthyThresholdCount'
+    ]
+)
 ALLOWED_HEALTH_CHECK_PROTOCOLS = frozenset(["HTTP", "HTTPS"])
 
 
@@ -82,6 +97,11 @@ def component_elastic_load_balancer_v2(definition,
     health_check_path = configuration.get("HealthCheckPath") or '/health'
     health_check_port = configuration.get("HealthCheckPort") or configuration["HTTPPort"]
 
+    health_check_interval = configuration.get("HealthCheckIntervalSeconds") or '10'
+    health_check_timeout = configuration.get("HealthCheckTimeoutSeconds") or '5'
+    healthy_threshold_count = configuration.get("HealthyThresholdCount") or '2'
+    unhealthy_threshold_count = configuration.get("UnhealthyThresholdCount") or healthy_threshold_count
+
     if configuration.get('LoadBalancerName'):
         loadbalancer_name = generate_valid_cloud_name(configuration["LoadBalancerName"], 32)
     elif configuration.get('NameSuffix'):
@@ -148,15 +168,15 @@ def component_elastic_load_balancer_v2(definition,
         'Type': 'AWS::ElasticLoadBalancingV2::TargetGroup',
         'Properties': {
             'Name': loadbalancer_name,
-            'HealthCheckIntervalSeconds': '10',
+            'HealthCheckIntervalSeconds': health_check_interval,
             'HealthCheckPath': health_check_path,
             'HealthCheckPort': health_check_port,
             'HealthCheckProtocol': health_check_protocol,
-            'HealthCheckTimeoutSeconds': '5',
-            'HealthyThresholdCount': '2',
+            'HealthCheckTimeoutSeconds': health_check_timeout,
+            'HealthyThresholdCount': healthy_threshold_count,
             'Port': configuration['HTTPPort'],
             'Protocol': 'HTTP',
-            'UnhealthyThresholdCount': '2',
+            'UnhealthyThresholdCount': unhealthy_threshold_count,
             'VpcId': vpc_id,
             'Tags': tags,
             'TargetGroupAttributes': [{'Key': 'deregistration_delay.timeout_seconds', 'Value': '60'}]

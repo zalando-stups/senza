@@ -447,6 +447,14 @@ The WeightedDnsElasticLoadBalancer component supports the following configuratio
     The HTTP path to use for health checks, e.g. "/health". Must return 200.
 ``HealthCheckPort``
     Optional. Port used for the health check. Defaults to ``HTTPPort``.
+``HealthCheckIntervalSeconds``
+    Optional. The amount of time between health checks of an individual instance, in seconds. Defaults to ``10``.
+``HealthCheckTimeoutSeconds``
+    Optional. The amount of time to wait when receiving a response from the health check, in seconds. Defaults to ``5``.
+``HealthyThresholdCount``
+    Optional. The number of consecutive successful health checks that must occur before declaring an EC2 instance healthy. Defaults to ``2``.
+``UnhealthyThresholdCount``
+    Optional. The number of consecutive failed health checks that must occur before declaring an EC2 instance unhealthy. Defaults to ``2``.
 ``SecurityGroups``
     List of security groups to use for the ELB. The security groups must allow SSL traffic.
 ``MainDomain``
@@ -486,6 +494,14 @@ The WeightedDnsElasticLoadBalancerV2 component supports the following configurat
     The HTTP path to use for health checks, e.g. "/health". Must return 200.
 ``HealthCheckPort``
     Optional. Port used for the health check. Defaults to ``HTTPPort``.
+``HealthCheckIntervalSeconds``
+    Optional. The amount of time between health checks of an individual instance, in seconds. Defaults to ``10``.
+``HealthCheckTimeoutSeconds``
+    Optional. The amount of time to wait when receiving a response from the health check, in seconds. Defaults to ``5``.
+``HealthyThresholdCount``
+    Optional. The number of consecutive successful health checks that must occur before declaring an EC2 instance healthy. Defaults to ``2``.
+``UnhealthyThresholdCount``
+    Optional. The number of consecutive failed health checks that must occur before declaring an EC2 instance unhealthy. Defaults to ``2``.
 ``SecurityGroups``
     List of security groups to use for the ELBv2. The security groups must allow SSL traffic.
 ``MainDomain``

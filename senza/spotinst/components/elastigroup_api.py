@@ -5,8 +5,10 @@ import click
 import requests
 import json
 import boto3
+from clickclick import warning, error
 
 from senza.components.elastigroup import ELASTIGROUP_RESOURCE_TYPE
+from requests.exceptions import HTTPError
 
 SPOTINST_API_URL = 'https://api.spotinst.io'
 
@@ -156,7 +158,9 @@ def deploy(batch_size=20, grace_period=300, strategy=DEPLOY_STRATEGY_REPLACE,
         '{}/aws/ec2/group/{}/roll?accountId={}'.format(SPOTINST_API_URL, elastigroup_id,
                                                        spotinst_account_data.account_id),
         headers=headers, timeout=(DEFAULT_CONNECT_TIMEOUT, DEFAULT_READ_TIMEOUT), data=json.dumps(body))
-    response.raise_for_status()
+
+    raise_for_status(response, elastigroup_id)
+
     data = response.json()
     deploys = data.get("response", {}).get("items", [])
 
@@ -178,8 +182,26 @@ def deploy_status(deploy_id, elastigroup_id, spotinst_account_data):
         '{}/aws/ec2/group/{}/roll/{}?accountId={}'.format(SPOTINST_API_URL, elastigroup_id, deploy_id,
                                                           spotinst_account_data.account_id),
         headers=headers, timeout=(DEFAULT_CONNECT_TIMEOUT, DEFAULT_READ_TIMEOUT))
-    response.raise_for_status()
+
+    raise_for_status(response, elastigroup_id)
+
     data = response.json()
     deploys = data.get("response", {}).get("items", [])
 
     return deploys
+
+
+def raise_for_status(response, elastigroup_id):
+    try:
+        response.raise_for_status()
+    except HTTPError:
+
+        status = response.json().get("response", {}).get("status")
+        details = response.json().get("response", {}).get("errors")[0]
+
+        error("HTTP Error: {}[{}]".format(status.get("message"), status.get("code")))
+        error("{}[{}]".format(details.get("message"), details.get("code")))
+
+        if details.get("code") == "DEPLOYMENT_ALREADY_IN_PROGRESS":
+            warning("An older deploy is still running, check on SpotInst console deployments tab for elastigroup: [{}]."
+                    .format(elastigroup_id))

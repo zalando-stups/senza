@@ -167,6 +167,8 @@ def check_iam_role(application_id: str, bucket_name: str, region: str):
         ],
         "Version": "2008-10-17",
     }
+
+    create = False
     if not exists:
         create = confirm(
             "IAM role {} does not exist. "
@@ -181,10 +183,13 @@ def check_iam_role(application_id: str, bucket_name: str, region: str):
                 )
 
     update_policy = bucket_name is not None and (
-        not exists
-        or confirm(
-            "IAM role {} already exists. ".format(role_name)
-            + "Do you want Senza to overwrite the role policy?"
+        (not exists and create)
+        or (
+            exists
+            or confirm(
+                "IAM role {} already exists. ".format(role_name)
+                + "Do you want Senza to overwrite the role policy?"
+            )
         )
     )
     if update_policy:

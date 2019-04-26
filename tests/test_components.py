@@ -828,7 +828,7 @@ def test_check_docker_image_exists():
             return_value=fake_token), patch(
             'senza.components.taupage_auto_scaling_group.pierone.api.image_exists',
             return_value=True), patch(
-                'senza.components.taupage_auto_scaling_group.pierone.api.get_image_tag',
+                'senza.components.taupage_auto_scaling_group.pierone.api.get_latest_tag',
                 return_value=pierone_image):
 
         check_docker_image_exists(build_image(from_registry_url='pierone'))
@@ -845,7 +845,7 @@ def test_check_docker_image_exists():
     with patch('senza.components.taupage_auto_scaling_group.click.secho') as output_function, patch(
             'senza.components.taupage_auto_scaling_group.docker_image_exists',
             return_value=True), patch(
-                'senza.components.taupage_auto_scaling_group.pierone.api.get_image_tag',
+                'senza.components.taupage_auto_scaling_group.pierone.api.get_latest_tag',
                 return_value=pierone_image):
 
         check_docker_image_exists(build_image(from_registry_url='opensource'))
@@ -856,7 +856,7 @@ def test_check_docker_image_exists():
     with patch('senza.components.taupage_auto_scaling_group.click.secho') as output_function, patch(
             'senza.components.taupage_auto_scaling_group.docker_image_exists',
             return_value=True), patch(
-                'senza.components.taupage_auto_scaling_group.pierone.api.get_image_tag',
+                'senza.components.taupage_auto_scaling_group.pierone.api.get_latest_tag',
                 return_value=None):
 
         check_docker_image_exists(build_image(from_registry_url='opensource'))

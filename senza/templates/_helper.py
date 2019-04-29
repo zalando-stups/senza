@@ -186,7 +186,7 @@ def check_iam_role(application_id: str, bucket_name: str, region: str):
         (not exists and create)
         or (
             exists
-            or confirm(
+            and confirm(
                 "IAM role {} already exists. ".format(role_name)
                 + "Do you want Senza to overwrite the role policy?"
             )

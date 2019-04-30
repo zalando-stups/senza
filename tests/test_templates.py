@@ -1,7 +1,8 @@
 import click
-from unittest.mock import MagicMock
-from senza.templates._helper import (get_iam_role_policy, get_mint_bucket_name,
-                                     check_value, prompt, choice)
+import botocore
+from unittest.mock import MagicMock, call
+from senza.templates._helper import (create_mint_read_policy_document, get_mint_bucket_name,
+                                     check_value, prompt, choice, check_iam_role)
 from senza.templates.postgresapp import (ebs_optimized_supported,
                                          generate_random_password,
                                          set_default_variables,
@@ -50,7 +51,7 @@ def test_template_helper_get_iam_role_policy(monkeypatch):
         ]
     }
 
-    assert expected_policy == get_iam_role_policy('myapp', 'bucket-name', 'myregion')
+    assert expected_policy == create_mint_read_policy_document('myapp', 'bucket-name', 'myregion')
 
 
 def test_template_helper_check_value():
@@ -73,6 +74,92 @@ def test_template_helper_check_value():
         assert False, 'check_value raise with a unkown exception'
     else:
         assert False, 'check_value doesnot return with a raise'
+
+
+def test_template_helper_check_iam_role(monkeypatch):
+    application_id = 'myapp'
+    bucket_name = 'bucket-name'
+    region = 'myregion'
+
+    iam = MagicMock()
+    iam.return_value = iam
+
+    # Test case 1 :: create role -> create mint policy -> create cross stack policy
+    get_role_error_response = {'Error': {'Code': 'Error getting the role'}}
+    iam.get_role.side_effect = botocore.exceptions.ClientError(get_role_error_response, 'get_role')
+
+    create_role_response = {'Role': 'role-name'}
+    iam.create_role.return_value = create_role_response
+
+    put_role_policy_response = {'ResponseMetadata': 'some-metadata'}
+    iam.put_role_policy.side_effect = [put_role_policy_response, put_role_policy_response]
+
+    monkeypatch.setattr('boto3.client', iam)
+
+    monkeypatch.setattr('click.confirm', MagicMock(return_value=True))
+
+    check_iam_role(application_id, bucket_name, region)
+
+    assert iam.get_role.call_count == 1
+    assert iam.create_role.call_count == 1
+    assert iam.put_role_policy.call_count == 2
+
+    # Test case 2 :: skip create role -> create mint policy -> create cross stack policy
+    iam.reset_mock()
+
+    get_role_response = {'Role': 'some-role'}
+    iam.get_role.side_effect = get_role_response
+
+    monkeypatch.setattr('click.confirm', MagicMock(return_value=True))
+
+    iam.put_role_policy.side_effect = [put_role_policy_response, put_role_policy_response]
+
+    get_role_policy_error_response = {'Error': {'Code': 'Error getting the role policy'}}
+    iam.get_role_policy.side_effect = botocore.exceptions.ClientError(get_role_policy_error_response, 'get_role_policy')
+
+    check_iam_role(application_id, bucket_name, region)
+
+    assert iam.get_role.call_count == 1
+    assert iam.create_role.call_count == 0
+    assert iam.get_role_policy.call_count == 1
+    assert iam.put_role_policy.call_count == 2
+
+    # Test case 3 :: skip create role -> skip create mint policy -> create cross stack policy
+    iam.reset_mock()
+
+    get_role_response = {'Role': 'some-role'}
+    iam.get_role.side_effect = get_role_response
+
+    monkeypatch.setattr('click.confirm', MagicMock(return_value=False))
+
+    iam.put_role_policy.side_effect = put_role_policy_response
+
+    get_role_policy_error_response = {'Error': {'Code': 'Error getting the role policy'}}
+    iam.get_role_policy.side_effect = botocore.exceptions.ClientError(get_role_policy_error_response, 'get_role_policy')
+
+    check_iam_role(application_id, bucket_name, region)
+
+    assert iam.get_role.call_count == 1
+    assert iam.create_role.call_count == 0
+    assert iam.get_role_policy.call_count == 1
+    assert iam.put_role_policy.call_count == 1
+
+    # Test case 4 :: skip create role -> skip create mint policy -> skip create cross stack policy
+    iam.reset_mock()
+
+    get_role_response = {'Role': 'some-role'}
+    iam.get_role.side_effect = get_role_response
+
+    monkeypatch.setattr('click.confirm', MagicMock(return_value=False))
+
+    iam.get_role_policy.side_effect = {'RoleName': 'myrolepolicy'}
+
+    check_iam_role(application_id, bucket_name, region)
+
+    assert iam.get_role.call_count == 1
+    assert iam.create_role.call_count == 0
+    assert iam.get_role_policy.call_count == 1
+    assert iam.put_role_policy.call_count == 0
 
 
 def test_choice_callable_default(monkeypatch):

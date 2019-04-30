@@ -5,7 +5,6 @@ import boto3
 import botocore.exceptions
 import click
 import clickclick
-from click import confirm
 from clickclick import Action
 from senza.aws import get_account_alias, get_account_id, get_security_group
 
@@ -130,7 +129,7 @@ def get_mint_bucket_name(region: str):
     return bucket_name
 
 
-def get_iam_role_policy(application_id: str, bucket_name: str, region: str):
+def create_mint_read_policy_document(application_id: str, bucket_name: str, region: str):
     return {
         "Version": "2012-10-17",
         "Statement": [
@@ -144,6 +143,34 @@ def get_iam_role_policy(application_id: str, bucket_name: str, region: str):
             }
         ],
     }
+
+
+def create_cross_stack_policy_document():
+    return {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Sid": "AllowCrossStackApiRequests",
+                "Effect": "Allow",
+                "Action": [
+                    "cloudformation:SignalResource",
+                    "cloudformation:DescribeStackResource"
+                ],
+                "Resource": "*"
+            }
+        ]
+    }
+
+
+def check_cross_stack_policy(iam, role_name: str, cross_stack_policy_name: str):
+    try:
+        iam.get_role_policy(
+            RoleName=role_name,
+            PolicyName=cross_stack_policy_name
+        )
+        return True
+    except botocore.exceptions.ClientError:
+        return False
 
 
 def check_iam_role(application_id: str, bucket_name: str, region: str):
@@ -170,7 +197,7 @@ def check_iam_role(application_id: str, bucket_name: str, region: str):
 
     create = False
     if not exists:
-        create = confirm(
+        create = click.confirm(
             "IAM role {} does not exist. "
             "Do you want Senza to create it now?".format(role_name),
             default=True,
@@ -182,23 +209,36 @@ def check_iam_role(application_id: str, bucket_name: str, region: str):
                     AssumeRolePolicyDocument=json.dumps(assume_role_policy_document),
                 )
 
-    update_policy = bucket_name is not None and (
+    attach_mint_read_policy = bucket_name is not None and (
         (not exists and create)
         or (
-            exists
-            and confirm(
+            exists and click.confirm(
                 "IAM role {} already exists. ".format(role_name)
                 + "Do you want Senza to overwrite the role policy?"
             )
         )
     )
-    if update_policy:
+    if attach_mint_read_policy:
         with Action("Updating IAM role policy of {}..".format(role_name)):
-            policy = get_iam_role_policy(application_id, bucket_name, region)
+            mint_read_policy = create_mint_read_policy_document(application_id, bucket_name, region)
             iam.put_role_policy(
                 RoleName=role_name,
                 PolicyName=role_name,
-                PolicyDocument=json.dumps(policy),
+                PolicyDocument=json.dumps(mint_read_policy),
+            )
+
+    cross_stack_policy_exists = False
+    cross_stack_policy_name = "CrossStackPolicy-{}".format(application_id)
+    if exists:
+        cross_stack_policy_exists = check_cross_stack_policy(iam, role_name, cross_stack_policy_name)
+
+    if create or not cross_stack_policy_exists:
+        with Action("Updating IAM role policy of {}..".format(role_name)):
+            cross_stack_policy = create_cross_stack_policy_document()
+            iam.put_role_policy(
+                RoleName=role_name,
+                PolicyName=cross_stack_policy_name,
+                PolicyDocument=json.dumps(cross_stack_policy),
             )
 
 

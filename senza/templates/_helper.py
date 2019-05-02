@@ -3,9 +3,12 @@ import re
 
 import boto3
 import botocore.exceptions
+# TODO :: WITHOUT THIS IMPORT, TEST test_template_helper_check_iam_role CANNOT MOCK click.confirm
 import click
 import clickclick
 from clickclick import Action
+# TODO :: WITHOUT THIS IMPORT, TESTS test_init, test_init_opt2 and test_init_opt5 FAIL DUE TO IMPORT ERROR
+from click import confirm
 from senza.aws import get_account_alias, get_account_id, get_security_group
 
 from ..manaus.boto_proxy import BotoClientProxy

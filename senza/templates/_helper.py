@@ -10,8 +10,10 @@ from clickclick import Action
 # TODO :: WITHOUT THIS IMPORT, TESTS test_init, test_init_opt2 and test_init_opt5 FAIL DUE TO IMPORT ERROR
 from click import confirm
 from senza.aws import get_account_alias, get_account_id, get_security_group
+from senza.utils import CROSS_STACK_POLICY_NAME
 
 from ..manaus.boto_proxy import BotoClientProxy
+from ..manaus.iam import get_policy_by_name
 
 
 def prompt(variables: dict, var_name, *args, **kwargs):
@@ -153,7 +155,6 @@ def create_cross_stack_policy_document():
         "Version": "2012-10-17",
         "Statement": [
             {
-                "Sid": "AllowCrossStackApiRequests",
                 "Effect": "Allow",
                 "Action": [
                     "cloudformation:SignalResource",
@@ -165,11 +166,11 @@ def create_cross_stack_policy_document():
     }
 
 
-def check_cross_stack_policy(iam, role_name: str, cross_stack_policy_name: str):
+def check_cross_stack_policy(iam, role_name: str):
     try:
         iam.get_role_policy(
             RoleName=role_name,
-            PolicyName=cross_stack_policy_name
+            PolicyName=CROSS_STACK_POLICY_NAME
         )
         return True
     except botocore.exceptions.ClientError:
@@ -230,18 +231,28 @@ def check_iam_role(application_id: str, bucket_name: str, region: str):
                 PolicyDocument=json.dumps(mint_read_policy),
             )
 
-    cross_stack_policy_exists = False
-    cross_stack_policy_name = "CrossStackPolicy-{}".format(application_id)
-    if exists:
-        cross_stack_policy_exists = check_cross_stack_policy(iam, role_name, cross_stack_policy_name)
+    attach_cross_stack_policy(exists, create, role_name, iam)
 
-    if create or not cross_stack_policy_exists:
+
+def attach_cross_stack_policy(pre_existing_role, role_created, role_name, iam_client):
+    cross_stack_policy_exists = False
+    if pre_existing_role:
+        cross_stack_policy_exists = check_cross_stack_policy(iam_client, role_name)
+
+    if role_created or not cross_stack_policy_exists:
         with Action("Updating IAM role policy of {}..".format(role_name)):
-            cross_stack_policy = create_cross_stack_policy_document()
-            iam.put_role_policy(
+            policy = get_policy_by_name(CROSS_STACK_POLICY_NAME)
+            if policy is None:
+                response = iam_client.create_policy(
+                    PolicyName=CROSS_STACK_POLICY_NAME,
+                    PolicyDocument=create_cross_stack_policy_document(),
+                    Description="Required permissions for EC2 instances created by Spotinst to signal CloudFormation"
+                )
+                policy = response["Policy"]
+
+            iam_client.attach_role_policy(
                 RoleName=role_name,
-                PolicyName=cross_stack_policy_name,
-                PolicyDocument=json.dumps(cross_stack_policy),
+                PolicyArn=policy["Arn"],
             )
 
 

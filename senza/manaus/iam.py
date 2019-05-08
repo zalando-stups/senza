@@ -161,3 +161,23 @@ class IAM:
                 continue
 
             yield certificate
+
+
+def get_policy_by_name(policy_name):
+    """
+    This function goes through all the policies in the AWS account and return the first one matching the policy_name
+    input parameter
+    """
+    iam = boto3.client("iam")
+
+    paginator = iam.get_paginator("list_policies")
+
+    page_iterator = paginator.paginate()
+
+    for page in page_iterator:
+        if "Policies" in page:
+            for policy in page["Policies"]:
+                if policy["PolicyName"] == policy_name:
+                    return policy
+
+    return None

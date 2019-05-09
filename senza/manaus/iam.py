@@ -170,7 +170,15 @@ def get_policy_by_name(policy_name):
     """
     iam = boto3.client("iam")
 
-    paginator = iam.get_paginator("list_policies")
+    return _get_policy_by_name(policy_name, iam)
+
+
+def _get_policy_by_name(policy_name, iam_client):
+    """
+    This function goes through all the policies in the AWS account and return the first one matching the policy_name
+    input parameter
+    """
+    paginator = iam_client.get_paginator("list_policies")
 
     page_iterator = paginator.paginate()
 
@@ -181,3 +189,24 @@ def get_policy_by_name(policy_name):
                     return policy
 
     return None
+
+
+def find_or_create_policy(policy_name, policy_document, description):
+    """
+    This function will look for a policy name with `policy_name`.
+    If not found, it will create the policy using the provided `policy_document`.
+
+    :return: Cross Stack Policy object
+    """
+    iam_client = boto3.client("iam")
+
+    policy = _get_policy_by_name(policy_name, iam_client)
+    if policy is None:
+        response = iam_client.create_policy(
+            PolicyName=policy_name,
+            PolicyDocument=policy_document,
+            Description=description
+        )
+        policy = response["Policy"]
+
+    return policy

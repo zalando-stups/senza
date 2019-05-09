@@ -1,14 +1,15 @@
 import click
 import botocore
-from unittest.mock import MagicMock, call
+from unittest.mock import MagicMock
 from senza.templates._helper import (create_mint_read_policy_document, get_mint_bucket_name,
-                                     check_value, prompt, choice, check_iam_role)
+                                     check_value, prompt, choice, attach_cross_stack_policy)
 from senza.templates.postgresapp import (ebs_optimized_supported,
                                          generate_random_password,
                                          set_default_variables,
                                          generate_definition,
                                          get_latest_image)
 from senza.utils import CROSS_STACK_POLICY_NAME
+
 
 def test_template_helper_get_mint_bucket_name(monkeypatch):
     monkeypatch.setattr('senza.templates._helper.get_account_id', MagicMock(return_value=123))
@@ -76,146 +77,57 @@ def test_template_helper_check_value():
         assert False, 'check_value doesnot return with a raise'
 
 
-def test_template_helper_check_iam_role(monkeypatch):
-    application_id = 'myapp'
-    bucket_name = 'bucket-name'
-    region = 'myregion'
+def test_attach_cross_stack_policy(monkeypatch):
+    role_name = "myrole"
 
     iam = MagicMock()
     iam.return_value = iam
 
-    # Test case 1 :: create role -> create mint policy -> create cross stack policy
-    get_role_error_response = {'Error': {'Code': 'Error getting the role'}}
-    iam.get_role.side_effect = botocore.exceptions.ClientError(get_role_error_response, 'get_role')
-
-    create_role_response = {'Role': 'role-name'}
-    iam.create_role.return_value = create_role_response
-
-    put_role_policy_response = {'ResponseMetadata': 'some-metadata'}
-    iam.put_role_policy.side_effect = [put_role_policy_response, put_role_policy_response]
-
-    paginator_mock = MagicMock()
-    paginator_mock.paginate.return_value = [{'Policies': [{'PolicyName': 'foo', 'Arn': 'arn:aws:iam::aws:policy/foo'},
-                                                          {'PolicyName': 'bar', 'Arn': 'arn:aws:iam::aws:policy/bar'}]},
-                                            {
-                                                'Policies': [
-                                                    {'PolicyName': 'zed', 'Arn': 'arn:aws:iam::aws:policy/zed'}
-                                                ]
-                                            }
-                                            ]
-    iam.get_paginator.return_value = paginator_mock
-
-    iam.create_policy.return_value = {'Policy': {'Arn': 'arn:aws:iam::aws:policy/' + CROSS_STACK_POLICY_NAME}}
+    cross_stack_policy_mock = MagicMock()
+    cross_stack_policy_mock.return_value = {'PolicyName': CROSS_STACK_POLICY_NAME, 'Arn': 'arn:aws:iam::aws:policy/' +
+                                                                                          CROSS_STACK_POLICY_NAME}
 
     monkeypatch.setattr('boto3.client', iam)
+    monkeypatch.setattr('senza.manaus.iam.find_or_create_policy', cross_stack_policy_mock)
 
-    monkeypatch.setattr('click.confirm', MagicMock(return_value=True))
-
-    check_iam_role(application_id, bucket_name, region)
-
-    assert iam.get_role.call_count == 1
-    assert iam.create_role.call_count == 1
-    assert iam.put_role_policy.call_count == 1
-    assert iam.get_paginator.call_count == 1
-    assert iam.create_policy.call_count == 1
-    assert iam.attach_role_policy.call_count == 1
-
-    # Test case 2 :: skip create role -> create mint policy -> create cross stack policy
-    iam.reset_mock()
-
-    get_role_response = {'Role': 'some-role'}
-    iam.get_role.side_effect = get_role_response
-
-    monkeypatch.setattr('click.confirm', MagicMock(return_value=True))
-
-    iam.put_role_policy.side_effect = [put_role_policy_response, put_role_policy_response]
-
+    # Test case 1 :: role already exists, policy is not yet attached
     get_role_policy_error_response = {'Error': {'Code': 'Error getting the role policy'}}
     iam.get_role_policy.side_effect = botocore.exceptions.ClientError(get_role_policy_error_response, 'get_role_policy')
 
-    check_iam_role(application_id, bucket_name, region)
+    iam.attach_role_policy.return_value = {'ResponseMetadata': {'key': 'value'}}
 
-    assert iam.get_role.call_count == 1
-    assert iam.create_role.call_count == 0
+    role_exists = True
+    role_created = False
+    attach_cross_stack_policy(role_exists, role_created, role_name, iam)
+
     assert iam.get_role_policy.call_count == 1
-    assert iam.put_role_policy.call_count == 1
-    assert iam.get_paginator.call_count == 1
-    assert iam.create_policy.call_count == 1
     assert iam.attach_role_policy.call_count == 1
 
-    # Test case 3 :: skip create role -> skip create mint policy -> create cross stack policy
+    # Test case 2 :: role already exists, policy is already attached
     iam.reset_mock()
-
-    get_role_response = {'Role': 'some-role'}
-    iam.get_role.side_effect = get_role_response
-
-    monkeypatch.setattr('click.confirm', MagicMock(return_value=False))
-
-    iam.put_role_policy.side_effect = put_role_policy_response
-
-    get_role_policy_error_response = {'Error': {'Code': 'Error getting the role policy'}}
-    iam.get_role_policy.side_effect = botocore.exceptions.ClientError(get_role_policy_error_response, 'get_role_policy')
-
-    check_iam_role(application_id, bucket_name, region)
-
-    assert iam.get_role.call_count == 1
-    assert iam.create_role.call_count == 0
-    assert iam.get_role_policy.call_count == 1
-    assert iam.put_role_policy.call_count == 0
-    assert iam.get_paginator.call_count == 1
-    assert iam.create_policy.call_count == 1
-    assert iam.attach_role_policy.call_count == 1
-
-    # Test case 4 :: skip create role -> skip create mint policy -> cross stack policy already attached
-    iam.reset_mock()
-
-    get_role_response = {'Role': 'some-role'}
-    iam.get_role.side_effect = get_role_response
-
-    monkeypatch.setattr('click.confirm', MagicMock(return_value=False))
 
     iam.get_role_policy.side_effect = {'RoleName': 'myrolepolicy'}
 
-    check_iam_role(application_id, bucket_name, region)
+    role_exists = True
+    role_created = False
+    attach_cross_stack_policy(role_exists, role_created, role_name, iam)
 
-    assert iam.get_role.call_count == 1
-    assert iam.create_role.call_count == 0
     assert iam.get_role_policy.call_count == 1
-    assert iam.put_role_policy.call_count == 0
-    assert iam.get_paginator.call_count == 0
-    assert iam.create_policy.call_count == 0
     assert iam.attach_role_policy.call_count == 0
 
-    # Test case 5 :: skip create role -> skip create mint policy -> cross stack policy not attached
+    # Test case 3 :: role was just created, policy is not yet attached
     iam.reset_mock()
-
-    get_role_response = {'Role': 'some-role'}
-    iam.get_role.side_effect = get_role_response
-
-    monkeypatch.setattr('click.confirm', MagicMock(return_value=False))
 
     get_role_policy_error_response = {'Error': {'Code': 'Error getting the role policy'}}
     iam.get_role_policy.side_effect = botocore.exceptions.ClientError(get_role_policy_error_response, 'get_role_policy')
 
-    paginator_mock.paginate.return_value = [{'Policies': [{'PolicyName': 'foo', 'Arn': 'arn:aws:iam::aws:policy/foo'},
-                                                          {'PolicyName': 'bar', 'Arn': 'arn:aws:iam::aws:policy/bar'}]},
-                                            {
-                                                'Policies': [
-                                                    {'PolicyName': 'zed', 'Arn': 'arn:aws:iam::aws:policy/zed'},
-                                                    {'PolicyName': CROSS_STACK_POLICY_NAME,
-                                                     'Arn': 'arn:aws:iam::aws:policy/' + CROSS_STACK_POLICY_NAME}
-                                                ]
-                                            }
-                                            ]
+    iam.attach_role_policy.return_value = {'ResponseMetadata': {'key': 'value'}}
 
-    check_iam_role(application_id, bucket_name, region)
+    role_exists = False
+    role_created = True
+    attach_cross_stack_policy(role_exists, role_created, role_name, iam)
 
-    assert iam.get_role.call_count == 1
-    assert iam.create_role.call_count == 0
-    assert iam.get_role_policy.call_count == 1
-    assert iam.put_role_policy.call_count == 0
-    assert iam.get_paginator.call_count == 1
-    assert iam.create_policy.call_count == 0
+    assert iam.get_role_policy.call_count == 0
     assert iam.attach_role_policy.call_count == 1
 
 

@@ -3,17 +3,15 @@ import re
 
 import boto3
 import botocore.exceptions
-# TODO :: WITHOUT THIS IMPORT, TEST test_template_helper_check_iam_role CANNOT MOCK click.confirm
 import click
 import clickclick
-from clickclick import Action
-# TODO :: WITHOUT THIS IMPORT, TESTS test_init, test_init_opt2 and test_init_opt5 FAIL DUE TO IMPORT ERROR
 from click import confirm
+from clickclick import Action
 from senza.aws import get_account_alias, get_account_id, get_security_group
 from senza.utils import CROSS_STACK_POLICY_NAME
+import senza.manaus.iam
 
 from ..manaus.boto_proxy import BotoClientProxy
-from ..manaus.iam import get_policy_by_name
 
 
 def prompt(variables: dict, var_name, *args, **kwargs):
@@ -201,7 +199,7 @@ def check_iam_role(application_id: str, bucket_name: str, region: str):
 
     create = False
     if not exists:
-        create = click.confirm(
+        create = confirm(
             "IAM role {} does not exist. "
             "Do you want Senza to create it now?".format(role_name),
             default=True,
@@ -216,14 +214,15 @@ def check_iam_role(application_id: str, bucket_name: str, region: str):
     attach_mint_read_policy = bucket_name is not None and (
         (not exists and create)
         or (
-            exists and click.confirm(
+            exists and confirm(
                 "IAM role {} already exists. ".format(role_name)
                 + "Do you want Senza to overwrite the role policy?"
             )
         )
     )
     if attach_mint_read_policy:
-        with Action("Updating IAM role policy of {}..".format(role_name)):
+        with Action("Updat"
+                    "ing IAM role policy of {}..".format(role_name)):
             mint_read_policy = create_mint_read_policy_document(application_id, bucket_name, region)
             iam.put_role_policy(
                 RoleName=role_name,
@@ -234,6 +233,13 @@ def check_iam_role(application_id: str, bucket_name: str, region: str):
     attach_cross_stack_policy(exists, create, role_name, iam)
 
 
+def find_or_create_cross_stack_policy():
+    return senza.manaus.iam.find_or_create_policy(policy_name=CROSS_STACK_POLICY_NAME,
+                                                  policy_document=create_cross_stack_policy_document(),
+                                                  description="Required permissions for EC2 instances created by " +
+                                                              "Spotinst to signal CloudFormation")
+
+
 def attach_cross_stack_policy(pre_existing_role, role_created, role_name, iam_client):
     cross_stack_policy_exists = False
     if pre_existing_role:
@@ -241,14 +247,7 @@ def attach_cross_stack_policy(pre_existing_role, role_created, role_name, iam_cl
 
     if role_created or not cross_stack_policy_exists:
         with Action("Updating IAM role policy of {}..".format(role_name)):
-            policy = get_policy_by_name(CROSS_STACK_POLICY_NAME)
-            if policy is None:
-                response = iam_client.create_policy(
-                    PolicyName=CROSS_STACK_POLICY_NAME,
-                    PolicyDocument=create_cross_stack_policy_document(),
-                    Description="Required permissions for EC2 instances created by Spotinst to signal CloudFormation"
-                )
-                policy = response["Policy"]
+            policy = find_or_create_cross_stack_policy()
 
             iam_client.attach_role_policy(
                 RoleName=role_name,

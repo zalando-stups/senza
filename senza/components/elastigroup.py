@@ -38,14 +38,21 @@ def get_instance_profile_from_definition(definition, elastigroup_config):
     if "name" in launch_spec["iamRole"]:
         if isinstance(launch_spec["iamRole"]["name"], dict):
             instance_profile_id = launch_spec["iamRole"]["name"]["Ref"]
-            if instance_profile_id in definition["Resources"]:
-                return definition["Resources"][instance_profile_id]
+            instance_profile = definition["Resources"].get(instance_profile_id, None)
+            if instance_profile is None:
+                raise click.UsageError("Instance Profile referenced is not present in Resources")
+
+            if instance_profile["Type"] != "AWS::IAM::InstanceProfile":
+                raise click.UsageError(
+                    "Instance Profile references a Resource that is not of type 'AWS::IAM::InstanceProfile'")
+
+            return instance_profile
 
     return None
 
 
 def get_instance_profile_role(instance_profile, definition):
-    roles = instance_profile["Roles"]
+    roles = instance_profile["Properties"]["Roles"]
     if isinstance(roles[0], dict):
         role_id = roles[0]["Ref"]
         role = definition["Resources"].get(role_id, None)
@@ -96,11 +103,11 @@ def patch_cross_stack_policy(definition, elastigroup_config):
     if instance_profile_role is None:
         return
 
-    cross_stack_policy_arn = find_or_create_cross_stack_policy()
+    cross_stack_policy = find_or_create_cross_stack_policy()
 
     role_properties = instance_profile_role["Properties"]
     managed_policies_set = set(role_properties.get("ManagedPolicyArns", []))
-    managed_policies_set.add(cross_stack_policy_arn)
+    managed_policies_set.add(cross_stack_policy["Arn"])
     role_properties["ManagedPolicyArns"] = list(managed_policies_set)
 
 

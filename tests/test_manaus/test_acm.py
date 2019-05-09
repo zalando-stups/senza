@@ -218,7 +218,6 @@ def test_get_certificates(monkeypatch):
     assert len(certificates_net) == 1
     assert certificates_net[0].arn == 'arn:aws:acm:eu-west-1:cert2'
 
-    # TODO :: NOT MEANT TO BE MERGED!!! JUST HERE TO FIX THE TEST IN PYTHON 3.7
     m_client.describe_certificate.side_effect = [{'Certificate': CERT1},
                                                  {'Certificate': CERT3}]
     certificates_net = list(acm.get_certificates(valid_only=False,

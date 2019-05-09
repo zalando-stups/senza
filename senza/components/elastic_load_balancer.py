@@ -62,7 +62,7 @@ def get_ssl_cert(subdomain, main_zone, ssl_cert, account_info: AccountArguments)
         # the priority is acm_certificate first and iam_certificate second
         certificates = (
             acm_certificates + iam_certificates
-        )  # type: List[Union[ACMCertificate, IAMServerCertificate]]
+        )  # type: List[Union[ACMCertificate, IAMServerCertificate]] # noqa: F821
         try:
             certificate = certificates[0]
             ssl_cert = certificate.arn

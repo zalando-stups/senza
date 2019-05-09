@@ -15,7 +15,7 @@ from senza.components.taupage_auto_scaling_group import check_application_id, ch
     check_docker_image_exists, generate_user_data
 from senza.utils import ensure_keys, CROSS_STACK_POLICY_NAME
 from senza.spotinst import MissingSpotinstAccount
-from senza.manaus.iam import find_or_create_policy
+import senza.manaus.iam
 
 ELASTIGROUP_RESOURCE_TYPE = 'Custom::elastigroup'
 SPOTINST_LAMBDA_FORMATION_ARN = 'arn:aws:lambda:{}:178579023202:function:spotinst-cloudformation'
@@ -86,7 +86,7 @@ def create_cross_stack_policy_document():
 def find_or_create_cross_stack_policy():
     return senza.manaus.iam.find_or_create_policy(policy_name=CROSS_STACK_POLICY_NAME,
                                                   policy_document=create_cross_stack_policy_document(),
-                                                  description="Required permissions for EC2 instances created by " +
+                                                  description="Required permissions for EC2 instances created by "
                                                               "Spotinst to signal CloudFormation")
 
 

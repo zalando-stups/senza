@@ -236,7 +236,7 @@ def check_iam_role(application_id: str, bucket_name: str, region: str):
 def find_or_create_cross_stack_policy():
     return senza.manaus.iam.find_or_create_policy(policy_name=CROSS_STACK_POLICY_NAME,
                                                   policy_document=create_cross_stack_policy_document(),
-                                                  description="Required permissions for EC2 instances created by " +
+                                                  description="Required permissions for EC2 instances created by "
                                                               "Spotinst to signal CloudFormation")
 
 

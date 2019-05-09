@@ -163,16 +163,6 @@ class IAM:
             yield certificate
 
 
-def get_policy_by_name(policy_name):
-    """
-    This function goes through all the policies in the AWS account and return the first one matching the policy_name
-    input parameter
-    """
-    iam = boto3.client("iam")
-
-    return _get_policy_by_name(policy_name, iam)
-
-
 def _get_policy_by_name(policy_name, iam_client):
     """
     This function goes through all the policies in the AWS account and return the first one matching the policy_name

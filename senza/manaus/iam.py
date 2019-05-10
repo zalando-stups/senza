@@ -14,6 +14,7 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Iterator, Optional, Union
 
 import boto3
+import json
 from botocore.exceptions import ClientError
 
 from .boto_proxy import BotoClientProxy
@@ -194,7 +195,7 @@ def find_or_create_policy(policy_name, policy_document, description):
     if policy is None:
         response = iam_client.create_policy(
             PolicyName=policy_name,
-            PolicyDocument=policy_document,
+            PolicyDocument=json.dumps(policy_document),
             Description=description
         )
         policy = response["Policy"]

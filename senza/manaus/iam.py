@@ -184,9 +184,9 @@ def _get_policy_by_name(policy_name, iam_client):
 def find_or_create_policy(policy_name, policy_document, description):
     """
     This function will look for a policy name with `policy_name`.
-    If not found, it will create the policy using the provided `policy_document`.
+    If not found, it will create the policy using the provided `policy_name` and `policy_document`.
 
-    :return: Cross Stack Policy object
+    :return: Policy object
     """
     iam_client = boto3.client("iam")
 

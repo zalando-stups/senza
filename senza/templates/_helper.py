@@ -221,8 +221,7 @@ def check_iam_role(application_id: str, bucket_name: str, region: str):
         )
     )
     if attach_mint_read_policy:
-        with Action("Updat"
-                    "ing IAM role policy of {}..".format(role_name)):
+        with Action("Updating IAM role policy of {}..".format(role_name)):
             mint_read_policy = create_mint_read_policy_document(application_id, bucket_name, region)
             iam.put_role_policy(
                 RoleName=role_name,

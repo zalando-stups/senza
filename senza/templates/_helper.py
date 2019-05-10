@@ -240,6 +240,9 @@ def find_or_create_cross_stack_policy():
 
 
 def attach_cross_stack_policy(pre_existing_role, role_created, role_name, iam_client):
+    if not pre_existing_role and not role_created:
+        return
+
     cross_stack_policy_exists = False
     if pre_existing_role:
         cross_stack_policy_exists = check_cross_stack_policy(iam_client, role_name)

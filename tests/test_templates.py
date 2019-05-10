@@ -130,6 +130,16 @@ def test_attach_cross_stack_policy(monkeypatch):
     assert iam.get_role_policy.call_count == 0
     assert iam.attach_role_policy.call_count == 1
 
+    # Test case 3 :: role does not exist and was also not created
+    iam.reset_mock()
+
+    role_exists = False
+    role_created = False
+    attach_cross_stack_policy(role_exists, role_created, role_name, iam)
+
+    assert iam.get_role_policy.call_count == 0
+    assert iam.attach_role_policy.call_count == 0
+
 
 def test_choice_callable_default(monkeypatch):
     mock = MagicMock()

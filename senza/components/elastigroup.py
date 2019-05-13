@@ -13,8 +13,9 @@ from senza.aws import resolve_security_groups
 from senza.components.auto_scaling_group import normalize_network_threshold
 from senza.components.taupage_auto_scaling_group import check_application_id, check_application_version, \
     check_docker_image_exists, generate_user_data
-from senza.utils import ensure_keys
+from senza.utils import ensure_keys, CROSS_STACK_POLICY_NAME
 from senza.spotinst import MissingSpotinstAccount
+import senza.manaus.iam
 
 ELASTIGROUP_RESOURCE_TYPE = 'Custom::elastigroup'
 SPOTINST_LAMBDA_FORMATION_ARN = 'arn:aws:lambda:{}:178579023202:function:spotinst-cloudformation'
@@ -26,6 +27,88 @@ ELASTIGROUP_DEFAULT_STRATEGY = {
     "fallbackToOd": True,
 }
 ELASTIGROUP_DEFAULT_PRODUCT = "Linux/UNIX"
+
+
+def get_instance_profile_from_definition(definition, elastigroup_config):
+    launch_spec = elastigroup_config["compute"]["launchSpecification"]
+
+    if "iamRole" not in launch_spec:
+        return None
+
+    if "name" in launch_spec["iamRole"]:
+        if isinstance(launch_spec["iamRole"]["name"], dict):
+            instance_profile_id = launch_spec["iamRole"]["name"]["Ref"]
+            instance_profile = definition["Resources"].get(instance_profile_id, None)
+            if instance_profile is None:
+                raise click.UsageError("Instance Profile referenced is not present in Resources")
+
+            if instance_profile["Type"] != "AWS::IAM::InstanceProfile":
+                raise click.UsageError(
+                    "Instance Profile references a Resource that is not of type 'AWS::IAM::InstanceProfile'")
+
+            return instance_profile
+
+    return None
+
+
+def get_instance_profile_role(instance_profile, definition):
+    roles = instance_profile["Properties"]["Roles"]
+    if isinstance(roles[0], dict):
+        role_id = roles[0]["Ref"]
+        role = definition["Resources"].get(role_id, None)
+        if role is None:
+            raise click.UsageError("Instance Profile references a Role that is not present in Resources")
+
+        if role["Type"] != "AWS::IAM::Role":
+            raise click.UsageError("Instance Profile Role references a Resource that is not of type 'AWS::IAM::Role'")
+
+        return role
+
+    return None
+
+
+def create_cross_stack_policy_document():
+    return {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "cloudformation:SignalResource",
+                    "cloudformation:DescribeStackResource"
+                ],
+                "Resource": "*"
+            }
+        ]
+    }
+
+
+def find_or_create_cross_stack_policy():
+    return senza.manaus.iam.find_or_create_policy(policy_name=CROSS_STACK_POLICY_NAME,
+                                                  policy_document=create_cross_stack_policy_document(),
+                                                  description="Required permissions for EC2 instances created by "
+                                                              "Spotinst to signal CloudFormation")
+
+
+def patch_cross_stack_policy(definition, elastigroup_config):
+    """
+    This function will make sure that the role used in the Instance Profile includes the Cross Stack API
+    requests policy, needed for Elastigroups to run as expected.
+    """
+    instance_profile = get_instance_profile_from_definition(definition, elastigroup_config)
+    if instance_profile is None:
+        return
+
+    instance_profile_role = get_instance_profile_role(instance_profile, definition)
+    if instance_profile_role is None:
+        return
+
+    cross_stack_policy = find_or_create_cross_stack_policy()
+
+    role_properties = instance_profile_role["Properties"]
+    managed_policies_set = set(role_properties.get("ManagedPolicyArns", []))
+    managed_policies_set.add(cross_stack_policy["Arn"])
+    role_properties["ManagedPolicyArns"] = list(managed_policies_set)
 
 
 def component_elastigroup(definition, configuration, args, info, force, account_info):
@@ -62,6 +145,7 @@ def component_elastigroup(definition, configuration, args, info, force, account_
     extract_auto_scaling_rules(configuration, elastigroup_config)
     extract_block_mappings(configuration, elastigroup_config)
     extract_instance_profile(args, definition, configuration, elastigroup_config)
+    patch_cross_stack_policy(definition, elastigroup_config)
     # cfn definition
     access_token = _extract_spotinst_access_token(definition)
     config_name = configuration["Name"]

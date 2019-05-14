@@ -45,7 +45,7 @@ AWS. However, writing CloudFormation templates in JSON format is not
 human-friendly, which hinders developer productivity. Also, many parts
 of a CloudFormation template are reusable among applications of the
 same kind and CloudFormation does not provide a way to reuse
-templates. 
+templates.
 
 Senza addresses these problems by supporting CloudFormation
 templates as YAML input and adding its own 'components' on
@@ -133,7 +133,7 @@ applications and versions:
 
         $ senza list
         $ senza l
-  
+
 
 Routing Traffic
 ---------------
@@ -164,7 +164,7 @@ To delete stacks that you're no longer using:
 Bash Completion
 ---------------
 
-Bash's programmable completion feature permits typing a partial command, then pressing the :kbd:`[Tab]` key to autocomplete the command sequence. If multiple completions are possible, then :kbd:`[Tab]` lists them all.
+Bash's programmable completion feature permits typing a partial command, then pressing the ``[Tab]`` key to autocomplete the command sequence. If multiple completions are possible, then ``[Tab]`` lists them all.
 
 To activate bash completion for the Senza CLI, just run:
 
@@ -172,7 +172,7 @@ To activate bash completion for the Senza CLI, just run:
 
     $ eval "$(_SENZA_COMPLETE=source senza)"
 
-Put the eval line into your :file:`.bashrc`:
+Put the eval line into your ``.bashrc``:
 
 .. code-block:: bash
 
@@ -193,6 +193,7 @@ The Senza CLI supports three different output formats:
 
 JSON is best for handling the output programmatically via various languages or with `jq`_ (a command-line JSON processor). The text format is easy for humans to read, and "tsv" format works well with traditional Unix text processing tools like sed, grep, and awk:
 
+.. _jq: https://stedolan.github.io/jq/
 .. _tab-separated values (TSV): https://en.wikipedia.org/wiki/Tab-separated_values
 .. code-block:: bash
 
@@ -218,7 +219,7 @@ A minimal Senza definition without any Senza components would look like:
 **Tip**: Use ``senza init`` to quickly bootstrap a new Senza definition YAML for most common use cases (e.g. a web application).
 
 The SenzaInfo Key
-----------------
+-----------------
 
 The ``SenzaInfo`` key configures global Senza behavior and must always be present in the definition YAML. Available properties for the ``SenzaInfo`` section:
 
@@ -228,7 +229,7 @@ The ``SenzaInfo`` key configures global Senza behavior and must always be presen
     Optional SNS topic name or ARN for CloudFormation notifications. As an example: You can use this to send notifications about deployments to a mailing list.
 ``Parameters``
     Custom Senza definition parameters. Use to dynamically substitute variables in the CloudFormation template.
-    
+
 .. code-block:: yaml
 
     # basic information for generating and executing this definition
@@ -286,6 +287,7 @@ You can also specify the parameters by name, which makes the Senza CLI more read
 complex scenarios with sizeable number of parameters:
 
 .. code-block:: bash
+
     $ senza create example.yaml 3 example MintBucket=<mint-bucket> ImageVersion=latest
 
 Here, the ``ApplicationId`` is given as a positional parameter. The two
@@ -356,7 +358,7 @@ Senza templates offer the following properties:
 Mappings
 ================
 
-Senza mappings are essentially key-value pairs, and behave just like `CloudFormation mappings <http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html>`_. Use mappings for ``Images``, ``ServerSubnets`` or ``LoadBalancerSubnets``. 
+Senza mappings are essentially key-value pairs, and behave just like `CloudFormation mappings <http://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/mappings-section-structure.html>`_. Use mappings for ``Images``, ``ServerSubnets`` or ``LoadBalancerSubnets``.
 
 An example:
 
@@ -426,7 +428,7 @@ WeightedDnsElasticLoadBalancer
 ================================
 
 Senza's **WeightedDnsElasticLoadBalancer** component type creates one HTTPs ELB resource with Route 53 weighted domains.
-You can either auto-detect the SSL certificate name used by the ELB, or name it ``SSLCertificateId``. Specify the main domain (``MainDomain``) or the default Route53 hosted zone will apply. 
+You can either auto-detect the SSL certificate name used by the ELB, or name it ``SSLCertificateId``. Specify the main domain (``MainDomain``) or the default Route53 hosted zone will apply.
 
 An internal load balancer is created by default, which differs from AWS's default behavior. To create an Internet-facing ELB, explicitly set the ``Scheme`` to ``internet-facing``.
 

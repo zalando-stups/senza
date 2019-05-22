@@ -62,7 +62,8 @@ def test_component_elastigroup_defaults(monkeypatch):
     assert {'tagKey': 'StackName', 'tagValue': 'foobar'} in tags
     assert {'tagKey': 'StackVersion', 'tagValue': '0.1'} in tags
     assert properties["group"]["compute"]["product"] == ELASTIGROUP_DEFAULT_PRODUCT
-    assert properties["group"]["compute"]["subnetIds"] == {"Fn::FindInMap": ["ServerSubnets", {"Ref": "AWS::Region"}, "Subnets"]}
+    assert properties["group"]["compute"]["subnetIds"] == {
+        "Fn::FindInMap": ["ServerSubnets", {"Ref": "AWS::Region"}, "Subnets"]}
     assert properties["group"]["region"] == "reg1"
     assert properties["group"]["strategy"] == ELASTIGROUP_DEFAULT_STRATEGY
 
@@ -666,19 +667,28 @@ def test_public_ips():
 def test_extract_image_id():
     test_cases = [
         {  # default behavior - set latest taupage image
+            "input": {},
             "given_config": {},
             "expected_config": {"compute": {"launchSpecification": {
                 "imageId": {"Fn::FindInMap": ["Images", {"Ref": "AWS::Region"}, "LatestTaupageImage"]}
             }}},
         },
         {  # leave imageId untouched
+            "input": {},
             "given_config": {"compute": {"launchSpecification": {"imageId": "fake-id"}}},
             "expected_config": {"compute": {"launchSpecification": {"imageId": "fake-id"}}},
         },
+        {  # use specified image from the Senza mapping
+            "input": {"Image": "Foo"},
+            "given_config": {},
+            "expected_config": {"compute": {"launchSpecification": {
+                "imageId": {"Fn::FindInMap": ["Images", {"Ref": "AWS::Region"}, "Foo"]}
+            }}},
+        }
     ]
     for test_case in test_cases:
         got = test_case["given_config"]
-        extract_image_id(got)
+        extract_image_id(test_case["input"], got)
         assert test_case["expected_config"] == got
 
 

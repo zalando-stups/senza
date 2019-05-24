@@ -12,7 +12,7 @@ from senza.components.elastigroup import (component_elastigroup, ELASTIGROUP_DEF
                                           ensure_default_product, fill_standard_tags, extract_subnets,
                                           extract_load_balancer_name, extract_public_ips,
                                           extract_image_id, extract_security_group_ids, extract_instance_types,
-                                          extract_instance_profile)
+                                          extract_instance_profile, patch_cross_stack_policy)
 
 
 def test_component_elastigroup_defaults(monkeypatch):
@@ -797,3 +797,138 @@ def test_extract_instance_profile(monkeypatch):
             got = test_case["given_config"]
             extract_instance_profile(MagicMock(), MagicMock(), test_case["input"], got)
             assert test_case["expected_config"] == got
+
+
+def test_patch_cross_stack_policy(monkeypatch):
+    test_cases = [
+        {   # No instance profile in definition
+            "elastigroup_config": {"compute": {"launchSpecification": {}}},
+            "definition": {},
+            "expected_output": {}
+        },
+        {   # Instance profile definition references a managed instance profile
+            "elastigroup_config": {"compute": {"launchSpecification": {"iamRole": {
+                "arn": "arn:aws:iam::12345667:instance-profile/foo"}}}},
+            "definition": {},
+            "expected_output": {}
+        },
+        {   # Instance profile Role definition references a managed role
+            "elastigroup_config": {"compute": {"launchSpecification": {"iamRole": {
+                "name": {"Ref": "my-instance-profile"}}}}},
+            "definition": {"Resources": {"my-instance-profile": {
+                "Type": "AWS::IAM::InstanceProfile",
+                "Properties": {"Path": "/", "Roles": ['a-managed-role']}}}},
+            "expected_output": {"Resources": {"my-instance-profile": {
+                "Type": "AWS::IAM::InstanceProfile",
+                "Properties": {"Path": "/", "Roles": ['a-managed-role']}}}}
+        },
+        {   # Policy not in policies list of role
+            "elastigroup_config": {"compute": {"launchSpecification": {"iamRole": {
+                "name": {"Ref": "my-instance-profile1"}}}}},
+            "definition": {"Resources": {
+                "my-instance-profile1": {
+                    "Type": "AWS::IAM::InstanceProfile",
+                    "Properties": {"Path": "/", "Roles": [{"Ref": "my-role1"}]}
+                },
+                "my-role1": {
+                    "Type": "AWS::IAM::Role",
+                    "Properties": {}
+                }
+            }},
+            "expected_output": {"Resources": {
+                "my-instance-profile1": {
+                    "Type": "AWS::IAM::InstanceProfile",
+                    "Properties": {"Path": "/", "Roles": [{"Ref": "my-role1"}]}
+                },
+                "my-role1": {
+                    "Type": "AWS::IAM::Role",
+                    "Properties": {"ManagedPolicyArns": ['arn:aws:iam::aws:policy/zed']}
+                }
+            }}
+        },
+        {   # Policy already in policies list of role
+            "elastigroup_config": {"compute": {"launchSpecification": {"iamRole": {
+                "name": {"Ref": "my-instance-profile2"}}}}},
+            "definition": {"Resources": {
+                "my-instance-profile2": {
+                    "Type": "AWS::IAM::InstanceProfile",
+                    "Properties": {"Path": "/", "Roles": [{"Ref": "my-role2"}]}
+                },
+                "my-role2": {
+                    "Type": "AWS::IAM::Role",
+                    "Properties": {"ManagedPolicyArns": ['arn:aws:iam::aws:policy/zed']}
+                }
+            }},
+            "expected_output": {"Resources": {
+                "my-instance-profile2": {
+                    "Type": "AWS::IAM::InstanceProfile",
+                    "Properties": {"Path": "/", "Roles": [{"Ref": "my-role2"}]}
+                },
+                "my-role2": {
+                    "Type": "AWS::IAM::Role",
+                    "Properties": {"ManagedPolicyArns": ['arn:aws:iam::aws:policy/zed']}
+                }
+            }}
+        }
+    ]
+
+    cross_stack_policy_mock = MagicMock()
+    cross_stack_policy_mock.return_value = {"PolicyName": "zed", "Arn": "arn:aws:iam::aws:policy/zed"}
+    monkeypatch.setattr("senza.manaus.iam.find_or_create_policy", cross_stack_policy_mock)
+
+    for test_case in test_cases:
+        definition = test_case["definition"]
+        patch_cross_stack_policy(definition, test_case["elastigroup_config"])
+
+        assert definition == test_case["expected_output"]
+
+def test_patch_cross_stack_policy_errors():
+    # Error case 1 :: Instance profile not in Resources
+    with pytest.raises(click.UsageError):
+        elastigroup_config = {"compute": {"launchSpecification": {"iamRole": {
+            "name": {"Ref": "my-instance-profile"}}}}}
+        definition = {"Resources": {}}
+
+        patch_cross_stack_policy(definition, elastigroup_config)
+
+    # Error case 2 :: Instance profile not of type AWS::IAM::InstanceProfile
+    with pytest.raises(click.UsageError):
+        elastigroup_config = {"compute": {"launchSpecification": {"iamRole": {
+            "name": {"Ref": "my-instance-profile"}}}}}
+        definition = {"Resources": {
+            "my-instance-profile": {
+                "Type": "AWS::IAM::SomeOtherResource",
+                "Properties": {"Path": "/", "Roles": [{"Ref": "my-role"}]}
+            }}}
+
+        patch_cross_stack_policy(definition, elastigroup_config)
+
+    # Error case 3 :: Instance profile Role not in Resources
+    with pytest.raises(click.UsageError):
+        elastigroup_config = {"compute": {"launchSpecification": {"iamRole": {
+            "name": {"Ref": "my-instance-profile"}}}}}
+        definition = {"Resources": {
+                "my-instance-profile": {
+                    "Type": "AWS::IAM::InstanceProfile",
+                    "Properties": {"Path": "/", "Roles": [{"Ref": "my-role"}]}
+                }
+            }}
+
+        patch_cross_stack_policy(definition, elastigroup_config)
+
+    # Error case 4 :: Instance profile Role not of type AWS::IAM::Role
+    with pytest.raises(click.UsageError):
+        elastigroup_config = {"compute": {"launchSpecification": {"iamRole": {
+            "name": {"Ref": "my-instance-profile"}}}}}
+        definition = {"Resources": {
+                "my-instance-profile": {
+                    "Type": "AWS::IAM::InstanceProfile",
+                    "Properties": {"Path": "/", "Roles": [{"Ref": "my-role"}]}
+                },
+                "my-role": {
+                    "Type": "AWS::IAM::SomeOtherResource",
+                    "Properties": {"ManagedPolicyArns": ['arn:aws:iam::aws:policy/zed']}
+                }
+            }}
+
+        patch_cross_stack_policy(definition, elastigroup_config)

@@ -882,6 +882,7 @@ def test_patch_cross_stack_policy(monkeypatch):
 
         assert definition == test_case["expected_output"]
 
+
 def test_patch_cross_stack_policy_errors():
     # Error case 1 :: Instance profile not in Resources
     with pytest.raises(click.UsageError):
@@ -932,3 +933,48 @@ def test_patch_cross_stack_policy_errors():
             }}
 
         patch_cross_stack_policy(definition, elastigroup_config)
+
+
+def test_multiple_elastigroups(monkeypatch):
+    config1 = {
+        "Name": "eg1",
+        "SecurityGroups": "sg1",
+        "InstanceType": "big",
+        "SpotAlternatives": [
+            "smaller",
+            "small",
+            "small-ish"
+        ]
+    }
+    config2 = {
+        "Name": "eg2",
+        "SecurityGroups": "sg1",
+        "InstanceType": "big",
+        "SpotAlternatives": [
+            "smaller",
+            "small",
+            "small-ish"
+        ]
+    }
+    args = MagicMock()
+    args.region = "reg1"
+    info = {'StackName': 'foobar', 'StackVersion': '0.1', 'SpotinstAccessToken': 'token1'}
+    subnets = ["sn1", "sn2", "sn3"]
+    server_subnets = {"reg1": {"Subnets": subnets}}
+    senza = {"Info": info}
+    mappings = {"Senza": senza, "ServerSubnets": server_subnets}
+    definition = {"Resources": {}, "Mappings": mappings}
+    mock_sg = MagicMock()
+    mock_sg.return_value = "sg1"
+    monkeypatch.setattr('senza.aws.resolve_security_group', mock_sg)
+
+    mock_resolve_account_id = MagicMock()
+    mock_resolve_account_id.return_value = 'act-12345abcdef'
+    monkeypatch.setattr('senza.components.elastigroup.resolve_account_id', mock_resolve_account_id)
+
+    mock_account_info = MagicMock()
+    mock_account_info.Region = "reg1"
+    mock_account_info.AccountID = "12345"
+
+    component_elastigroup(definition, config1, args, info, False, mock_account_info)
+    component_elastigroup(definition, config2, args, info, False, mock_account_info)

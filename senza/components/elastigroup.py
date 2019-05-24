@@ -592,7 +592,7 @@ def _extract_spotinst_access_token(definition: dict):
     """
     extract the provided access token
     """
-    return definition["Mappings"]["Senza"]["Info"].pop("SpotinstAccessToken")
+    return definition["Mappings"]["Senza"]["Info"]["SpotinstAccessToken"]
 
 
 def extract_spotinst_account_id(access_token: str, definition: dict, account_info):

@@ -138,7 +138,7 @@ def component_elastigroup(definition, configuration, args, info, force, account_
     extract_user_data(configuration, elastigroup_config, info, force, account_info)
     extract_load_balancer_name(configuration, elastigroup_config)
     extract_public_ips(configuration, elastigroup_config)
-    extract_image_id(elastigroup_config)
+    extract_image_id(configuration, elastigroup_config)
     extract_security_group_ids(configuration, elastigroup_config, args)
     extract_instance_types(configuration, elastigroup_config)
     extract_autoscaling_capacity(configuration, elastigroup_config)
@@ -497,7 +497,7 @@ def extract_public_ips(configuration, elastigroup_config):
             ]
 
 
-def extract_image_id(elastigroup_config: dict):
+def extract_image_id(configuration, elastigroup_config: dict):
     """
     This function identifies whether a senza formatted AMI mapping is configured,
     if so it transforms it into a Spotinst Elastigroup AMI API configuration
@@ -506,7 +506,8 @@ def extract_image_id(elastigroup_config: dict):
     launch_spec_config = elastigroup_config["compute"]["launchSpecification"]
 
     if "imageId" not in launch_spec_config.keys():
-        launch_spec_config["imageId"] = {"Fn::FindInMap": ["Images", {"Ref": "AWS::Region"}, "LatestTaupageImage"]}
+        image_key = configuration.get("Image", "LatestTaupageImage")
+        launch_spec_config["imageId"] = {"Fn::FindInMap": ["Images", {"Ref": "AWS::Region"}, image_key]}
 
 
 def extract_security_group_ids(configuration, elastigroup_config: dict, args):

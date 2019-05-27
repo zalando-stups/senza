@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 import pytest
 from botocore.exceptions import ClientError
-from senza.manaus.iam import IAM, IAMServerCertificate, find_or_create_policy
+from senza.manaus.iam import IAM, IAMServerCertificate
 
 IAM_CERT1 = {'CertificateBody': 'body',
              'CertificateChain': 'chain',
@@ -258,65 +258,3 @@ def test_equality(monkeypatch):
 
     assert certificate1 == certificate1_exp  # only the arn is compared
     assert certificate1 != certificate2
-
-
-def test_find_or_create_policy(monkeypatch):
-    policy_name = 'somePolicy'
-    policy_document = {
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "*"
-                ],
-                "Resource": "*"
-            }
-        ]
-    }
-    description = 'A general description of the policy'
-
-    iam = MagicMock()
-    iam.return_value = iam
-
-    paginator_mock = MagicMock()
-
-    monkeypatch.setattr('boto3.client', iam)
-
-    # Test case 1 :: Policy does not exist, policy is created
-    paginator_mock.paginate.return_value = [{'Policies': [{'PolicyName': 'foo', 'Arn': 'arn:aws:iam::aws:policy/foo'},
-                                                          {'PolicyName': 'bar', 'Arn': 'arn:aws:iam::aws:policy/bar'}]},
-                                            {'Policies': [{'PolicyName': 'zed', 'Arn': 'arn:aws:iam::aws:policy/zed'}]}]
-
-    iam.get_paginator.return_value = paginator_mock
-
-    iam.create_policy.return_value = {'Policy': {'PolicyName': policy_name,
-                                                 'Arn': 'arn:aws:iam::aws:policy/' + policy_name}}
-
-    policy = find_or_create_policy(policy_name, policy_document, description)
-
-    assert iam.get_paginator.call_count == 1
-    assert iam.create_policy.call_count == 1
-    assert policy["PolicyName"] == policy_name
-
-    # Test case 2 :: Policy exists, policy creation is skipped
-    iam.reset_mock()
-
-    paginator_mock.paginate.return_value = [{'Policies': [{'PolicyName': 'foo', 'Arn': 'arn:aws:iam::aws:policy/foo'},
-                                                          {'PolicyName': 'bar', 'Arn': 'arn:aws:iam::aws:policy/bar'}]},
-                                            {
-                                                'Policies': [
-                                                    {'PolicyName': 'zed', 'Arn': 'arn:aws:iam::aws:policy/zed'},
-                                                    {'PolicyName': policy_name,
-                                                     'Arn': 'arn:aws:iam::aws:policy/' + policy_name}
-                                                ]
-                                            }
-                                            ]
-
-    iam.get_paginator.return_value = paginator_mock
-
-    policy = find_or_create_policy(policy_name, policy_document, description)
-
-    assert iam.get_paginator.call_count == 1
-    assert iam.create_policy.call_count == 0
-    assert policy["PolicyName"] == policy_name

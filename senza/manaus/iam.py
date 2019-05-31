@@ -14,7 +14,6 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Iterator, Optional, Union
 
 import boto3
-import json
 from botocore.exceptions import ClientError
 
 from .boto_proxy import BotoClientProxy
@@ -162,42 +161,3 @@ class IAM:
                 continue
 
             yield certificate
-
-
-def _get_policy_by_name(policy_name, iam_client):
-    """
-    This function goes through all the policies in the AWS account and return the first one matching the policy_name
-    input parameter
-    """
-    paginator = iam_client.get_paginator("list_policies")
-
-    page_iterator = paginator.paginate()
-
-    for page in page_iterator:
-        if "Policies" in page:
-            for policy in page["Policies"]:
-                if policy["PolicyName"] == policy_name:
-                    return policy
-
-    return None
-
-
-def find_or_create_policy(policy_name, policy_document, description):
-    """
-    This function will look for a policy name with `policy_name`.
-    If not found, it will create the policy using the provided `policy_name` and `policy_document`.
-
-    :return: Policy object
-    """
-    iam_client = boto3.client("iam")
-
-    policy = _get_policy_by_name(policy_name, iam_client)
-    if policy is None:
-        response = iam_client.create_policy(
-            PolicyName=policy_name,
-            PolicyDocument=json.dumps(policy_document),
-            Description=description
-        )
-        policy = response["Policy"]
-
-    return policy

@@ -6,8 +6,6 @@ the domain of any other module.
 import re
 import pystache
 
-CROSS_STACK_POLICY_NAME = "system-cf-notifications"
-
 
 def named_value(dictionary):
     """

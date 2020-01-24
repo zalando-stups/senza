@@ -1962,11 +1962,16 @@ def respawn_instances(stack_ref, inplace, force, batch_size_percentage, region):
 @click.argument("stack_ref", nargs=-1)
 @click.argument("desired_capacity", type=click.IntRange(0, 100, clamp=True))
 @click.option(
+    "--min_size",
+    metavar="MIN_SIZE",
+    type=click.IntRange(0,100, clamp=True),
+    help="Define the MinSize to update the AutoScalingGroup.")
+@click.option(
     "-f", "--force", is_flag=True, help="Force scaling multiple stacks if needed"
 )
 @region_option
 @stacktrace_visible_option
-def scale(stack_ref, region, desired_capacity, force):
+def scale(stack_ref, region, desired_capacity, min_size, force):
     """Scale Auto Scaling Group to desired capacity"""
 
     stack_refs = get_stack_refs(stack_ref)
@@ -1984,7 +1989,7 @@ def scale(stack_ref, region, desired_capacity, force):
     asg = BotoClientProxy("autoscaling", region)
     for group in get_auto_scaling_groups_and_elasti_groups(stacks, region):
         if group["type"] == AUTO_SCALING_GROUP_TYPE:
-            scale_auto_scaling_group(asg, group["resource_id"], desired_capacity, force)
+            scale_auto_scaling_group(asg, group["resource_id"], desired_capacity, min_size)
         elif group["type"] == ELASTIGROUP_RESOURCE_TYPE:
             scale_elastigroup(
                 group["resource_id"], group["stack_name"], desired_capacity, region
@@ -2032,7 +2037,7 @@ def scale_elastigroup(elastigroup_id, stack_name, desired_capacity, region):
                 )
 
 
-def scale_auto_scaling_group(asg, asg_name, desired_capacity, force):
+def scale_auto_scaling_group(asg, asg_name, desired_capacity, min_size):
     """
     Commands to scale an AWS Auto Scaling Group
     """
@@ -2047,15 +2052,18 @@ def scale_auto_scaling_group(asg, asg_name, desired_capacity, force):
             act.ok("NO CHANGES")
         else:
             kwargs = {}
-            if group["MinSize"] == 0 and desired_capacity > group["MinSize"]:
-                info(
-                    "Min instance number was set to 0 previously. Please "
-                    "overwrite the MinSize by using --force to overwrite the "
-                    "MinSize with the desired capacity of {} to prevent "
-                    "unexpected downscaling.".format(desired_capacity)
+            if min_size and desired_capacity < min_size:
+                fatal_error(
+                    "Desired capacity must be bigger than specified min_size value"
                 )
-                if force:
-                    kwargs["MinSize"] = desired_capacity
+            if not min_size and group["MinSize"] == 0:
+                info(
+                    "MinSize was set to 0 previously. This might result in "
+                    "unexpected downscaling of the stack. Please use --min_size "
+                    "to update the value."
+                )
+            if min_size:
+                kwargs["MinSize"] = min_size
             if desired_capacity < group["MinSize"]:
                 kwargs["MinSize"] = desired_capacity
             if desired_capacity > group["MaxSize"]:

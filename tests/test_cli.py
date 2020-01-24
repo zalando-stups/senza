@@ -1788,6 +1788,21 @@ def test_scale_with_force_confirm(monkeypatch):
                            catch_exceptions=False)
     assert 'Scaling myasg from 1 to 2 instances' in result.output
 
+def test_scale_with_overwriting_zero_minsize(monkeypatch):
+  boto3 = MagicMock()
+  boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',
+                                                        'CreationTime': '2016-06-14'}]}
+  boto3.describe_stack_resources.return_value = {'StackResources': [
+    {'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
+     'PhysicalResourceId': 'myasg',
+     'StackName': 'myapp-1'}]}
+  group = {'AutoScalingGroupName': 'myasg', 'DesiredCapacity': 0, 'MinSize': 0, 'MaxSize': 8}
+  boto3.describe_auto_scaling_groups.return_value = {'AutoScalingGroups': [group]}
+  monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+  runner = CliRunner()
+  result = runner.invoke(cli, ['scale', 'myapp', '1', '2', '--region=aa-fakeregion-1'],
+                         catch_exceptions=False)
+  assert 'Min instance number was set to 0. Overwriting it' in result.output
 
 def test_wait(monkeypatch):
     cf = MagicMock()

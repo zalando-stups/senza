@@ -1964,7 +1964,7 @@ def respawn_instances(stack_ref, inplace, force, batch_size_percentage, region):
 @click.option(
     "--min_size",
     metavar="MIN_SIZE",
-    type=click.IntRange(0,100, clamp=True),
+    type=click.IntRange(0, 100, clamp=True),
     help="Define the MinSize to update the AutoScalingGroup.")
 @click.option(
     "-f", "--force", is_flag=True, help="Force scaling multiple stacks if needed"

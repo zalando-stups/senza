@@ -2051,7 +2051,7 @@ def scale_auto_scaling_group(asg, asg_name, desired_capacity):
                 kwargs["MinSize"] = desired_capacity
                 info(
                     "Min instance number was set to 0. Overwriting it with "
-                    "desired capicity of {} to prevent unexpected downscaling.".format(desired_capacity)
+                    "desired capacity of {} to prevent unexpected downscaling.".format(desired_capacity)
                 )
             if desired_capacity < group["MinSize"]:
                 kwargs["MinSize"] = desired_capacity

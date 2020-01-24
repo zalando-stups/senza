@@ -1984,7 +1984,7 @@ def scale(stack_ref, region, desired_capacity, force):
     asg = BotoClientProxy("autoscaling", region)
     for group in get_auto_scaling_groups_and_elasti_groups(stacks, region):
         if group["type"] == AUTO_SCALING_GROUP_TYPE:
-            scale_auto_scaling_group(asg, group["resource_id"], desired_capacity)
+            scale_auto_scaling_group(asg, group["resource_id"], desired_capacity, force)
         elif group["type"] == ELASTIGROUP_RESOURCE_TYPE:
             scale_elastigroup(
                 group["resource_id"], group["stack_name"], desired_capacity, region
@@ -2032,7 +2032,7 @@ def scale_elastigroup(elastigroup_id, stack_name, desired_capacity, region):
                 )
 
 
-def scale_auto_scaling_group(asg, asg_name, desired_capacity):
+def scale_auto_scaling_group(asg, asg_name, desired_capacity, force):
     """
     Commands to scale an AWS Auto Scaling Group
     """
@@ -2048,11 +2048,14 @@ def scale_auto_scaling_group(asg, asg_name, desired_capacity):
         else:
             kwargs = {}
             if group["MinSize"] == 0 and desired_capacity > group["MinSize"]:
-                kwargs["MinSize"] = desired_capacity
                 info(
-                    "Min instance number was set to 0. Overwriting it with "
-                    "desired capacity of {} to prevent unexpected downscaling.".format(desired_capacity)
+                    "Min instance number was set to 0 previously. Please "
+                    "overwrite the MinSize by using --force to overwrite the "
+                    "MinSize with the desired capacity of {} to prevent "
+                    "unexpected downscaling.".format(desired_capacity)
                 )
+                if force:
+                    kwargs["MinSize"] = desired_capacity
             if desired_capacity < group["MinSize"]:
                 kwargs["MinSize"] = desired_capacity
             if desired_capacity > group["MaxSize"]:

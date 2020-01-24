@@ -1802,7 +1802,7 @@ def test_scale_with_overwriting_zero_minsize(monkeypatch):
   runner = CliRunner()
   result = runner.invoke(cli, ['scale', 'myapp', '1', '2', '--region=aa-fakeregion-1'],
                          catch_exceptions=False)
-  assert 'Min instance number was set to 0. Overwriting it' in result.output
+  assert 'Min instance number was set to 0 previously' in result.output
 
 def test_wait(monkeypatch):
     cf = MagicMock()

@@ -183,13 +183,66 @@ def respawn_elastigroup(
     Respawn all instances in the ElastiGroup.
     """
 
+    spotinst_account = elastigroup_api.get_spotinst_account_data(region, stack_name)
+
+    stateful_instances = elastigroup_api.get_stateful_instances(elastigroup_id, spotinst_account)
+    if stateful_instances:
+        respawn_stateful_elastigroup(elastigroup_id, stack_name, batch_size, stateful_instances, spotinst_account)
+    else:
+        respawn_stateless_elastigroup(elastigroup_id, stack_name, batch_size, spotinst_account)
+
+
+def respawn_stateful_elastigroup(
+    elastigroup_id: str, stack_name: str, batch_size: int, stateful_instances: list, spotinst_account, sleep_sec=10
+):
+    """
+    Recycles stateful instances of the ElastiGroup one by one.
+    """
+
+    if batch_size is not None:
+        raise Exception("Batch size is not supported when respawning stateful ElastiGroups")
+
+    info(
+        "Recycling {} stateful instances for ElastiGroup {} (ID {})".format(
+            len(stateful_instances), stack_name, elastigroup_id
+        )
+    )
+    for instance in sorted(stateful_instances, key=lambda i: i['privateIp']):
+        info(
+            "Recycling stateful instance {} ({} | {})".format(
+                instance['id'], instance['instanceId'], instance['privateIp']
+            )
+        )
+        elastigroup_api.recycle_stateful_instance(elastigroup_id, instance['id'], spotinst_account)
+
+        with Action("Waiting for instance to be recycled by SpotInst") as act:
+            state = None
+            while state != elastigroup_api.STATEFUL_STATE_ACTIVE:
+                time.sleep(sleep_sec)
+                act.progress()
+                #
+                # SpotInst offers no API to fetch a stateful instance by id,
+                # so we have to list them all and scan.  This is ugly...
+                #
+                si = elastigroup_api.get_stateful_instances(elastigroup_id, spotinst_account)
+                for i in si:
+                    if i['id'] == instance['id']:
+                        state = i['state']
+                        break
+
+
+def respawn_stateless_elastigroup(
+    elastigroup_id: str, stack_name: str, batch_size: int, spotinst_account
+):
+    """
+    Start a deployment of the ElastiGroup and wait for it to complete.
+    """
+
     if batch_size is None or batch_size < 1:
         batch_size = DEFAULT_BATCH_SIZE
 
-    spotinst_account = elastigroup_api.get_spotinst_account_data(region, stack_name)
-
     info(
-        "Redeploying the cluster for ElastiGroup {} (ID {})".format(
+        "Redeploying instances for ElastiGroup {} (ID {})".format(
             stack_name, elastigroup_id
         )
     )

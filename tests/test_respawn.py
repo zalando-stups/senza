@@ -1,6 +1,7 @@
+import copy
 
 from unittest.mock import MagicMock
-from senza.respawn import respawn_auto_scaling_group, respawn_elastigroup
+from senza.respawn import respawn_auto_scaling_group, respawn_elastigroup, respawn_stateful_elastigroup
 from senza.spotinst.components.elastigroup_api import SpotInstAccountData
 
 
@@ -64,7 +65,67 @@ def test_respawn_auto_scaling_group_without_elb(monkeypatch):
     respawn_auto_scaling_group('myasg', 'myregion')
 
 
-def test_respawn_elastigroup(monkeypatch):
+def test_respawn_elastigroup_with_stateful_instances(monkeypatch):
+    elastigroup_id = 'sig-xfy'
+    stack_name = 'my-app-stack'
+    batch_size = None
+
+    spotinst_account = SpotInstAccountData('act-zwk', 'fake-token')
+
+    execution_data = {
+        'runs': 0,
+        'busy_instance': None,
+        'instances_recycled': [],
+        'instances': [{
+            'id': 'ssi-1abc9',
+            'instanceId': 'i-abcdef123',
+            'privateIp': '172.31.0.0',
+            'state': 'ACTIVE'
+        }, {
+            'id': 'ssi-9xyz1',
+            'instanceId': 'i-123defabc',
+            'privateIp': '172.31.255.0',
+            'state': 'ACTIVE'
+        }]
+    }
+    def get_stateful_instances(*args):
+        execution_data['runs'] += 1
+        if execution_data['busy_instance'] and execution_data['runs'] > 5:
+            execution_data['instances_recycled'].append(execution_data['busy_instance']['id'])
+            execution_data['busy_instance']['state'] = 'ACTIVE'
+            execution_data['busy_instance'] = None
+            execution_data['runs'] = 0
+
+        # return a snapshot of our internal state to avoid surprises
+        return copy.deepcopy(execution_data['instances'])
+
+    monkeypatch.setattr('senza.spotinst.components.elastigroup_api.get_stateful_instances', get_stateful_instances)
+
+    def recycle_stateful_instance(gid, ssi, acc):
+        assert execution_data['busy_instance'] is None, "don't recycle another instance before done with the busy one"
+
+        for i in execution_data['instances']:
+            if i['id'] == ssi:
+                assert i['state'] == 'ACTIVE'
+                i['state'] = 'RECYCLING'
+                execution_data['busy_instance'] = i
+                return [{'code': 200, 'message': 'OK'}]
+
+        assert False, "stateful instance not found: {}".format(ssi)
+
+    monkeypatch.setattr(
+        'senza.spotinst.components.elastigroup_api.recycle_stateful_instance',
+        recycle_stateful_instance
+    )
+
+    respawn_stateful_elastigroup(
+        elastigroup_id, stack_name, batch_size, get_stateful_instances(), spotinst_account, sleep_sec=0.1
+    )
+
+    assert execution_data['instances_recycled'] == ['ssi-1abc9', 'ssi-9xyz1']
+
+
+def test_respawn_elastigroup_no_stateful_instances(monkeypatch):
     elastigroup_id = 'sig-xfy'
     stack_name = 'my-app-stack'
     region = 'my-region'
@@ -75,6 +136,11 @@ def test_respawn_elastigroup(monkeypatch):
     spotinst_account_mock.return_value = spotinst_account
 
     monkeypatch.setattr('senza.spotinst.components.elastigroup_api.get_spotinst_account_data', spotinst_account_mock)
+
+    get_stateful_instances_output = []
+    get_stateful_instances_output_mock = MagicMock()
+    get_stateful_instances_output_mock.return_value = get_stateful_instances_output
+    monkeypatch.setattr('senza.spotinst.components.elastigroup_api.get_stateful_instances', get_stateful_instances_output_mock)
 
     deploy_output = [{
         'id': 'deploy-1'

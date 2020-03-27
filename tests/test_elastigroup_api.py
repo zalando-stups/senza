@@ -4,8 +4,9 @@ from mock import mock
 from pytest import raises
 
 from senza.components.elastigroup import ELASTIGROUP_RESOURCE_TYPE
-from senza.spotinst.components.elastigroup_api import update_capacity, get_elastigroup, patch_elastigroup, deploy, \
-    deploy_status, SPOTINST_API_URL, SpotInstAccountData, get_spotinst_account_data
+from senza.spotinst.components.elastigroup_api import update_capacity, get_elastigroup, get_stateful_instances, \
+    recycle_stateful_instance, patch_elastigroup, deploy, deploy_status, SPOTINST_API_URL, SpotInstAccountData, \
+    get_spotinst_account_data
 
 
 def test_update_capacity():
@@ -63,6 +64,57 @@ def test_get_elastigroup():
         group = get_elastigroup(elastigroup_id, spotinst_account_data)[0]
         assert group['id'] == elastigroup_id
         assert group['name'] == 'my-app-1'
+
+
+def test_get_stateful_instances():
+    instances = {
+        'response': {
+            'items': [{
+                'id': 'ssi-abc123',
+                'instanceId': 'i-321cba',
+            }, {
+                'id': 'ssi-def456',
+                'instanceId': 'i-456def',
+            }]
+        }
+    }
+
+    elastigroup_id = 'sig-xfy'
+    spotinst_account_data = SpotInstAccountData('act-zwk', 'fake-token')
+    with responses.RequestsMock() as rsps:
+        rsps.add(rsps.GET,
+                 '{}/aws/ec2/group/{}/statefulInstance?accountId={}'.format(
+                     SPOTINST_API_URL, elastigroup_id, spotinst_account_data.account_id
+                 ),
+                 status=200,
+                 json=instances)
+
+        instances = get_stateful_instances(elastigroup_id, spotinst_account_data)
+        assert instances[0]['id'] == 'ssi-abc123'
+        assert instances[1]['id'] == 'ssi-def456'
+
+
+def test_recycle_stateful_instance():
+    recycle_response = {
+        'response': {
+            'status': {
+                'code': 200
+            }
+        }
+    }
+    elastigroup_id = 'sig-xfy'
+    stateful_instance_id = 'ssi-abcdef1'
+    spotinst_account_data = SpotInstAccountData('act-zwk', 'fake-token')
+    with responses.RequestsMock() as rsps:
+        rsps.add(rsps.PUT,
+                 '{}/aws/ec2/group/{}/statefulInstance/{}/recycle?accountId={}'.format(
+                     SPOTINST_API_URL, elastigroup_id, stateful_instance_id, spotinst_account_data.account_id
+                 ),
+                 status=200,
+                 json=recycle_response)
+
+        recycle_response = recycle_stateful_instance(elastigroup_id, stateful_instance_id, spotinst_account_data)
+        assert recycle_response['code'] == 200
 
 
 def test_patch_elastigroup():

@@ -1933,7 +1933,7 @@ def patch_spotinst_elastigroup(properties, elastigroup_id, region, stack_name):
     metavar="PERCENTAGE",
     type=click.IntRange(0, 100, clamp=True),
     help="Percentage (int value) of the ElastiGroup cluster that is respawned in each step."
-    " Valid only for ElastiGroups. The default value for this of 20.",
+    " Valid only for stateless ElastiGroups. The default value for this of 20.",
 )
 @region_option
 @stacktrace_visible_option

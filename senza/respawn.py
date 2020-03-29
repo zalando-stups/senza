@@ -202,13 +202,16 @@ def respawn_stateful_elastigroup(
     if batch_size is not None:
         raise Exception("Batch size is not supported when respawning stateful ElastiGroups")
 
+    if not stateful_elastigroup_ready(stateful_instances):
+        raise Exception(
+            "Stateful ElastiGroup {} is not ready: some instances are not in the ACTIVE state".format(elastigroup_id)
+        )
+
     info(
         "Recycling {} stateful instances for ElastiGroup {} (ID {})".format(
             len(stateful_instances), stack_name, elastigroup_id
         )
     )
-    if not stateful_elastigroup_ready(stateful_instances):
-        wait_for_stateful_elastigroup(elastigroup_id, spotinst_account, sleep_sec)
 
     for instance in sorted(stateful_instances, key=lambda i: i['privateIp']):
         info(

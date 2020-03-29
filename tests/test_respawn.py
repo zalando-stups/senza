@@ -82,8 +82,7 @@ def test_respawn_elastigroup_with_stateful_instances(monkeypatch):
             'id': 'ssi-9xyz1',
             'instanceId': 'i-123defabc',
             'privateIp': '172.31.255.0',
-            'state': 'RECYCLING',
-            '_ticks_left': 2
+            'state': 'ACTIVE'
         }],
         'instances_waited_for': [],
         'recycle_triggered_for': [],
@@ -113,7 +112,7 @@ def test_respawn_elastigroup_with_stateful_instances(monkeypatch):
             if i['id'] == ssi:
                 i['state'] = 'RECYCLING'
                 i['_ticks_left'] = 5
-                execution_data['recycled_triggered_for'].append(i['id'])
+                execution_data['recycle_triggered_for'].append(i['id'])
                 return [{'code': 200, 'message': 'OK'}]
 
     monkeypatch.setattr(
@@ -125,8 +124,8 @@ def test_respawn_elastigroup_with_stateful_instances(monkeypatch):
         elastigroup_id, stack_name, batch_size, get_stateful_instances(), spotinst_account, sleep_sec=0.1
     )
 
-    assert execution_data['instances_waited_for'] == ['ssi-9xyz1', 'ssi-1abc9', 'ssi-9xyz1']
-    assert execution_data['recycled_triggered_for'] == ['ssi-1abc9', 'ssi-9xyz1']
+    assert execution_data['instances_waited_for'] == ['ssi-1abc9', 'ssi-9xyz1']
+    assert execution_data['recycle_triggered_for'] == ['ssi-1abc9', 'ssi-9xyz1']
 
 
 def test_respawn_elastigroup_no_stateful_instances(monkeypatch):

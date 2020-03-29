@@ -1935,9 +1935,14 @@ def patch_spotinst_elastigroup(properties, elastigroup_id, region, stack_name):
     help="Percentage (int value) of the ElastiGroup cluster that is respawned in each step."
     " Valid only for stateless ElastiGroups. The default value for this of 20.",
 )
+@click.option(
+    "--batch-per-subnet",
+    is_flag=True,
+    help="Recycle ElastiGroup instances in batches per subnet. Valid only for stateful ElastiGroups.",
+)
 @region_option
 @stacktrace_visible_option
-def respawn_instances(stack_ref, inplace, force, batch_size_percentage, region):
+def respawn_instances(stack_ref, inplace, force, batch_size_percentage, batch_per_subnet, region):
     """Replace all EC2 instances in Auto Scaling Group(s)
 
     Performs a rolling update to prevent downtimes."""
@@ -1954,7 +1959,7 @@ def respawn_instances(stack_ref, inplace, force, batch_size_percentage, region):
             )
         elif group["type"] == ELASTIGROUP_RESOURCE_TYPE:
             respawn.respawn_elastigroup(
-                group["resource_id"], group["stack_name"], region, batch_size_percentage
+                group["resource_id"], group["stack_name"], region, batch_size_percentage, batch_per_subnet
             )
 
 

@@ -68,64 +68,119 @@ def test_respawn_auto_scaling_group_without_elb(monkeypatch):
 def test_respawn_elastigroup_with_stateful_instances(monkeypatch):
     elastigroup_id = 'sig-xfy'
     stack_name = 'my-app-stack'
+    region = 'my-region'
     batch_size = None
 
     spotinst_account = SpotInstAccountData('act-zwk', 'fake-token')
+    spotinst_account_mock = MagicMock()
+    spotinst_account_mock.return_value = spotinst_account
 
-    execution_data = {
-        'instances': [{
-            'id': 'ssi-1abc9',
-            'instanceId': 'i-abcdef123',
-            'privateIp': '172.31.0.0',
-            'state': 'ACTIVE'
-        }, {
-            'id': 'ssi-9xyz1',
-            'instanceId': 'i-123defabc',
-            'privateIp': '172.31.255.0',
-            'state': 'ACTIVE'
-        }],
-        'instances_waited_for': [],
-        'recycle_triggered_for': [],
-    }
+    monkeypatch.setattr('senza.spotinst.components.elastigroup_api.get_spotinst_account_data', spotinst_account_mock)
+
+    instances = [{
+        'id': 'ssi-1abc9',
+        'instanceId': 'i-abcdef123',
+        'privateIp': '172.31.0.0',
+        'state': 'ACTIVE',
+        '_subnetId': 'subnet-abc'
+    }, {
+        'id': 'ssi-9xyz1',
+        'instanceId': 'i-123defabc',
+        'privateIp': '172.31.255.0',
+        'state': 'ACTIVE',
+        '_subnetId': 'subnet-def'
+    }, {
+        'id': 'ssi-2def8',
+        'instanceId': 'i-def321cba',
+        'privateIp': '172.31.128.0',
+        'state': 'ACTIVE',
+        '_subnetId': 'subnet-abc'
+    }]
+    instances_waited_for = []
+    recycle_triggered_for = []
+
     def get_stateful_instances(*args):
-        recycling_instances = [i for i in execution_data['instances']
-                               if i['state'] == 'RECYCLING']
+        recycling_instances = [i for i in instances if i['state'] == 'RECYCLING']
         for i in recycling_instances:
             i['_ticks_left'] -= 1
             if i['_ticks_left'] == 0:
                 i['state'] = 'ACTIVE'
-                execution_data['instances_waited_for'].append(i['id'])
+                instances_waited_for.append(i['id'])
 
         # return a snapshot of our internal state to avoid surprises
-        return copy.deepcopy(execution_data['instances'])
+        return copy.deepcopy(instances)
 
     monkeypatch.setattr('senza.spotinst.components.elastigroup_api.get_stateful_instances', get_stateful_instances)
 
     def recycle_stateful_instance(gid, ssi, acc):
-        assert all(i['state'] == 'ACTIVE' for i in execution_data['instances']), \
-            "all instances should be in ACTIVE state before triggering recycle"
-
-        assert any(i['id'] == ssi for i in execution_data['instances']), \
+        assert any(i['id'] == ssi for i in instances), \
             "stateful instance must be on the list for this group".format(ssi)
 
-        for i in execution_data['instances']:
+        in_subnet = None
+        recycle_triggered_for.append(ssi)
+        for i in instances:
             if i['id'] == ssi:
                 i['state'] = 'RECYCLING'
                 i['_ticks_left'] = 5
-                execution_data['recycle_triggered_for'].append(i['id'])
-                return [{'code': 200, 'message': 'OK'}]
+                in_subnet = i['_subnetId']
+                break
+
+        assert all(i['_subnetId'] == in_subnet for i in instances if i['state'] == 'RECYCLING'), \
+            "all recycling instances should be in the same subnet"
+
+        return [{'code': 200, 'message': 'OK'}]
 
     monkeypatch.setattr(
         'senza.spotinst.components.elastigroup_api.recycle_stateful_instance',
         recycle_stateful_instance
     )
 
-    respawn_stateful_elastigroup(
-        elastigroup_id, stack_name, batch_size, get_stateful_instances(), spotinst_account, sleep_sec=0.1
-    )
+    ec2_instances = {
+        'Reservations': [{
+            'Instances': [{
+                'InstanceId': 'i-def321cba',
+                'Placement': {
+                    'AvailabilityZone': 'my-region-a'
+                },
+                'SubnetId': 'subnet-abc'
+            }, {
+                'InstanceId': 'i-123defabc',
+                'Placement': {
+                    'AvailabilityZone': 'my-region-b'
+                },
+                'SubnetId': 'subnet-def'
+            }, {
+                'InstanceId': 'i-abcdef123',
+                'Placement': {
+                    'AvailabilityZone': 'my-region-a'
+                },
+                'SubnetId': 'subnet-abc'
+            }]
+        }]
+    }
+    ec2 = MagicMock()
+    ec2.describe_instances.return_value = ec2_instances
+    services = {'ec2': ec2}
+    def client(service, *args):
+        return services[service]
+    monkeypatch.setattr('boto3.client', client)
+    monkeypatch.setattr('time.sleep', lambda s: s)
 
-    assert execution_data['instances_waited_for'] == ['ssi-1abc9', 'ssi-9xyz1']
-    assert execution_data['recycle_triggered_for'] == ['ssi-1abc9', 'ssi-9xyz1']
+    batch_per_subnet = False
+    respawn_elastigroup(elastigroup_id, stack_name, region, batch_size, batch_per_subnet)
+
+    assert instances_waited_for  == ['ssi-1abc9', 'ssi-2def8', 'ssi-9xyz1']
+    assert recycle_triggered_for == ['ssi-1abc9', 'ssi-2def8', 'ssi-9xyz1']
+
+    # now run the same test, but this time with batching
+    instances_waited_for.clear()
+    recycle_triggered_for.clear()
+
+    batch_per_subnet = True
+    respawn_elastigroup(elastigroup_id, stack_name, region, batch_size, batch_per_subnet)
+
+    assert instances_waited_for  == ['ssi-1abc9', 'ssi-2def8', 'ssi-9xyz1']
+    assert recycle_triggered_for == ['ssi-1abc9', 'ssi-2def8', 'ssi-9xyz1']
 
 
 def test_respawn_elastigroup_no_stateful_instances(monkeypatch):
@@ -133,6 +188,7 @@ def test_respawn_elastigroup_no_stateful_instances(monkeypatch):
     stack_name = 'my-app-stack'
     region = 'my-region'
     batch_size = 35
+    batch_per_subnet = False
 
     spotinst_account = SpotInstAccountData('act-zwk', 'fake-token')
     spotinst_account_mock = MagicMock()
@@ -173,7 +229,7 @@ def test_respawn_elastigroup_no_stateful_instances(monkeypatch):
             }
         }]
     monkeypatch.setattr('senza.spotinst.components.elastigroup_api.deploy_status', deploy_status)
-    respawn_elastigroup(elastigroup_id, stack_name, region, batch_size)
+    respawn_elastigroup(elastigroup_id, stack_name, region, batch_size, batch_per_subnet)
 
     assert execution_data['runs'] == 2
     assert execution_data['percentage'] == 100

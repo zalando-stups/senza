@@ -73,9 +73,6 @@ def test_respawn_elastigroup_with_stateful_instances(monkeypatch):
     spotinst_account = SpotInstAccountData('act-zwk', 'fake-token')
 
     execution_data = {
-        'runs': 0,
-        'busy_instance': None,
-        'instances_recycled': [],
         'instances': [{
             'id': 'ssi-1abc9',
             'instanceId': 'i-abcdef123',
@@ -85,16 +82,20 @@ def test_respawn_elastigroup_with_stateful_instances(monkeypatch):
             'id': 'ssi-9xyz1',
             'instanceId': 'i-123defabc',
             'privateIp': '172.31.255.0',
-            'state': 'ACTIVE'
-        }]
+            'state': 'RECYCLING',
+            '_ticks_left': 2
+        }],
+        'instances_waited_for': [],
+        'recycle_triggered_for': [],
     }
     def get_stateful_instances(*args):
-        execution_data['runs'] += 1
-        if execution_data['busy_instance'] and execution_data['runs'] > 5:
-            execution_data['instances_recycled'].append(execution_data['busy_instance']['id'])
-            execution_data['busy_instance']['state'] = 'ACTIVE'
-            execution_data['busy_instance'] = None
-            execution_data['runs'] = 0
+        recycling_instances = [i for i in execution_data['instances']
+                               if i['state'] == 'RECYCLING']
+        for i in recycling_instances:
+            i['_ticks_left'] -= 1
+            if i['_ticks_left'] == 0:
+                i['state'] = 'ACTIVE'
+                execution_data['instances_waited_for'].append(i['id'])
 
         # return a snapshot of our internal state to avoid surprises
         return copy.deepcopy(execution_data['instances'])
@@ -102,16 +103,18 @@ def test_respawn_elastigroup_with_stateful_instances(monkeypatch):
     monkeypatch.setattr('senza.spotinst.components.elastigroup_api.get_stateful_instances', get_stateful_instances)
 
     def recycle_stateful_instance(gid, ssi, acc):
-        assert execution_data['busy_instance'] is None, "don't recycle another instance before done with the busy one"
+        assert all(i['state'] == 'ACTIVE' for i in execution_data['instances']), \
+            "all instances should be in ACTIVE state before triggering recycle"
+
+        assert any(i['id'] == ssi for i in execution_data['instances']), \
+            "stateful instance must be on the list for this group".format(ssi)
 
         for i in execution_data['instances']:
             if i['id'] == ssi:
-                assert i['state'] == 'ACTIVE'
                 i['state'] = 'RECYCLING'
-                execution_data['busy_instance'] = i
+                i['_ticks_left'] = 5
+                execution_data['recycled_triggered_for'].append(i['id'])
                 return [{'code': 200, 'message': 'OK'}]
-
-        assert False, "stateful instance not found: {}".format(ssi)
 
     monkeypatch.setattr(
         'senza.spotinst.components.elastigroup_api.recycle_stateful_instance',
@@ -122,7 +125,8 @@ def test_respawn_elastigroup_with_stateful_instances(monkeypatch):
         elastigroup_id, stack_name, batch_size, get_stateful_instances(), spotinst_account, sleep_sec=0.1
     )
 
-    assert execution_data['instances_recycled'] == ['ssi-1abc9', 'ssi-9xyz1']
+    assert execution_data['instances_waited_for'] == ['ssi-9xyz1', 'ssi-1abc9', 'ssi-9xyz1']
+    assert execution_data['recycled_triggered_for'] == ['ssi-1abc9', 'ssi-9xyz1']
 
 
 def test_respawn_elastigroup_no_stateful_instances(monkeypatch):

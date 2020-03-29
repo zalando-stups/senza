@@ -207,6 +207,9 @@ def respawn_stateful_elastigroup(
             len(stateful_instances), stack_name, elastigroup_id
         )
     )
+    if not stateful_elastigroup_ready(stateful_instances):
+        wait_for_stateful_elastigroup(elastigroup_id, spotinst_account, sleep_sec)
+
     for instance in sorted(stateful_instances, key=lambda i: i['privateIp']):
         info(
             "Recycling stateful instance {} ({} | {})".format(
@@ -214,21 +217,24 @@ def respawn_stateful_elastigroup(
             )
         )
         elastigroup_api.recycle_stateful_instance(elastigroup_id, instance['id'], spotinst_account)
+        wait_for_stateful_elastigroup(elastigroup_id, spotinst_account, sleep_sec)
 
-        with Action("Waiting for instance to be recycled by SpotInst") as act:
-            state = None
-            while state != elastigroup_api.STATEFUL_STATE_ACTIVE:
-                time.sleep(sleep_sec)
-                act.progress()
-                #
-                # SpotInst offers no API to fetch a stateful instance by id,
-                # so we have to list them all and scan.  This is ugly...
-                #
-                si = elastigroup_api.get_stateful_instances(elastigroup_id, spotinst_account)
-                for i in si:
-                    if i['id'] == instance['id']:
-                        state = i['state']
-                        break
+
+def stateful_elastigroup_ready(stateful_instances: list):
+    return all(i['state'] == elastigroup_api.STATEFUL_STATE_ACTIVE for i in stateful_instances)
+
+
+def wait_for_stateful_elastigroup(elastigroup_id: str, spotinst_account, sleep_sec: float):
+    """
+    Waits for all stateful instances of the ElastiGroup to be in the ACTIVE state.
+    """
+    with Action("Waiting for all stateful instances to be in the ACTIVE state") as act:
+        while True:
+            time.sleep(sleep_sec)
+            act.progress()
+            stateful_instances = elastigroup_api.get_stateful_instances(elastigroup_id, spotinst_account)
+            if stateful_elastigroup_ready(stateful_instances):
+                break
 
 
 def respawn_stateless_elastigroup(

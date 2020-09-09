@@ -21,7 +21,8 @@ Senza
 .. image:: https://img.shields.io/pypi/l/stups-senza.svg
    :target: https://pypi.python.org/pypi/stups-senza/
    :alt: License
-
+   
+**THIS PROJECT IS NOT ACTIVELY MAINTAINED ANYMORE!**
 
 Senza is a command line tool that enables you to generate and execute
 `AWS CloudFormation`_ templates in a sane, simple way. With Senza, you

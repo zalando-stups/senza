@@ -86,7 +86,7 @@ HOSTED_ZONE_ZO_NE_DEV = {'Config': {'PrivateZone': False},
 SERVER_CERT_ZO_NE = MagicMock(name='zo-ne')
 SERVER_CERT_ZO_NE.server_certificate_metadata = {'Arn': 'arn:aws:123',
                                                  'ServerCertificateName': 'zo-ne',
-                                                 'Expiration': datetime(2020, 4, 1, 12, 14, 14,
+                                                 'Expiration': datetime(2025, 4, 1, 12, 14, 14,
                                                                         tzinfo=timezone(timedelta(hours=2))),
                                                  'Path': '/',
                                                  'ServerCertificateId': '000',

@@ -266,7 +266,7 @@ def test_unknown_error_show_stacktrace(mock_tempfile, mock_raven):
     senza.error_handling.sentry = senza.error_handling.setup_sentry("test")
     senza.error_handling.HandleExceptions.stacktrace_visible = True
     func = MagicMock(side_effect=Exception("something"))
-    with raises(Exception, message="something"):
+    with raises(Exception):
         senza.error_handling.HandleExceptions(func)()
 
     mock_tempfile.assert_not_called()

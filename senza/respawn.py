@@ -1,6 +1,7 @@
 """
 Functions to scale and respawn Auto Scale Groups
 """
+import collections
 import time
 
 from clickclick import Action, info
@@ -14,6 +15,7 @@ RUNNING_LIFECYCLE_STATES = set(["Pending", "InService", "Rebooting"])
 ELASTIGROUP_TERMINATED_DEPLOY_STATUS = ["stopped", "failed"]
 
 DEFAULT_BATCH_SIZE = 20
+WAIT_FOR_ELASTIGROUP_SEC = 10
 
 
 def get_auto_scaling_group(asg, asg_name: str):
@@ -177,19 +179,117 @@ def respawn_auto_scaling_group(
 
 
 def respawn_elastigroup(
-    elastigroup_id: str, stack_name: str, region: str, batch_size: int
+    elastigroup_id: str, stack_name: str, region: str, batch_size: int, batch_per_subnet: bool
 ):
     """
     Respawn all instances in the ElastiGroup.
     """
 
+    spotinst_account = elastigroup_api.get_spotinst_account_data(region, stack_name)
+
+    stateful_instances = elastigroup_api.get_stateful_instances(elastigroup_id, spotinst_account)
+    if stateful_instances:
+        if batch_size is not None:
+            raise Exception("Batch size is not supported when respawning stateful ElastiGroups")
+
+        respawn_stateful_elastigroup(elastigroup_id, stack_name, region, batch_per_subnet, stateful_instances, spotinst_account)
+    else:
+        if batch_per_subnet:
+            raise Exception("Batch per subnet is not supported when respawning stateless ElastiGroups")
+
+        respawn_stateless_elastigroup(elastigroup_id, stack_name, batch_size, spotinst_account)
+
+
+def respawn_stateful_elastigroup(
+    elastigroup_id: str, stack_name: str, region: str, batch_per_subnet: bool, stateful_instances: list, spotinst_account
+):
+    """
+    Recycles stateful instances of the ElastiGroup.
+    """
+
+    if not stateful_elastigroup_ready(stateful_instances):
+        raise Exception(
+            "Stateful ElastiGroup {} is not ready: some instances are not in the ACTIVE state".format(elastigroup_id)
+        )
+
+    info(
+        "Recycling {} stateful instances for ElastiGroup {} (ID {})".format(
+            len(stateful_instances), stack_name, elastigroup_id
+        )
+    )
+
+    if batch_per_subnet:
+        instances_by_subnet = stateful_elastigroup_instances_by_subnet(region, stateful_instances)
+        for subnet, subnet_instances in sorted(instances_by_subnet.items(), key=lambda item: item[0]):
+            info("Recycling ALL stateful instances in subnet: {}".format(subnet))
+
+            for instance in sorted(subnet_instances, key=lambda i: i['privateIp']):
+                time.sleep(WAIT_FOR_ELASTIGROUP_SEC)
+                recycle_stateful_elastigroup_instance(elastigroup_id, instance, spotinst_account)
+
+            wait_for_stateful_elastigroup(elastigroup_id, spotinst_account)
+
+    else:
+        for instance in sorted(stateful_instances, key=lambda i: i['privateIp']):
+            recycle_stateful_elastigroup_instance(elastigroup_id, instance, spotinst_account)
+            wait_for_stateful_elastigroup(elastigroup_id, spotinst_account)
+
+
+def stateful_elastigroup_instances_by_subnet(region: str, stateful_instances: list):
+    instances_by_subnet = collections.defaultdict(list)
+    instances_by_ec2_id = {i['instanceId']: i for i in stateful_instances}
+
+    ec2 = BotoClientProxy("ec2", region)
+    ec2_instances = ec2.describe_instances(InstanceIds=list(instances_by_ec2_id.keys()))
+    for r in ec2_instances['Reservations']:
+        for i in r['Instances']:
+            subnet = "{} | {}".format(
+                i['Placement']['AvailabilityZone'], i['SubnetId']
+            )
+            instance = instances_by_ec2_id[i['InstanceId']]
+            instances_by_subnet[subnet].append(instance)
+
+    return instances_by_subnet
+
+
+def stateful_elastigroup_ready(stateful_instances: list):
+    return all(i['state'] == elastigroup_api.STATEFUL_STATE_ACTIVE for i in stateful_instances)
+
+
+def wait_for_stateful_elastigroup(elastigroup_id: str, spotinst_account):
+    """
+    Waits for all stateful instances of the ElastiGroup to be in the ACTIVE state.
+    """
+    with Action("Waiting for all stateful instances to be in the ACTIVE state") as act:
+        while True:
+            time.sleep(WAIT_FOR_ELASTIGROUP_SEC)
+            act.progress()
+            stateful_instances = elastigroup_api.get_stateful_instances(elastigroup_id, spotinst_account)
+            if stateful_elastigroup_ready(stateful_instances):
+                break
+
+
+def recycle_stateful_elastigroup_instance(elastigroup_id: str, instance: dict, spotinst_account):
+    info(
+        "Recycling stateful instance {} ({} | {})".format(
+            instance['id'], instance['instanceId'], instance['privateIp']
+        )
+    )
+    elastigroup_api.recycle_stateful_instance(elastigroup_id, instance['id'], spotinst_account)
+
+
+def respawn_stateless_elastigroup(
+    elastigroup_id: str, stack_name: str, batch_size: int, spotinst_account
+):
+    """
+    Start a deployment of the ElastiGroup and wait for it to complete.
+    """
+
     if batch_size is None or batch_size < 1:
         batch_size = DEFAULT_BATCH_SIZE
 
-    spotinst_account = elastigroup_api.get_spotinst_account_data(region, stack_name)
-
     info(
-        "Redeploying the cluster for ElastiGroup {} (ID {})".format(
+        "Redeploying instances for ElastiGroup {} (ID {})".format(
             stack_name, elastigroup_id
         )
     )

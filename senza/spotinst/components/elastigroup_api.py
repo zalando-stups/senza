@@ -14,6 +14,7 @@ DEPLOY_STRATEGY_RESTART = 'RESTART_SERVER'
 DEPLOY_STRATEGY_REPLACE = 'REPLACE_SERVER'
 DEFAULT_CONNECT_TIMEOUT = 9
 DEFAULT_READ_TIMEOUT = 30
+STATEFUL_STATE_ACTIVE = 'ACTIVE'
 
 
 class SpotInstAccountData:
@@ -110,6 +111,56 @@ def get_elastigroup(elastigroup_id, spotinst_account_data):
     groups = data.get("response", {}).get("items", [])
 
     return groups
+
+
+def get_stateful_instances(elastigroup_id, spotinst_account_data):
+    '''
+    Returns a list containing the description of the stateful instances of an ElastiGroup.
+    Exceptions will be thrown for HTTP errors.
+
+    https://docs.spot.io/spotinst-api/elastigroup/amazon-web-services/stateful-api/list-stateful-instances/
+    '''
+    headers = {
+        "Authorization": "Bearer {}".format(spotinst_account_data.access_token),
+        "Content-Type": "application/json"
+    }
+
+    response = requests.get(
+        '{}/aws/ec2/group/{}/statefulInstance?accountId={}'.format(
+            SPOTINST_API_URL, elastigroup_id, spotinst_account_data.account_id
+        ),
+        headers=headers, timeout=(DEFAULT_CONNECT_TIMEOUT, DEFAULT_READ_TIMEOUT))
+    response.raise_for_status()
+    data = response.json()
+    stateful_instances = data.get("response", {}).get("items", [])
+
+    return stateful_instances
+
+
+def recycle_stateful_instance(elastigroup_id, stateful_instance_id, spotinst_account_data):
+    '''
+    Triggers recycling of a single stateful instance of an ElastiGroup.
+    Returns operation status.
+
+    Exceptions will be thrown for HTTP errors.
+
+    https://docs.spot.io/spotinst-api/elastigroup/amazon-web-services/stateful-api/recycle-stateful-instance/
+    '''
+    headers = {
+        "Authorization": "Bearer {}".format(spotinst_account_data.access_token),
+        "Content-Type": "application/json"
+    }
+
+    response = requests.put(
+        '{}/aws/ec2/group/{}/statefulInstance/{}/recycle?accountId={}'.format(
+            SPOTINST_API_URL, elastigroup_id, stateful_instance_id, spotinst_account_data.account_id
+        ),
+        headers=headers, timeout=(DEFAULT_CONNECT_TIMEOUT, DEFAULT_READ_TIMEOUT))
+    response.raise_for_status()
+    data = response.json()
+    status = data.get("response", {}).get("status", {})
+
+    return status
 
 
 def patch_elastigroup(properties, elastigroup_id, spotinst_account_data):

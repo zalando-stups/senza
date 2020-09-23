@@ -1788,6 +1788,53 @@ def test_scale_with_force_confirm(monkeypatch):
                            catch_exceptions=False)
     assert 'Scaling myasg from 1 to 2 instances' in result.output
 
+def test_scale_with_overwriting_zero_minsize(monkeypatch):
+    boto3 = MagicMock()
+    boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',
+                                                          'CreationTime': '2016-06-14'}]}
+    boto3.describe_stack_resources.return_value = {'StackResources': [
+      {'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
+       'PhysicalResourceId': 'myasg',
+       'StackName': 'myapp-1'}]}
+    group = {'AutoScalingGroupName': 'myasg', 'DesiredCapacity': 0, 'MinSize': 0, 'MaxSize': 8}
+    boto3.describe_auto_scaling_groups.return_value = {'AutoScalingGroups': [group]}
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+    runner = CliRunner()
+    result = runner.invoke(cli, ['scale', 'myapp', '1', '2', '--region=aa-fakeregion-1', '--min_size', '1'],
+                           catch_exceptions=False)
+    assert 'Scaling myasg from 0 to 2 instances' in result.output
+
+def test_scale_desired_capacity_smaller_than_min_size(monkeypatch):
+    boto3 = MagicMock()
+    boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',
+                                                          'CreationTime': '2016-06-14'}]}
+    boto3.describe_stack_resources.return_value = {'StackResources': [
+      {'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
+       'PhysicalResourceId': 'myasg',
+       'StackName': 'myapp-1'}]}
+    group = {'AutoScalingGroupName': 'myasg', 'DesiredCapacity': 0, 'MinSize': 0, 'MaxSize': 8}
+    boto3.describe_auto_scaling_groups.return_value = {'AutoScalingGroups': [group]}
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+    runner = CliRunner()
+    result = runner.invoke(cli, ['scale', 'myapp', '1', '2', '--region=aa-fakeregion-1', '--min_size', '4'],
+                           catch_exceptions=False)
+    assert 'Desired capacity must be bigger than specified min_size value' in result.output
+
+def test_scale_with_min_size_zero_without_specifying_it(monkeypatch):
+    boto3 = MagicMock()
+    boto3.list_stacks.return_value = {'StackSummaries': [{'StackName': 'myapp-1',
+                                                          'CreationTime': '2016-06-14'}]}
+    boto3.describe_stack_resources.return_value = {'StackResources': [
+      {'ResourceType': 'AWS::AutoScaling::AutoScalingGroup',
+       'PhysicalResourceId': 'myasg',
+       'StackName': 'myapp-1'}]}
+    group = {'AutoScalingGroupName': 'myasg', 'DesiredCapacity': 0, 'MinSize': 0, 'MaxSize': 8}
+    boto3.describe_auto_scaling_groups.return_value = {'AutoScalingGroups': [group]}
+    monkeypatch.setattr('boto3.client', MagicMock(return_value=boto3))
+    runner = CliRunner()
+    result = runner.invoke(cli, ['scale', 'myapp', '1', '2', '--region=aa-fakeregion-1'],
+                           catch_exceptions=False)
+    assert 'MinSize was set to 0 previously' in result.output
 
 def test_wait(monkeypatch):
     cf = MagicMock()

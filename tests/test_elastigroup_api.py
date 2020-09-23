@@ -265,5 +265,5 @@ def test_get_spotinst_account_data_failure():
 
     with mock.patch('boto3.client') as MockHelper:
         MockHelper.return_value.get_template.return_value = template
-        with raises(click.Abort, message="Expecting click.Abort error"):
+        with raises(click.Abort):
             get_spotinst_account_data('fake-region', 'fake-stack-name')

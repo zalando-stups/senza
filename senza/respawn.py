@@ -192,7 +192,9 @@ def respawn_elastigroup(
         if batch_size is not None:
             raise Exception("Batch size is not supported when respawning stateful ElastiGroups")
 
-        respawn_stateful_elastigroup(elastigroup_id, stack_name, region, batch_per_subnet, stateful_instances, spotinst_account)
+        respawn_stateful_elastigroup(
+            elastigroup_id, stack_name, region, batch_per_subnet, stateful_instances, spotinst_account
+        )
     else:
         if batch_per_subnet:
             raise Exception("Batch per subnet is not supported when respawning stateless ElastiGroups")
@@ -201,7 +203,12 @@ def respawn_elastigroup(
 
 
 def respawn_stateful_elastigroup(
-    elastigroup_id: str, stack_name: str, region: str, batch_per_subnet: bool, stateful_instances: list, spotinst_account
+    elastigroup_id: str,
+    stack_name: str,
+    region: str,
+    batch_per_subnet: bool,
+    stateful_instances: list,
+    spotinst_account
 ):
     """
     Recycles stateful instances of the ElastiGroup.

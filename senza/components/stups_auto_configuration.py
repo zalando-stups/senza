@@ -5,7 +5,7 @@ from senza.utils import ensure_keys
 
 
 def component_stups_auto_configuration(definition, configuration, args, info, force, account_info):
-    configuration = ensure_keys(configuration, "Images", channel.image_mapping, args.region)
+    configuration = ensure_keys(configuration, "Images", taupage.DEFAULT_CHANNEL.image_mapping, args.region)
     component_subnet_auto_configuration(definition, configuration, args, info, force, account_info)
 
     return definition

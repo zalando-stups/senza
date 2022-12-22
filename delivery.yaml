@@ -6,7 +6,9 @@ notifications:
 pipeline:
   - id: build
     type: script
-    overlay: ci/python
+    vm_config:
+      type: linux
+      image: cdp-runtime/python-3.6
     commands:
     - desc: "Install dependencies"
       cmd: pip install -r requirements.txt

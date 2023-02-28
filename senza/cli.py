@@ -2,7 +2,6 @@
 import base64
 import calendar
 import collections
-import configparser
 import datetime
 import ipaddress
 import json
@@ -37,7 +36,6 @@ from clickclick.console import print_table
 from senza.components.elastigroup import ELASTIGROUP_RESOURCE_TYPE
 from .spotinst.components import elastigroup_api
 from .arguments import (
-    GLOBAL_OPTIONS,
     json_output_option,
     output_option,
     parameter_file_option,
@@ -46,6 +44,7 @@ from .arguments import (
     watch_option,
     watchrefresh_option,
     field_option,
+    get_region
 )
 from .aws import (
     StackReference,
@@ -432,27 +431,6 @@ def read_parameter_file(parameter_file):
     return tuple(paras)
 
 
-def get_region(region):
-    if not region:
-        region = GLOBAL_OPTIONS.get("region")
-    if not region:
-        config = configparser.ConfigParser()
-        try:
-            config.read(os.path.expanduser("~/.aws/config"))
-            if "default" in config:
-                region = config["default"]["region"]
-        except Exception:
-            pass
-
-    if not region:
-        raise click.UsageError(
-            "Please specify the AWS region on the "
-            "command line (--region) or in ~/.aws/config"
-        )
-
-    return region
-
-
 def check_credentials(region):
     iam = BotoClientProxy("iam")
     return iam.list_account_aliases()
@@ -523,7 +501,6 @@ def all_with_version(stack_refs: list):
 def list_stacks(region, stack_ref, all, output, field, w, watch):
     """List Cloud Formation stacks"""
 
-    region = get_region(region)
     check_credentials(region)
 
     stack_refs = get_stack_refs(stack_ref)
@@ -652,7 +629,6 @@ def get_classic_load_balancer_metrics(cloudwatch, lb_name, start, now):
 def health(region, stack_ref, all, output, field, w, watch):
     """Show stack health (ELB req/s, ..)"""
 
-    region = get_region(region)
     check_credentials(region)
 
     cloudwatch = BotoClientProxy("cloudwatch", region)
@@ -753,7 +729,6 @@ def create(
 ):
     """Create a new Cloud Formation stack from the given Senza definition file"""
 
-    region = get_region(region)
     data = create_cf_template(
         definition, region, version, parameter, force, parameter_file
     )
@@ -825,7 +800,6 @@ def update(
     """Update an existing Cloud Formation stack from the given Senza
     definition file"""
 
-    region = get_region(region)
     data = create_cf_template(
         definition, region, version, parameter, force, parameter_file
     )
@@ -844,7 +818,6 @@ def update(
 def print_cfjson(definition, region, version, parameter, output, force, parameter_file):
     """Print the generated Cloud Formation template"""
 
-    region = get_region(region)
     data = create_cf_template(
         definition, region, version, parameter, force, parameter_file, pretty=True
     )
@@ -953,7 +926,6 @@ def delete(stack_ref, region, dry_run, force, interactive, ignore_non_existent):
     """Delete a single Cloud Formation stack"""
 
     stack_refs = get_stack_refs(stack_ref)
-    region = get_region(region)
     check_credentials(region)
 
     if not stack_refs:
@@ -1015,7 +987,6 @@ def resources(stack_ref, region, w, watch, output, field):
     """Show all resources of a single Cloud Formation stack"""
 
     stack_refs = get_stack_refs(stack_ref)
-    region = get_region(region)
     check_credentials(region)
     cf = BotoClientProxy("cloudformation", region)
 
@@ -1063,7 +1034,6 @@ def events(stack_ref, region, w, watch, output, field):
     """Show all Cloud Formation events for a single stack"""
 
     stack_refs = get_stack_refs(stack_ref)
-    region = get_region(region)
     check_credentials(region)
     cf = BotoClientProxy("cloudformation", region)
 
@@ -1120,7 +1090,6 @@ def events(stack_ref, region, w, watch, output, field):
 def init(definition_file, region, template, user_variable):
     """Initialize a new Senza definition"""
 
-    region = get_region(region)
     check_credentials(region)
     account_info = AccountArguments(region=region)
 
@@ -1263,7 +1232,6 @@ def instances(
     """List the stack's EC2 instances"""
 
     stack_refs = get_stack_refs(stack_ref)
-    region = get_region(region)
     check_credentials(region)
 
     ec2 = boto3.resource("ec2", region)
@@ -1358,7 +1326,6 @@ def status(stack_ref, region, output, field, w, watch):
     """Show stack status information"""
 
     stack_refs = get_stack_refs(stack_ref)
-    region = get_region(region)
     check_credentials(region)
 
     ec2 = boto3.resource("ec2", region)
@@ -1451,7 +1418,6 @@ def domains(stack_ref, region, output, field, w, watch):
     """List the stack's Route53 domains"""
 
     stack_refs = get_stack_refs(stack_ref)
-    region = get_region(region)
     check_credentials(region)
 
     cf = boto3.resource("cloudformation", region)
@@ -1560,7 +1526,6 @@ def traffic(stack_name, stack_version, percentage, region, output, timeout, inte
     """Route traffic to a specific stack (weighted DNS record)"""
 
     stack_refs = get_stack_refs([stack_name, stack_version])
-    region = get_region(region)
     check_credentials(region)
 
     with OutputFormat(output):
@@ -1593,7 +1558,6 @@ def images(stack_ref, region, output, field, hide_older_than, show_instances):
     """Show all used AMIs and available Taupage AMIs"""
 
     stack_refs = get_stack_refs(stack_ref)
-    region = get_region(region)
     check_credentials(region)
 
     ec2 = boto3.resource("ec2", region)
@@ -1730,7 +1694,6 @@ def console(instance_or_stack_ref, limit, region, w, watch):
         # filter out instances not part of any stack
         filters = [{"Name": "tag-key", "Values": ["aws:cloudformation:stack-name"]}]
 
-    region = get_region(region)
     check_credentials(region)
 
     ec2 = boto3.resource("ec2", region)
@@ -1784,7 +1747,6 @@ def dump(stack_ref, region, output):
     """Dump Cloud Formation template of existing stack"""
 
     stack_refs = get_stack_refs(stack_ref)
-    region = get_region(region)
     check_credentials(region)
 
     cf = BotoClientProxy("cloudformation", region)
@@ -1848,7 +1810,6 @@ def patch(stack_ref, region, image, instance_type, user_data):
     Currently supports patching ASG launch configurations and ElastiGroup groups."""
 
     stack_refs = get_stack_refs(stack_ref)
-    region = get_region(region)
     check_credentials(region)
 
     if image in taupage.CHANNELS:
@@ -1948,7 +1909,6 @@ def respawn_instances(stack_ref, inplace, force, batch_size_percentage, batch_pe
     Performs a rolling update to prevent downtimes."""
 
     stack_refs = get_stack_refs(stack_ref)
-    region = get_region(region)
     check_credentials(region)
 
     stacks = get_stacks(stack_refs, region)
@@ -1980,7 +1940,6 @@ def scale(stack_ref, region, desired_capacity, min_size, force):
     """Scale Auto Scaling Group to desired capacity"""
 
     stack_refs = get_stack_refs(stack_ref)
-    region = get_region(region)
     check_credentials(region)
 
     stacks = get_stacks(stack_refs, region)
@@ -2120,7 +2079,6 @@ def wait(stack_ref, region, deletion, timeout, interval):
     """
 
     stack_refs = get_stack_refs(stack_ref)
-    region = get_region(region)
     cf = BotoClientProxy("cloudformation", region)
 
     target_status = (

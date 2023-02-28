@@ -438,7 +438,7 @@ def gather_user_variables(variables, region, account_info):
         variables['use_ebs'] = True
 
     if variables['use_ebs']:
-        prompt(variables, 'volume_size', 'Database volume size (GB, 10 or more)', default=defaults['volume_size'])
+        prompt(variables, 'volume_size', 'Database volume size (GB, 10 or more)', default=str(defaults['volume_size']))
         prompt(variables, 'volume_type', 'Database volume type (gp2, io1 or standard)',
                default=defaults['volume_type'])
         if variables['volume_type'] == 'io1':

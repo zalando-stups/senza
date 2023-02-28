@@ -13,7 +13,6 @@ import requests
 import senza
 from clickclick import AliasedGroup, warning
 
-from ..arguments import GLOBAL_OPTIONS, region_option
 from ..error_handling import sentry
 
 CONTEXT_SETTINGS = dict(help_option_names=["-h", "--help"])
@@ -132,16 +131,13 @@ def print_version(ctx, param, value):
     is_eager=True,
     help="Print the current version number and exit.",
 )
-@region_option
-def cli(region):
+def cli():
     """
     Senza's root command.
 
-    It checks the version and sets the region global option before executing
-    the sub-commands.
+    Checks the version.
 
     Sub command can be added by using `cli.add_command(SUB_COMMAND_FUNCTION)`
     or using the `@cli.command()` decorator
     """
     check_senza_version(senza.__version__)
-    GLOBAL_OPTIONS["region"] = region

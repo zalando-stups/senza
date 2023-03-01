@@ -104,7 +104,8 @@ class Flake8(Command):
     def run(self):
         from flake8.main.cli import main
 
-        main(['senza'])
+        errno = main(['senza'])
+        sys.exit(errno)
 
 
 def get_install_requirements(path):

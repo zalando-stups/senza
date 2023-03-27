@@ -7,7 +7,7 @@ import inspect
 
 import setuptools
 from setuptools.command.test import test as TestCommand
-from setuptools import setup
+from setuptools import setup, Command
 
 if sys.version_info < (3, 4, 0):
     sys.stderr.write('FATAL: STUPS Senza needs to be run with Python 3.4+\n')
@@ -91,6 +91,23 @@ class PyTest(TestCommand):
         sys.exit(errno)
 
 
+class Flake8(Command):
+
+    user_options = []
+
+    def initialize_options(self):
+        pass
+
+    def finalize_options(self):
+        pass
+
+    def run(self):
+        from flake8.main.cli import main
+
+        errno = main(['senza'])
+        sys.exit(errno)
+
+
 def get_install_requirements(path):
     content = open(os.path.join(__location__, path)).read()
     return [req for req in content.split('\\n') if req != '']
@@ -104,6 +121,7 @@ def setup_package():
     # Assemble additional setup commands
     cmdclass = {}
     cmdclass['test'] = PyTest
+    cmdclass['flake8'] = Flake8
 
     install_reqs = get_install_requirements('requirements.txt')
 

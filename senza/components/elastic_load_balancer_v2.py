@@ -88,7 +88,7 @@ def component_elastic_load_balancer_v2(definition,
         version = '{}-{}'.format(info["StackVersion"],
                                  configuration['NameSuffix'])
         loadbalancer_name = get_load_balancer_name(info["StackName"], version)
-        del(configuration['NameSuffix'])
+        del (configuration['NameSuffix'])
     else:
         loadbalancer_name = get_load_balancer_name(info["StackName"],
                                                    info["StackVersion"])

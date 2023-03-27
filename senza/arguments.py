@@ -6,22 +6,50 @@ Functions and decorators related to command line arguments
 # pylint: disable=locally-disabled, invalid-name
 import boto3.session
 import click
+import configparser
+import os
 
 from .error_handling import HandleExceptions
 
 
-def validate_region(ctx, param, value):  # pylint: disable=locally-disabled, unused-argument
-    """Validate Click region param parameter."""
+def get_region(region):
+    """
+    Ensure region value.
+    If region is not provided, get one from the config file.
+    Raise error if still no region is set at the end.
+    """
+    if not region:
+        config = configparser.ConfigParser()
+        try:
+            config.read(os.path.expanduser("~/.aws/config"))
+            if "default" in config:
+                region = config["default"]["region"]
+        except Exception:
+            pass
 
-    if value is not None:
-        session = boto3.session.Session()
-        valid_regions = session.get_available_regions('cloudformation')
-        if value not in valid_regions:
-            valid_regions.sort()
-            raise click.BadParameter("'{}'. Region must be one of the "
-                                     "following AWS regions:\n"
-                                     "  - {}".format(value,
-                                                     "\n  - ".join(valid_regions)))
+    if not region:
+        raise click.UsageError(
+            "Please specify the AWS region on the "
+            "command line (--region) or in ~/.aws/config"
+        )
+
+    return region
+
+
+def validate_region(ctx, param, value):  # pylint: disable=locally-disabled, unused-argument
+    """Validate Click region parameter."""
+
+    value = get_region(value)  # ensure region is set
+
+    session = boto3.session.Session()
+    valid_regions = session.get_available_regions('cloudformation')
+    if value not in valid_regions:
+        valid_regions.sort()
+        raise click.BadParameter("'{}'. Region must be one of the "
+                                 "following AWS regions:\n"
+                                 "  - {}".format(value,
+                                                 "\n  - ".join(valid_regions)))
+
     return value
 
 
@@ -74,5 +102,3 @@ field_option = click.option('--field',
                             metavar='NAME',
                             multiple=True,
                             help='Specify field to be returned')
-
-GLOBAL_OPTIONS = {}

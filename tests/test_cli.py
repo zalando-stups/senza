@@ -564,6 +564,16 @@ def test_init_opt2(monkeypatch):
     monkeypatch.setattr('boto3.resource', my_resource)
     monkeypatch.setattr('senza.cli.AccountArguments', MagicMock())
 
+    kms_key = {'KeyId': 'key_a',
+               'aliases': ['something'],
+               'Description': 'This is key a',
+               'Arn': 'arn:partition:service:region:account-id:resource-id'}
+    monkeypatch.setattr('senza.templates.postgresapp.list_kms_keys',
+                        MagicMock(return_value=[kms_key]))
+    monkeypatch.setattr('senza.templates.postgresapp.choice',
+                        MagicMock(return_value='{}: {}'.format(kms_key['KeyId'], kms_key['Description'])))
+    monkeypatch.setattr('senza.templates.postgresapp.encrypt', MagicMock(return_value='encrypted_string'))
+
     runner = CliRunner()
 
     with runner.isolated_filesystem():

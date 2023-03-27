@@ -11,7 +11,7 @@ from senza.components.iam_role import get_merged_policies
 from senza.utils import ensure_keys
 
 # properties evaluated by Senza
-SENZA_PROPERTIES = frozenset(["SecurityGroups", "Tags"])
+SENZA_PROPERTIES = frozenset(["SecurityGroups", "Tags", "MetadataOptions"])
 
 # additional CF properties which can be overwritten
 ADDITIONAL_PROPERTIES = {
@@ -78,6 +78,9 @@ def component_auto_scaling_group(
                 "AssociatePublicIpAddress", False
             ),
             "EbsOptimized": configuration.get("EbsOptimized", False),
+            "MetadataOptions": {
+                "HttpTokens": "optional"  # we want to still be able to use IMDSv1
+            },
         },
     }
 

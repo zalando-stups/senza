@@ -743,6 +743,50 @@ def test_component_auto_scaling_group_optional_metric_type():
     assert "FooNetworkAlarmHigh" not in result["Resources"]
 
 
+def test_component_auto_scaling_hardcoded_metadata_http_tokens():
+    # we have MetadataOptions->HttpTokens 'optional' enforcement hardcoded
+    definition = {"Resources": {}}
+    configurations = [
+        {
+            'Name': 'Foo',
+            'InstanceType': 't2.micro',
+            'Image': 'foo',
+        },
+        {
+            'Name': 'Foo',
+            'InstanceType': 't2.micro',
+            'Image': 'foo',
+            'MetadataOptions': {
+                'HttpTokens': 'required',
+            }
+        },
+        {
+            'Name': 'Foo',
+            'InstanceType': 't2.micro',
+            'Image': 'foo',
+            'MetadataOptions': {
+                'HttpTokens': 'optional',
+                'HttpPutResponseHopLimit': 42,
+            }
+        },
+    ]
+
+    args = MagicMock()
+    args.region = "foo"
+    info = {
+        'StackName': 'FooStack',
+        'StackVersion': 'FooVersion'
+    }
+
+    for configuration in configurations:
+        result = component_auto_scaling_group(definition, configuration, args, info, False, MagicMock())
+
+        err_msg = "Failed configuration: {}".format(str(configuration))
+        assert result["Resources"]["FooConfig"]["Properties"]["MetadataOptions"]["HttpTokens"] == \
+            "optional", err_msg
+        assert len(result["Resources"]["FooConfig"]["Properties"]["MetadataOptions"]) == 1, err_msg
+
+
 def test_to_iso8601_duration():
     with pytest.raises(click.UsageError):
         to_iso8601_duration("")
